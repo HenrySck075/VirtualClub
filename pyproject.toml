@@ -1,0 +1,9 @@
+[project]
+name = "virtual-club"
+version = "0.1.0"
+description = "g"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "pyside6-fluent-widgets[full]>=1.11.2",
+]
