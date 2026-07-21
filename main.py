@@ -158,6 +158,7 @@ class ModInterface(ScrollArea):
         self.mainWindow = window
         
         self.name = self.settings.value(f"{modId}/name")
+        self.buildId = self.settings.value(f"{modId}/buildId")
         self.version = self.settings.value(f"{modId}/version")
         self.iconFilename = self.settings.value(f"{modId}/iconFilename")
         self.folder = self.settings.value(f"{modId}/directory")
@@ -382,7 +383,7 @@ class ModInterface(ScrollArea):
         # self.isRenpyGameDir works too because this flag is only reasonable if the mod was for v6
         if self.isRenpyGameDir or not os.path.exists(os.path.join(self.folder, "lib")):
             args.append("-EO")
-        bootstrapperFile = f"{self.modId}.py"
+        bootstrapperFile = f"{self.buildId}.py"
         if not os.path.exists(os.path.join(mountdir, bootstrapperFile)):
             bootstrapperFile = "DDLC.py"
         args.append(os.path.join(mountdir, bootstrapperFile))
@@ -391,9 +392,11 @@ class ModInterface(ScrollArea):
     def onUninstallMod(self):
         print(f"[ModInterface] Purging metadata entries for mod environment: {self.modId}")
         self.mainWindow.mods.remove(self.modId)
-        self.settings.remove(f"{self.modId}/name")
-        self.settings.remove(f"{self.modId}/version")
-        self.settings.remove(f"{self.modId}/iconFilename")
+        allKeys = self.settings.allKeys()
+        for key in allKeys:
+            if key.startswith(f"{self.modId}/"):
+                self.settings.remove(key)
+
         # remove that one .libbivfs folder inside the mod folder created by the fuse module if it exists
         meta_folder = os.path.join(self.folder, ".libbivfs")
         if os.path.exists(meta_folder):
@@ -500,11 +503,11 @@ class MainWindow(FluentWindow):
         lookup_defines(statements)
         print(defines)
         
-        name = defines["config.name"]
-        version = defines["config.version"]
+        name = defines.get("config.name", "Doki Doki Literature Club!") # this rarely happens
+        version = defines.get("config.version", "1.0.0")
         icon = defines["config.window_icon"].removeprefix("/")
-        buildId = defines["build.name"]
-        saveDirectory = defines["config.save_directory"]
+        buildId = defines.get("build.name", "DDLC")
+        saveDirectory = defines.get("config.save_directory", "DDLC")
 
         seed_string = f"{buildId}{name}{saveDirectory}{time.time()}"
         mod_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, seed_string))
@@ -522,6 +525,7 @@ class MainWindow(FluentWindow):
 
         self.writeEntry(mod_uuid, {
             "name": name, 
+            "buildId": buildId,# used to lookup the bootstrapper file
             "directory": directory, 
             "version": version, 
             "isRenpyGameDir": isGameDir,
@@ -629,26 +633,28 @@ class ModEditDialog(MessageBoxBase):
 
         # Update the settings with the new values
         settings = QSettings()
-        new_icon_filename = self.modId + os.path.splitext(self.new_icon_path)[1]
         settings.setValue(f"{self.modId}/name", new_name)
         settings.setValue(f"{self.modId}/version", new_version)
-        settings.setValue(f"{self.modId}/iconFilename", new_icon_filename)
+        if hasattr(self, "new_icon_path"):
+            new_icon_filename = self.modId + os.path.splitext(self.new_icon_path)[1]
+            settings.setValue(f"{self.modId}/iconFilename", new_icon_filename)
+            self.modInterface.iconFilename = new_icon_filename
+            # copy the image file over
+            dest_icon_path = os.path.join(icons_dir, new_icon_filename)
+            shutil.copyfile(self.new_icon_path, dest_icon_path)
+            new_scaled_icon_path = os.path.join(icons_dir, self.modId + ".scaled.png")
+            optimize_window_icon(self.new_icon_path, new_scaled_icon_path)
+
         # Update the mod interface with the new values
         self.modInterface.name = new_name
         self.modInterface.version = new_version
-        self.modInterface.iconFilename = new_icon_filename
-
-        # copy the image file over
-        dest_icon_path = os.path.join(icons_dir, new_icon_filename)
-        shutil.copyfile(self.new_icon_path, dest_icon_path)
-        new_scaled_icon_path = os.path.join(icons_dir, self.modId + ".scaled.png")
-        optimize_window_icon(self.new_icon_path, new_scaled_icon_path)
 
         # Reload the navigation to reflect changes
         mainWindow: MainWindow = self.parent()  # type: ignore
         QTimer.singleShot(0,lambda: mainWindow.reloadNavigation())
         # lmao
         QTimer.singleShot(0,lambda: mainWindow.switchTo([i for i in mainWindow.navs if isinstance(i, ModInterface) and i.modId == self.modId][0]))
+        settings.sync()
         return True
 
 
