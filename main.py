@@ -107,25 +107,8 @@ class GeneralConfigInterface(ScrollArea):
 
         layout.addWidget(baseGameFolderLine)
 
-        # tests
-        mountButton = PushButton(FIF.ADD, "Mount")
-        unmountButton = PushButton(FIF.REMOVE, "Unmount")
-        layout.addWidget(mountButton)
-        mountButton.clicked.connect(self.onMount)
-        layout.addWidget(unmountButton)
-        unmountButton.clicked.connect(self.onUnmount)
         return content
-    
-    def onMount(self):
-        mountdir = "/tmp/ddmd_mount"
-        try: os.mkdir(mountdir)
-        except: pass # TODO: not empty
 
-        self.fuse = ActiveMount()
-        self.fuse.mount(mountdir, LibbiVFS(self.folder, "/home/henrysck/Documents/WoDActTwo-1.1.0-Renpy7Mod/", False))
-    
-    def onUnmount(self):
-        self.fuse.unmount()
 
     def updateInstallationFolder(self, folder):
         if folder:
@@ -362,11 +345,11 @@ class ModInterface(ScrollArea):
 
         # Launch via QProcess so the PySide GUI remains responsive and can track life cycle
         self.process = QProcess()
-        # renpy 6 stuff
         env = QProcessEnvironment.systemEnvironment()
-        if os_type == "Linux":
-            env.insert("MVC_MOD_ID", self.modId)
+        env.insert("MVC_MOD_ID", self.modId)
 
+        # renpy 6 stuff
+        if os_type == "Linux":
             current_ld = env.value("LD_LIBRARY_PATH", "")
             new_path = os.path.dirname(python_exc)
             if current_ld:
@@ -376,7 +359,7 @@ class ModInterface(ScrollArea):
             env.insert("LD_LIBRARY_PATH", combined_ld)
 
         if self.developerEnabled:
-            env.insert("MVC_DEVELOPER", "Just.... uh wait who was that girl's name again?")
+            env.insert("MVC_DEVELOPER", "Just.... uh wait who was that girl's name again? Mon-ika? why is she a squid?")
 
         self.process.setProcessEnvironment(env)
         self.process.setWorkingDirectory(mountdir)
