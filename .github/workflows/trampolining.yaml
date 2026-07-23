@@ -1,0 +1,129 @@
+name: Build and Release Executable
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse3-dev cmake build-essential
+
+      - name: Install System Dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install winfsp -y
+
+      - name: Install uv and Python 3.13
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Sync Project Dependencies
+        run: |
+          uv sync
+
+      - name: Build libbivfs (CMake)
+        run: |
+          cd libbivfs
+          
+          # Extract pybind11's CMake folder path directly from the uv environment
+          PYBIND11_CMAKE_DIR=$(uv run python -c "import pybind11; print(pybind11.get_cmake_dir())")
+          echo "Using pybind11 CMake dir: $PYBIND11_CMAKE_DIR"
+
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -Dpybind11_DIR="$PYBIND11_CMAKE_DIR"
+          cmake --build build --config Release
+
+      - name: Move Built Native Module to Project Root
+        run: |
+          FOUND_LIB=$(find libbivfs/build -type f | grep -E '\.(so|pyd)$' | head -n 1)
+          
+          if [ -z "$FOUND_LIB" ]; then
+            echo "Error: Could not locate built native binary in libbivfs/build"
+            exit 1
+          fi
+          
+          echo "Found compiled binary: $FOUND_LIB"
+          cp "$FOUND_LIB" .
+
+      - name: Build Executable with PyInstaller
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ADD_DATA_SEP=";"
+          else
+            ADD_DATA_SEP=":"
+          fi
+
+          uv run pyinstaller --onefile --noconsole -n VirtualClub --add-data "patches${ADD_DATA_SEP}patches" main.py
+
+      - name: Rename and Prepare Binary
+        run: |
+          mkdir -p bin_out
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            mv dist/VirtualClub.exe bin_out/VirtualClub-windows-x64.exe
+          else
+            mv dist/VirtualClub bin_out/VirtualClub-linux-x64
+          fi
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ runner.os }}
+          path: bin_out/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[release]') && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Create Git Tag and GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: release-${{ github.sha }}
+          name: Release ${{ github.sha }}
+          draft: false
+          prerelease: false
+          files: |
+            release_assets/VirtualClub-windows-x64.exe
+            release_assets/VirtualClub-linux-x64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

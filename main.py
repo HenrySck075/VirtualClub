@@ -10,9 +10,9 @@ from io import BytesIO
 import os, stat
 from typing import Any, Union
 from PySide6.QtGui import QColor, QColorConstants, QIcon, QImage
-from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QLayout, QStackedLayout
-from PySide6.QtCore import QCoreApplication, QEvent, QProcessEnvironment, QSettings, QSize, QStandardPaths, QTimer, Qt, Signal
-from qfluentwidgets import Action, BodyLabel, CaptionLabel, CardWidget, CheckBox, ConfigItem, Dialog, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, Icon, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, PrimaryPushSettingCard, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel
+from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QStackedLayout
+from PySide6.QtCore import QCoreApplication, QProcessEnvironment, QSettings, QSize, QStandardPaths, QTimer, Qt, Signal
+from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, qrouter
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 import sys
 from PIL import Image
@@ -24,13 +24,12 @@ from libbifuse import LibbiVFS, ActiveMount
 from lib.rpa_reader import extract_single_file, read_rpa_index
 
 def get_launcher_root():
-    # If the script is packaged with PyInstaller, sys.frozen will be True
-    if getattr(sys, 'frozen', False):
-        # Path to the directory where the executable is located
-        return os.path.dirname(sys.executable)
-    else:
-        # Path to the directory where main.py resides during normal development
-        return os.path.dirname(os.path.abspath(__file__))
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS # type: ignore
+    except AttributeError:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return base_path
 
 QCoreApplication.setOrganizationName("MetaverseEnterprise")
 QCoreApplication.setOrganizationDomain("henrysck.sh")
@@ -88,16 +87,6 @@ class GeneralConfigInterface(ScrollArea):
         layout.setSpacing(24)
         layout.addWidget(TitleLabel("yo wassup"))
         layout.addWidget(HorizontalSeparator())
-
-        lineEdit = LineEdit()
-        completeItems = [
-            "hi", "hello"
-        ]
-        completer = QCompleter(completeItems, lineEdit)
-        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        completer.setMaxVisibleItems(10)
-        lineEdit.setCompleter(completer)
-        layout.addWidget(lineEdit)
 
         baseGameFolderLine = QWidget()
         layout2 = QHBoxLayout(baseGameFolderLine)
@@ -190,7 +179,24 @@ class PrimarySplitPushSettingCard(SettingCard):
         self.hBoxLayout.addSpacing(16)
         self.button.clicked.connect(self.clicked)
 
+def format_duration(seconds: int):
+    "format: DD days, HH hours, MM minutes and SS seconds"
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    
+    parts = []
 
+    if days > 0:
+        parts.append(f"{days} days")
+    if hours > 0:
+        parts.append(f"{hours} hours")
+    if minutes > 0:
+        parts.append(f"{minutes} minutes")
+    if seconds > 0 or not parts:
+        parts.append(f"{seconds} seconds")
+
+    return ", ".join(parts)
 
 class ModInterface(ScrollArea):
     def __init__(self, window: MainWindow, modId):
@@ -264,6 +270,28 @@ class ModInterface(ScrollArea):
         layout.addWidget(HorizontalSeparator())
 
         # -------------------------------------------------------------------
+        # Straight bs
+        # -------------------------------------------------------------------
+        ptf = os.path.join(self.get_save_dir(), ".mvc_playtime")
+        if os.path.exists(ptf):
+            playtimeLine = QWidget(styleSheet="background-color: transparent")
+            playtimeLayout = QHBoxLayout(playtimeLine)
+            playtimeLayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            i = IconWidget(FIF.DATE_TIME)
+            i.setFixedSize(20,20) #?
+            playtimeLayout.addWidget(i)
+
+            with open(ptf, "r") as f:
+                h = f.read().split()
+                playtime_raw = int(h[0]) # in
+                playtime_active = int(h[1]) # seconds
+            
+            playtimeLayout.addWidget(BodyLabel(f"Session time: {format_duration(playtime_raw)} (Active: {format_duration(playtime_active)})"))
+            
+            layout.addWidget(playtimeLine)
+    
+
+        # -------------------------------------------------------------------
         # Setting Group & Fluent Cards
         # -------------------------------------------------------------------
         modActionsGroup = SettingCardGroup("Mod management", content)
@@ -315,133 +343,139 @@ class ModInterface(ScrollArea):
 
     def launchMod(self, extraEnvs = {}):
         print(f"[ModInterface] Launching mod session via FUSE pipeline: {self.name} (ID: {self.modId})")
-        self.startCard.button.setDisabled(True)
-        self.devModeCard.switchButton.setDisabled(True)
-        self.uninstallCard.button.setDisabled(True)
+
+        def setState(bo: bool):
+            self.startCard.button.setDisabled(bo)
+            self.devModeCard.switchButton.setDisabled(bo)
+            self.uninstallCard.button.setDisabled(bo)
+        setState(True)
+
 
         import platform
         import tempfile
         import os
         from PySide6.QtCore import QProcess
 
-        # Create a unique, platform-agnostic temporary directory to serve as the mount point
-        # tempfile.mkdtemp handles the distinct permission structures of Windows, macOS, and Linux cleanly.
-        mountdir = tempfile.mkdtemp(prefix=f"renpy_mod_{self.modId}_")
+        try:
+            # Create a unique, platform-agnostic temporary directory to serve as the mount point
+            # tempfile.mkdtemp handles the distinct permission structures of Windows, macOS, and Linux cleanly.
+            mountdir = tempfile.mkdtemp(prefix=f"renpy_mod_{self.modId}_")
 
-        launcherRoot = get_launcher_root()
+            launcherRoot = get_launcher_root()
+            print(launcherRoot)
 
-        # magic, but in a nutshell its a delta vfs. exists until the game process exits
-        if self.fuse != None: self.fuse.unmount()
-        self.fuse = fuse = ActiveMount()
-        vfs = LibbiVFS(
-                launcherRoot, self.settings.value("baseGameInstallation"), self.folder, self.isRenpyGameDir,
+            # magic, but in a nutshell its a delta vfs. exists until the game process exits
+            if self.fuse != None: self.fuse.unmount()
+            self.fuse = fuse = ActiveMount()
+            vfs = LibbiVFS(
+                    launcherRoot, self.settings.value("baseGameInstallation"), self.folder, self.isRenpyGameDir,
+                )
+            fuse.mount(
+                mountdir, 
+                vfs 
             )
-        fuse.mount(
-            mountdir, 
-            vfs 
-        )
-        #vfs.enableYapping()
+            #vfs.enableYapping()
 
-        # get the architecture to determine where to look for the python under lib/
-        arch, os_type = platform.architecture()[0], platform.system()
-        
-        python_exc = None
-
-        def set_python_exc(plat):
-            nonlocal python_exc
-            pythonw_exc = "pythonw" + (".exe" if plat.startswith("windows") else "")
-            # python3 (renpy 8)
-            python_exc = os.path.join(mountdir, "lib", f"py3-{plat}", pythonw_exc)
-            if not os.path.exists(python_exc):
-                # fallback to python2 (renpy 7)
-                python_exc = os.path.join(mountdir, "lib", f"py2-{plat}", pythonw_exc)
-                if not os.path.exists(python_exc):
-                    python_exc = os.path.join(mountdir, "lib", plat, pythonw_exc)
-
-        if os_type == "Linux":
-            if arch == "64bit":
-                set_python_exc("linux-x86_64")
-            elif arch == "32bit":
-                set_python_exc("linux-i686")
-        elif os_type == "Windows":
-            if arch == "64bit":
-                set_python_exc("windows-x86_64")
-            elif arch == "32bit":
-                set_python_exc("windows-i686")
-        elif os_type == "Darwin":
-            python_exc = os.path.join(mountdir, f"{self.modId}.app", "Contents", "MacOS", "pythonw")
-        
-        def cleanup():
-            try:
-                fuse.unmount()
-                os.rmdir(mountdir)
-                self.fuse = None
-            except Exception as e:
-                print(f"[ModInterface] Cleanup warning: {e}")
-            finally:
-                self.startCard.button.setDisabled(False)
-                self.uninstallCard.button.setDisabled(False)
-
-
-        if not python_exc or not os.path.exists(python_exc):
-            print(python_exc)
-            cleanup()
-            raise FileNotFoundError(f"Could not find a valid Python executable for {os_type} {arch}.")
-        
-        # Date to Dream Of is one of the release whose linux python executables got their execute bit wiped out somehow
-        if os_type == "Linux":
-            st = os.stat(python_exc)
-            if not (st.st_mode & stat.S_IXUSR):
-                print(f"Adding executable permissions to {python_exc}")
-                # Retain current permissions but add user, group, and other execute permissions
-                os.chmod(python_exc, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-        # Launch via QProcess so the PySide GUI remains responsive and can track life cycle
-        self.process = QProcess()
-        env = QProcessEnvironment.systemEnvironment()
-        env.insert("MVC_MOD_ID", self.modId)
-        for key, value in extraEnvs.items():
-            env.insert(key, value)
-
-        # renpy 6 stuff
-        if os_type == "Linux":
-            current_ld = env.value("LD_LIBRARY_PATH", "")
-            new_path = os.path.dirname(python_exc)
-            if current_ld:
-                combined_ld = f"{new_path}:{current_ld}"
-            else:
-                combined_ld = new_path
-            env.insert("LD_LIBRARY_PATH", combined_ld)
-
-        if self.developerEnabled:
-            env.insert("MVC_DEVELOPER", "Just.... uh wait who was that girl's name again? Mon-ika? why is she a squid?")
-
-        self.process.setProcessEnvironment(env)
-        self.process.setWorkingDirectory(mountdir)
-        printPipe = lambda d, color="": print(f"{color}{d.data().decode('utf-8', errors='replace')}\033[0m", end="") if color else print(d.data().decode('utf-8', errors='replace'), end="")
-        self.process.readyReadStandardOutput.connect(lambda: printPipe(self.process.readAllStandardOutput(), color="\033[31m"))
-        self.process.readyReadStandardError.connect(lambda: printPipe(self.process.readAllStandardError()))
+            # get the architecture to determine where to look for the python under lib/
+            arch, os_type = platform.architecture()[0], platform.system()
             
-        # Ensure cleanup triggers immediately when the game closes
-        def handle_finish(exit_code, exit_status):
-            print(f"[ModInterface] Process exited with code {exit_code} {exit_status}.")
-            if exit_code == 0: cleanup() # leave the folder up for error checking
-            self.startCard.button.setDisabled(False)
-            self.devModeCard.switchButton.setDisabled(False)
-            self.uninstallCard.button.setDisabled(False)
-        self.process.finished.connect(handle_finish)
+            python_exc = None
 
-        args = []
-        # if the mod is a Ren'Py 6 mod (easiest detection is no lib/ in the mod folder, there could be edge case but we'll deal with that later)
-        # add the -EO flag first. idk how that makes python able to find its libs but without the flag it cant.
-        # self.isRenpyGameDir works too because this flag is only reasonable if the mod was for v6
-        if self.isRenpyGameDir or not os.path.exists(os.path.join(self.folder, "lib")):
-            args.append("-EO")
-        bootstrapperFile = f"{self.buildId}.py"
-        if not os.path.exists(os.path.join(mountdir, bootstrapperFile)):
-            bootstrapperFile = "DDLC.py"
-        args.append(os.path.join(mountdir, bootstrapperFile))
-        self.process.start(python_exc, args)
+            def set_python_exc(plat):
+                nonlocal python_exc
+                pythonw_exc = "pythonw" + (".exe" if plat.startswith("windows") else "")
+                # python3 (renpy 8)
+                python_exc = os.path.join(mountdir, "lib", f"py3-{plat}", pythonw_exc)
+                if not os.path.exists(python_exc):
+                    # fallback to python2 (renpy 7)
+                    python_exc = os.path.join(mountdir, "lib", f"py2-{plat}", pythonw_exc)
+                    if not os.path.exists(python_exc):
+                        python_exc = os.path.join(mountdir, "lib", plat, pythonw_exc)
+
+            if os_type == "Linux":
+                if arch == "64bit":
+                    set_python_exc("linux-x86_64")
+                elif arch == "32bit":
+                    set_python_exc("linux-i686")
+            elif os_type == "Windows":
+                if arch == "64bit":
+                    set_python_exc("windows-x86_64")
+                elif arch == "32bit":
+                    set_python_exc("windows-i686")
+            elif os_type == "Darwin":
+                python_exc = os.path.join(mountdir, f"{self.modId}.app", "Contents", "MacOS", "pythonw")
+            
+            def cleanup():
+                try:
+                    fuse.unmount()
+                    os.rmdir(mountdir)
+                    self.fuse = None
+                except Exception as e:
+                    print(f"[ModInterface] Cleanup warning: {e}")
+                finally:
+                    setState(False)
+
+
+            if not python_exc or not os.path.exists(python_exc):
+                print(python_exc)
+                cleanup()
+                raise FileNotFoundError(f"Could not find a valid Python executable for {os_type} {arch}.")
+            
+            # Date to Dream Of is one of the release whose linux python executables got their execute bit wiped out somehow
+            if os_type == "Linux":
+                st = os.stat(python_exc)
+                if not (st.st_mode & stat.S_IXUSR):
+                    print(f"Adding executable permissions to {python_exc}")
+                    # Retain current permissions but add user, group, and other execute permissions
+                    os.chmod(python_exc, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+            # Launch via QProcess so the PySide GUI remains responsive and can track life cycle
+            self.process = QProcess()
+            env = QProcessEnvironment.systemEnvironment()
+            env.insert("MVC_MOD_ID", self.modId)
+            for key, value in extraEnvs.items():
+                env.insert(key, value)
+
+            # renpy 6 stuff
+            if os_type == "Linux":
+                current_ld = env.value("LD_LIBRARY_PATH", "")
+                new_path = os.path.dirname(python_exc)
+                if current_ld:
+                    combined_ld = f"{new_path}:{current_ld}"
+                else:
+                    combined_ld = new_path
+                env.insert("LD_LIBRARY_PATH", combined_ld)
+
+            if self.developerEnabled:
+                env.insert("MVC_DEVELOPER", "Just.... uh wait who was that girl's name again? Mon-ika? why is she a squid?")
+
+            self.process.setProcessEnvironment(env)
+            self.process.setWorkingDirectory(mountdir)
+            printPipe = lambda d, color="": print(f"{color}{d.data().decode('utf-8', errors='replace')}\033[0m", end="") if color else print(d.data().decode('utf-8', errors='replace'), end="")
+            self.process.readyReadStandardOutput.connect(lambda: printPipe(self.process.readAllStandardOutput(), color="\033[31m"))
+            self.process.readyReadStandardError.connect(lambda: printPipe(self.process.readAllStandardError()))
+                
+            # Ensure cleanup triggers immediately when the game closes
+            def handle_finish(exit_code, exit_status):
+                print(f"[ModInterface] Process exited with code {exit_code} {exit_status}.")
+                if exit_code == 0: cleanup() # leave the folder up for error checking
+                setState(False)
+            self.process.finished.connect(handle_finish)
+
+            args = []
+            # if the mod is a Ren'Py 6 mod (easiest detection is no lib/ in the mod folder, there could be edge case but we'll deal with that later)
+            # add the -EO flag first. idk how that makes python able to find its libs but without the flag it cant.
+            # self.isRenpyGameDir works too because this flag is only reasonable if the mod was for v6
+            if self.isRenpyGameDir or not os.path.exists(os.path.join(self.folder, "lib")):
+                args.append("-EO")
+            bootstrapperFile = f"{self.buildId}.py"
+            if not os.path.exists(os.path.join(mountdir, bootstrapperFile)):
+                bootstrapperFile = "DDLC.py"
+            args.append(os.path.join(mountdir, bootstrapperFile))
+            self.process.start(python_exc, args)
+        except Exception:
+            setState(False)
+            raise
 
     def onUninstallMod(self):
         print(f"[ModInterface] Purging metadata entries for mod environment: {self.modId}")
@@ -466,8 +500,17 @@ class ModInterface(ScrollArea):
             shutil.rmtree(save_dir)
 
         self.mainWindow.saveModsList()
-        self.mainWindow.reloadNavigation()
-        self.mainWindow.switchTo(self.mainWindow.navs[0])
+        
+        # Remove dynamically
+        self.mainWindow.removeInterface(self)
+        if self in self.mainWindow.navs:
+            self.mainWindow.navs.remove(self)
+            
+        if self.mainWindow.navs:
+            self.mainWindow.switchTo(self.mainWindow.navs[0])
+        else:
+            self.mainWindow.switchTo(self.mainWindow.generalInterface)
+            
         self.settings.sync()
 
     def get_save_dir(self):        
@@ -597,6 +640,70 @@ def get_rpyc_statements(unpickled_data):
     return statements
 
 class MainWindow(FluentWindow):
+    def insertSubInterface(self, index: int, interface: QWidget, icon: Union[FluentIconBase, QIcon, str], text: str,
+                        position=NavigationItemPosition.TOP, parent=None, isTransparent=False) -> NavigationTreeWidget:
+        """ insert sub interface, the object name of `interface` should be set already
+        before calling this method
+
+        need to be completely honest with ya idk why he doesn't have this function in the class
+
+        Parameters
+        ----------
+        interface: QWidget
+            the subinterface to be added
+
+        icon: FluentIconBase | QIcon | str
+            the icon of navigation item
+
+        text: str
+            the text of navigation item
+
+        position: NavigationItemPosition
+            the position of navigation item
+
+        parent: QWidget | str
+            * QWidget: the parent of navigation item
+            * str: the parent route key of navigation item
+
+        isTransparent: bool
+            whether to use transparent background
+        """
+        if not interface.objectName():
+            raise ValueError("The object name of `interface` can't be empty string.")
+
+        parentRouteKey = parent
+        if parent and isinstance(parent, QWidget):
+            parentRouteKey = parent.objectName()
+            if not parentRouteKey:
+                raise ValueError("The object name of `parent` can't be empty string.")
+
+        interface.setProperty("isStackedTransparent", isTransparent)
+        self.stackedWidget.view.insertWidget(index,interface)
+
+        # add navigation item
+        routeKey = interface.objectName()
+        item = self.navigationInterface.insertItem(
+            index=index,
+            routeKey=routeKey,
+            icon=icon,
+            text=text,
+            onClick=lambda: self.switchTo(interface),
+            position=position,
+            tooltip=text,
+            parentRouteKey=parentRouteKey # type: ignore
+        )
+
+        # initialize selected item
+        if self.stackedWidget.count() == 1:
+            self.stackedWidget.currentChanged.connect(self._onCurrentInterfaceChanged)
+            self.navigationInterface.setCurrentItem(routeKey)
+            qrouter.setDefaultRouteKey(self.stackedWidget, routeKey) # type: ignore
+
+        self._updateStackedBackground()
+
+        return item
+
+
     # Create the mod add event. used by the AddModDialog on its validate() function (which is an excuse to send data on ok button)
     modAddEvent = Signal(str, bool, name="balls")
     def __init__(self):
@@ -695,8 +802,12 @@ class MainWindow(FluentWindow):
             "iconFilename": mod_uuid+icon_ext,
             "originalIconPath": "/"+icon
         })
-        # awkwardly avoids the NavigationWidget.mouseReleaseEvent crashing due to qt lifecycle sabotaging
-        QTimer.singleShot(200,self.reloadNavigation)
+
+        interface = ModInterface(self, mod_uuid)
+        self.navs.append(interface)
+        self.addSubInterface(interface, QIcon(os.path.join(icons_dir, mod_uuid+icon_ext)), f"{name} ({version})", NavigationItemPosition.SCROLL)
+        self.switchTo(interface)
+        
         self.settings.sync()
     
     def saveModsList(self):
@@ -715,12 +826,10 @@ class MainWindow(FluentWindow):
                 self.mods.append(buildId.strip())
         self.settings.endArray()
 
-    def reloadNavigation(self, init=False):
-        for n in self.navs:
-            self.removeInterface(n)
-        self.navs.clear()
-        if not init:
-            self.navigationInterface.removeWidget("sixswan")
+    def initNavigation(self):
+        self.generalInterface = GeneralConfigInterface()
+        self.addSubInterface(self.generalInterface, FIF.SETTING, "General")
+        
         for i in self.mods:
             name = self.settings.value(f"{i}/name")
             version = self.settings.value(f"{i}/version")
@@ -729,10 +838,10 @@ class MainWindow(FluentWindow):
             if name and version and iconFilename:
                 interface = ModInterface(self, i)
                 self.navs.append(interface)
-                self.addSubInterface(interface, QIcon(os.path.join(icons_dir,iconFilename)), f"{name} ({version})")
+                self.addSubInterface(interface, QIcon(os.path.join(icons_dir,iconFilename)), f"{name} ({version})", NavigationItemPosition.SCROLL)
 
-        self.navigationInterface.addItem("sixswan", FIF.ADD, "Add new mod", self.onAddNewMod)
-        
+        self.navigationInterface.addItem("sixswan", FIF.ADD, "Add new mod", self.onAddNewMod, position=NavigationItemPosition.BOTTOM)
+
     def writeEntry(
         self, buildId, 
         configs: dict[str, Any]
@@ -742,11 +851,6 @@ class MainWindow(FluentWindow):
 
         for key, value in configs.items():
             self.settings.setValue(f"{buildId}/{key}", value)
-
-    def initNavigation(self):
-        self.addSubInterface(GeneralConfigInterface(), FIF.SETTING, "General")
-        self.reloadNavigation(True)
-    
     def onAddNewMod(self):
         AddModDialog(self).exec()
     def close(self, /) -> bool:
@@ -787,7 +891,7 @@ class ModEditDialog(MessageBoxBase):
         self.viewLayout.addWidget(BodyLabel("Directory:"))
         self.viewLayout.addWidget(self.currentDirLabel)
         self.viewLayout.addWidget(self.directoryChangeButton)
-    
+ 
     def onChangeDirectory(self):
         new_directory = QFileDialog.getExistingDirectory(self, "Select new mod directory")
         if new_directory:
@@ -825,15 +929,25 @@ class ModEditDialog(MessageBoxBase):
         self.modInterface.name = new_name
         self.modInterface.version = new_version
         self.modInterface.folder = new_directory
+        self.modInterface.setObjectName(self.modId + new_version)
 
-        # Reload the navigation to reflect changes
         mainWindow: MainWindow = self.parent()  # type: ignore
-        QTimer.singleShot(0,lambda: mainWindow.reloadNavigation())
-        # lmao
-        QTimer.singleShot(0,lambda: mainWindow.switchTo([i for i in mainWindow.navs if isinstance(i, ModInterface) and i.modId == self.modId][0]))
+        
+        # Replace the QTimer reload/switchTo logic with targeted interface insertion
+        index = mainWindow.stackedWidget.indexOf(self.modInterface)
+        mainWindow.removeInterface(self.modInterface)
+        
+        mainWindow.insertSubInterface(
+            index=index,
+            interface=self.modInterface,
+            icon=QIcon(os.path.join(icons_dir, self.modInterface.iconFilename)),
+            text=f"{new_name} ({new_version})",
+            position=NavigationItemPosition.SCROLL
+        )
+        mainWindow.switchTo(self.modInterface)
+        
         settings.sync()
         return True
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

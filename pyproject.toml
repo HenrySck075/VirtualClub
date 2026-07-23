@@ -7,3 +7,9 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "pyside6-fluent-widgets[full]>=1.11.2",
 ]
+
+[dependency-groups]
+dev = [
+    "pybind11>=3.0.4",
+    "pyinstaller>=6.21.0",
+]
