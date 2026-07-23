@@ -195,16 +195,19 @@ class ModInterface(ScrollArea):
         titleWidget = QWidget()
         titleLayout = QVBoxLayout(titleWidget)
         titleLayout.setContentsMargins(0, 0, 0, 0)
-        titleLayout.setSpacing(4)
+        titleLayout.setSpacing(2)
         
         titleLabel = TitleLabel(self.name)
         versionLabel = BodyLabel(f"Version {self.version}")
         versionLabel.setTextColor(QColor(Qt.GlobalColor.gray), QColor(Qt.GlobalColor.darkGray))
+        directoryLabel = BodyLabel(f"Directory: {self.folder}")
+        directoryLabel.setTextColor(QColor(Qt.GlobalColor.gray), QColor(Qt.GlobalColor.darkGray))
         metaEditButton = PushButton(FIF.EDIT, "Edit")
         metaEditButton.clicked.connect(lambda: ModEditDialog(self.modId, self, self.mainWindow).exec())
         
         titleLayout.addWidget(titleLabel)
         titleLayout.addWidget(versionLabel)
+        titleLayout.addWidget(directoryLabel)
         titleLayout.addWidget(metaEditButton)
 
         # the mod icon
@@ -259,7 +262,6 @@ class ModInterface(ScrollArea):
         self.developerEnabled = enabled
         self.settings.setValue(f"{self.modId}/developerMode", enabled)
         self.settings.sync()
-        print(f"[ModInterface] Developer mode for mod {self.modId} set to {enabled}")
     
     def onStartMod(self):
         print(f"[ModInterface] Launching mod session via FUSE pipeline: {self.name} (ID: {self.modId})")
@@ -608,6 +610,9 @@ class ModEditDialog(MessageBoxBase):
         self.iconChangeButton = PushButton(FIF.EDIT, "Change icon")
         self.iconChangeButton.clicked.connect(self.onChangeIcon)
         self.iconImage = ImageLabel(QIcon(getIconPathOf(modId)).pixmap(64,64))
+        self.directoryChangeButton = PushButton(FIF.FOLDER, "Change directory")
+        self.directoryChangeButton.clicked.connect(self.onChangeDirectory)
+        self.currentDirLabel = BodyLabel(self.modInterface.folder)
 
         self.viewLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.viewLayout.addWidget(self.titleLabel)
@@ -617,8 +622,16 @@ class ModEditDialog(MessageBoxBase):
         self.viewLayout.addWidget(self.versionLineEdit)
         self.viewLayout.addWidget(BodyLabel("Icon:"))
         self.viewLayout.addWidget(self.iconImage)
+        self.viewLayout.addWidget(BodyLabel("Directory:"))
+        self.viewLayout.addWidget(self.currentDirLabel)
+        self.viewLayout.addWidget(self.directoryChangeButton)
         self.viewLayout.addWidget(self.iconChangeButton)
     
+    def onChangeDirectory(self):
+        new_directory = QFileDialog.getExistingDirectory(self, "Select new mod directory")
+        if new_directory:
+            self.currentDirLabel.setText(new_directory)
+
     def onChangeIcon(self):
         self.new_icon_path, _ = QFileDialog.getOpenFileName(self, "Select new icon", "", "Images (*.png *.jpg *.jpeg *.bmp)")
         if self.new_icon_path:
@@ -630,11 +643,13 @@ class ModEditDialog(MessageBoxBase):
     def validate(self):
         new_name = self.nameLineEdit.text()
         new_version = self.versionLineEdit.text()
+        new_directory = self.currentDirLabel.text()
 
         # Update the settings with the new values
         settings = QSettings()
         settings.setValue(f"{self.modId}/name", new_name)
         settings.setValue(f"{self.modId}/version", new_version)
+        settings.setValue(f"{self.modId}/directory", new_directory)
         if hasattr(self, "new_icon_path"):
             new_icon_filename = self.modId + os.path.splitext(self.new_icon_path)[1]
             settings.setValue(f"{self.modId}/iconFilename", new_icon_filename)
@@ -648,6 +663,7 @@ class ModEditDialog(MessageBoxBase):
         # Update the mod interface with the new values
         self.modInterface.name = new_name
         self.modInterface.version = new_version
+        self.modInterface.folder = new_directory
 
         # Reload the navigation to reflect changes
         mainWindow: MainWindow = self.parent()  # type: ignore
