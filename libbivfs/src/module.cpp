@@ -7,21 +7,55 @@
 #include <fcntl.h>
 
 #ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #include <io.h>
 #include <direct.h>
 #include <chrono>
-#define lstat stat
-#define access _access
-#define open _open
-#define close _close
-#define chmod _chmod
+
 typedef unsigned short mode_t;
 typedef SSIZE_T ssize_t;
 
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+
+// Fallback definition for Windows where POSIX statvfs isn't present
+struct statvfs {
+    unsigned long f_bsize;
+    unsigned long f_frsize;
+    uint64_t f_blocks;
+    uint64_t f_bfree;
+    uint64_t f_bavail;
+    unsigned long f_files;
+    unsigned long f_ffree;
+    unsigned long f_favail;
+    unsigned long f_fsid;
+    unsigned long f_flag;
+    unsigned long f_namemax;
+};
+
+inline int lstat(const char *path, struct stat *stbuf) {
+    return ::stat(path, stbuf);
+}
+
+inline int open_file(const char *path, int flags, int mode = 0) {
+    return ::_open(path, flags, mode);
+}
+
+inline int close_file(int fd) {
+    return ::_close(fd);
+}
+
+inline int access_file(const char *path, int mode) {
+    return ::_access(path, mode);
+}
+
+inline int chmod_file(const char *path, mode_t mode) {
+    return ::_chmod(path, mode);
+}
 
 // Windows polyfills for POSIX pread and pwrite
 static inline ssize_t pread(int fd, void *buf, size_t count, off_t offset) {
@@ -40,6 +74,22 @@ static inline ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+
+inline int open_file(const char *path, int flags, int mode = 0) {
+    return ::open(path, flags, mode);
+}
+
+inline int close_file(int fd) {
+    return ::close(fd);
+}
+
+inline int access_file(const char *path, int mode) {
+    return ::access(path, mode);
+}
+
+inline int chmod_file(const char *path, mode_t mode) {
+    return ::chmod(path, mode);
+}
 #endif
 
 #include <string>
@@ -326,11 +376,11 @@ public:
         if (is_whiteouted(path)) return -ENOENT;
 
         std::string full_path = get_path(path);
-        int fd = open(full_path.c_str(), O_RDONLY | O_BINARY);
+        int fd = open_file(full_path.c_str(), O_RDONLY | O_BINARY);
         if (fd == -1) return -errno;
 
         int res = static_cast<int>(pread(fd, buf, size, offset));
-        close(fd);
+        close_file(fd);
         if (res == -1) return -errno;
         return res;
     }
@@ -361,7 +411,7 @@ public:
         if (is_whiteouted(path)) return -ENOENT;
 
         std::string full_path = get_path(path);
-        if (::access(full_path.c_str(), mask) == -1) {
+        if (access_file(full_path.c_str(), mask) == -1) {
             return -errno;
         }
         return 0;
@@ -396,9 +446,9 @@ public:
 
         remove_whiteout(path);
         fs::create_directories(fs::path(full_path).parent_path());
-        int fd = open(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, mode);
+        int fd = open_file(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, mode);
         if (fd == -1) return -errno;
-        close(fd);
+        close_file(fd);
         return 0;
     }
 
@@ -414,16 +464,16 @@ public:
                 fs::copy_file(base_path, full_path, fs::copy_options::overwrite_existing);
             } else {
                 fs::create_directories(fs::path(full_path).parent_path());
-                int fd = open(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666);
-                if (fd != -1) close(fd);
+                int fd = open_file(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666);
+                if (fd != -1) close_file(fd);
             }
         }
 
-        int fd = open(full_path.c_str(), O_WRONLY | O_BINARY);
+        int fd = open_file(full_path.c_str(), O_WRONLY | O_BINARY);
         if (fd == -1) return -errno;
 
         int res = static_cast<int>(pwrite(fd, buf, size, offset));
-        close(fd);
+        close_file(fd);
         if (res == -1) return -errno;
         return res;
     }
@@ -442,10 +492,10 @@ public:
             }
         }
 #ifdef _WIN32
-        int fd = open(full_path.c_str(), O_RDWR | O_BINARY);
+        int fd = open_file(full_path.c_str(), O_RDWR | O_BINARY);
         if (fd == -1) return -errno;
         int res = _chsize(fd, static_cast<long>(size));
-        close(fd);
+        close_file(fd);
         if (res != 0) return -errno;
 #else
         if (::truncate(full_path.c_str(), size) == -1) {
@@ -461,7 +511,7 @@ public:
 
         remove_whiteout(path);
         fs::create_directories(full_path);
-        chmod(full_path.c_str(), mode);
+        chmod_file(full_path.c_str(), mode);
         return 0;
     }
 
@@ -550,7 +600,7 @@ public:
 
         std::string full_path = get_path(path, true);
         if (!fs::exists(full_path)) return -ENOENT;
-        if (::chmod(full_path.c_str(), mode) == -1) return -errno;
+        if (chmod_file(full_path.c_str(), mode) == -1) return -errno;
         return 0;
     }
 
@@ -590,6 +640,109 @@ namespace FUSE_Glue {
         return static_cast<PythonFileSystem*>(ctx->private_data);
     }
 
+#ifdef _WIN32
+    static int getattr_glue(const char *path, fuse_stat *stbuf, struct fuse_file_info *fi) {
+        struct stat std_st = {};
+        int res = get_fs()->getattr(path, &std_st);
+        if (res == 0) {
+            std::memset(stbuf, 0, sizeof(*stbuf));
+            stbuf->st_mode = std_st.st_mode;
+            stbuf->st_nlink = std_st.st_nlink;
+            stbuf->st_size = std_st.st_size;
+            stbuf->st_atime = std_st.st_atime;
+            stbuf->st_mtime = std_st.st_mtime;
+            stbuf->st_ctime = std_st.st_ctime;
+            stbuf->st_uid = std_st.st_uid;
+            stbuf->st_gid = std_st.st_gid;
+        }
+        return res;
+    }
+
+    static int readdir_glue(const char *path, void *buf, fuse_fill_dir_t filler,
+                            fuse_off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags) {
+        py::gil_scoped_acquire acquire;
+        auto py_filler = [buf, filler](const std::string &name) {
+            filler(buf, name.c_str(), nullptr, 0, FUSE_FILL_DIR_PLUS);
+        };
+        return get_fs()->readdir(path, py::cpp_function(py_filler));
+    }
+
+    static int read_glue(const char *path, char *buf, size_t size, fuse_off_t offset, struct fuse_file_info *fi) {
+        return get_fs()->read(path, buf, size, static_cast<off_t>(offset));
+    }
+
+    static int readlink_glue(const char *path, char *buf, size_t size) {
+        return get_fs()->readlink(path, buf, size);
+    }
+
+    static int access_glue(const char *path, int mask) {
+        return get_fs()->access(path, mask);
+    }
+
+    static int statfs_glue(const char *path, fuse_statvfs *stbuf) {
+        struct statvfs std_st = {};
+        int res = get_fs()->statfs(path, &std_st);
+        if (res == 0) {
+            std::memset(stbuf, 0, sizeof(*stbuf));
+            stbuf->f_bsize = std_st.f_bsize;
+            stbuf->f_frsize = std_st.f_frsize;
+            stbuf->f_blocks = std_st.f_blocks;
+            stbuf->f_bfree = std_st.f_bfree;
+            stbuf->f_bavail = std_st.f_bavail;
+            stbuf->f_files = std_st.f_files;
+            stbuf->f_ffree = std_st.f_ffree;
+            stbuf->f_favail = std_st.f_favail;
+            stbuf->f_fsid = std_st.f_fsid;
+            stbuf->f_flag = std_st.f_flag;
+            stbuf->f_namemax = std_st.f_namemax;
+        }
+        return res;
+    }
+
+    static int create_glue(const char *path, fuse_mode_t mode, struct fuse_file_info *fi) {
+        return get_fs()->create(path, static_cast<mode_t>(mode));
+    }
+
+    static int write_glue(const char *path, const char *buf, size_t size, fuse_off_t offset, struct fuse_file_info *fi) {
+        return get_fs()->write(path, buf, size, static_cast<off_t>(offset));
+    }
+
+    static int truncate_glue(const char *path, fuse_off_t size, struct fuse_file_info *fi) {
+        return get_fs()->truncate(path, static_cast<off_t>(size));
+    }
+
+    static int mkdir_glue(const char *path, fuse_mode_t mode) {
+        return get_fs()->mkdir(path, static_cast<mode_t>(mode));
+    }
+
+    static int rmdir_glue(const char *path) {
+        return get_fs()->rmdir(path);
+    }
+
+    static int unlink_glue(const char *path) {
+        return get_fs()->unlink(path);
+    }
+
+    static int rename_glue(const char *oldpath, const char *newpath, unsigned int flags) {
+        return get_fs()->rename(oldpath, newpath);
+    }
+
+    static int chmod_glue(const char *path, fuse_mode_t mode, struct fuse_file_info *fi) {
+        return get_fs()->chmod(path, static_cast<mode_t>(mode));
+    }
+
+    static int utimens_glue(const char *path, const struct fuse_timespec tv[2], struct fuse_file_info *fi) {
+        struct timespec std_tv[2];
+        if (tv) {
+            std_tv[0].tv_sec = static_cast<time_t>(tv[0].tv_sec);
+            std_tv[0].tv_nsec = static_cast<long>(tv[0].tv_nsec);
+            std_tv[1].tv_sec = static_cast<time_t>(tv[1].tv_sec);
+            std_tv[1].tv_nsec = static_cast<long>(tv[1].tv_nsec);
+            return get_fs()->utimens(path, std_tv);
+        }
+        return get_fs()->utimens(path, nullptr);
+    }
+#else
     static int getattr_glue(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
         return get_fs()->getattr(path, stbuf);
     }
@@ -654,6 +807,7 @@ namespace FUSE_Glue {
     static int utimens_glue(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
         return get_fs()->utimens(path, tv);
     }
+#endif
 
     static struct fuse_operations get_ops() {
         struct fuse_operations ops = {};

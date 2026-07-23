@@ -25,7 +25,7 @@ if(WIN32)
     endif()
 
     set(FUSE_LIBRARIES ${WINFSP_LIB})
-    set(FUSE_INCLUDE_DIRS "${WINFSP_DIR}/inc/fuse3")
+    set(FUSE_INCLUDE_DIRS "${WINFSP_DIR}/inc")
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(FUSE3 REQUIRED fuse3)
