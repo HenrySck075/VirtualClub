@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import json
 import platform
+import zipfile
 import shutil
 import time
 import uuid
 from io import BytesIO
 import os, stat
-from typing import Any
-from PySide6.QtGui import QColor, QIcon
-from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout
-from PySide6.QtCore import QCoreApplication, QEvent, QProcessEnvironment, QSettings, QStandardPaths, QTimer, Qt, Signal
-from qfluentwidgets import BodyLabel, CheckBox, ConfigItem, Dialog, FluentWindow, HorizontalSeparator, Icon, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, PrimaryPushSettingCard, PushSettingCard,  ScrollArea, FluentIcon as FIF, SettingCardGroup, SubtitleLabel, SwitchSettingCard, TitleLabel
+from typing import Any, Union
+from PySide6.QtGui import QColor, QColorConstants, QIcon, QImage
+from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QLayout, QStackedLayout
+from PySide6.QtCore import QCoreApplication, QEvent, QProcessEnvironment, QSettings, QSize, QStandardPaths, QTimer, Qt, Signal
+from qfluentwidgets import Action, BodyLabel, CaptionLabel, CardWidget, CheckBox, ConfigItem, Dialog, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, Icon, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, PrimaryPushSettingCard, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 import sys
 from PIL import Image
@@ -67,6 +69,7 @@ def optimize_window_icon(input_path, output_path, size=(256, 256)):
 class GeneralConfigInterface(ScrollArea):
     def __init__(self):
         super().__init__()
+        self.enableTransparentBackground()
         self.setWidgetResizable(True)
         self.setWidget(self.createContent())
         self.setObjectName("mainInterface")
@@ -77,6 +80,8 @@ class GeneralConfigInterface(ScrollArea):
 
     def createContent(self):
         content = QWidget()
+        content.setObjectName("contentWidget")
+        content.setStyleSheet("#contentWidget { background-color: transparent; }")
         layout = QVBoxLayout(content)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.setContentsMargins(36, 24, 36, 24)
@@ -150,9 +155,47 @@ class AddModDialog(MessageBoxBase):
         mainWindow.modAddEvent.emit(self.selectedFolder, self.gameFolderCheckbox.isChecked())
         return True
 
+class PrimarySplitPushSettingCard(SettingCard):
+    """ Setting card with a primary split push button """
+
+    clicked = Signal()
+
+    def __init__(self, text, menu: RoundMenu, icon: Union[str, QIcon, FluentIconBase], title, content=None, parent=None):
+        """
+        Parameters
+        ----------
+        text: str
+            the text of push button
+        
+        menu: RoundMenu
+            the menu to be attached to the push button
+
+        icon: str | QIcon | FluentIconBase
+            the icon to be drawn
+
+        title: str
+            the title of card
+
+        content: str
+            the content of card
+
+        parent: QWidget
+            parent widget
+        """
+        super().__init__(icon, title, content, parent)
+        self.button = PrimarySplitPushButton(text, self)
+        #menu.setParent(self.button)
+        self.button.setFlyout(menu)
+        self.hBoxLayout.addWidget(self.button, 0, Qt.AlignmentFlag.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+        self.button.clicked.connect(self.clicked)
+
+
+
 class ModInterface(ScrollArea):
     def __init__(self, window: MainWindow, modId):
         super().__init__()
+        self.enableTransparentBackground()
         self.settings = QSettings()
         self.modId = modId
         self.mainWindow = window
@@ -226,8 +269,12 @@ class ModInterface(ScrollArea):
         modActionsGroup = SettingCardGroup("Mod management", content)
         
         # Primary Action Card (Prominent Accent Start Button)
-        self.startCard = PrimaryPushSettingCard(
+        startCardMenu = RoundMenu()
+        startCardMenu.addAction(Action(FIF.SAVE, "Start from save", triggered=self.onStartModFromSave))
+
+        self.startCard = PrimarySplitPushSettingCard(
             text="Start",
+            menu=startCardMenu,
             icon=FIF.PLAY,
             title="Launch application",
             content="Run this Ren'Py mod configuration environment.",
@@ -264,6 +311,9 @@ class ModInterface(ScrollArea):
         self.settings.sync()
     
     def onStartMod(self):
+        self.launchMod()
+
+    def launchMod(self, extraEnvs = {}):
         print(f"[ModInterface] Launching mod session via FUSE pipeline: {self.name} (ID: {self.modId})")
         self.startCard.button.setDisabled(True)
         self.devModeCard.switchButton.setDisabled(True)
@@ -350,6 +400,8 @@ class ModInterface(ScrollArea):
         self.process = QProcess()
         env = QProcessEnvironment.systemEnvironment()
         env.insert("MVC_MOD_ID", self.modId)
+        for key, value in extraEnvs.items():
+            env.insert(key, value)
 
         # renpy 6 stuff
         if os_type == "Linux":
@@ -409,16 +461,7 @@ class ModInterface(ScrollArea):
             os.remove(icon_path)
 
         # and the game's renpy saves. named after the mod id
-        
-        save_dir = os.path.join(data_dir, "saves") # the fallback path
-        if not os.path.exists(save_dir):
-            if platform.system() == "Windows":
-                save_dir = os.path.join(os.environ.get("APPDATA", ""), "RenPy", self.modId)
-            elif platform.system() == "Darwin":
-                save_dir = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "RenPy", self.modId) # TODO: i dont have a mac can sb check this
-            else: # Linux and other Unix-like systems
-                save_dir = os.path.join(os.path.expanduser("~"), ".renpy", self.modId)
-
+        save_dir = self.get_save_dir()
         if os.path.exists(save_dir):
             shutil.rmtree(save_dir)
 
@@ -426,6 +469,124 @@ class ModInterface(ScrollArea):
         self.mainWindow.reloadNavigation()
         self.mainWindow.switchTo(self.mainWindow.navs[0])
         self.settings.sync()
+
+    def get_save_dir(self):        
+        if platform.system() == "Windows":
+            save_dir = os.path.join(os.environ.get("APPDATA", ""), "RenPy", self.modId)
+        elif platform.system() == "Darwin":
+            save_dir = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "RenPy", self.modId) # TODO: i dont have a mac can sb check this
+        else: # Linux and other Unix-like systems
+            save_dir = os.path.join(os.path.expanduser("~"), ".renpy", self.modId)
+
+        if not os.path.exists(save_dir):
+            save_dir = os.path.join(self.folder, "game", "saves") # the fallback path
+
+        return save_dir
+
+    def onStartModFromSave(self):
+        w = SaveSelectWindow(self)
+        w.show()
+
+    def onActuallyStartModFromSave(self, save_id):
+        self.launchMod(extraEnvs={"MVC_SAVE_ID": save_id})
+
+class SaveSelectWindow(FluentWidget):
+    def __init__(self, modInterface: ModInterface):
+        super().__init__()
+        self.modInterface = modInterface
+        self.setBackgroundColor(QColorConstants.Transparent)
+        self.setWindowTitle("Select a save file")
+        self.setMinimumSize(700, 500)
+        self.setWindowIcon(QIcon(getWindowIconPathOf(modInterface.modId)))
+        self.save_dir = modInterface.get_save_dir()
+        # TODO: while it has always been -LT1.save for the versions that i checked, its better to scan the engine files for the actual answer
+        # on the rare case the savegame_suffix ever be dynamically changed, well screw us ig
+        self.save_files = [f for f in os.listdir(self.save_dir) if f.endswith("-LT1.save")]
+        self.initUI()
+
+    def createCard(self, save_file):
+        # open the save file as zip. yeah its a zip in disguise
+        save_path = os.path.join(self.save_dir, save_file)
+        z = zipfile.ZipFile(save_path, 'r')
+
+        width = height = 200
+
+        card = SimpleCardWidget(self)
+        card.setFixedSize(width, height)
+        layout = QStackedLayout(card, stackingMode=QStackedLayout.StackingMode.StackAll)
+
+        # Background: the thumbnal
+        # read screenshot.png for thumbnail
+        screenshot_data = z.read('screenshot.png')
+        image = QImage.fromData(screenshot_data)
+        image = image.scaled(QSize(width,height), Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation)
+        # 2. Calculate coordinates to pull out the center block
+        x = (image.width() - width) // 2
+        y = (image.height() - height) // 2
+        
+        # 3. Crop to exact target size
+        image = image.copy(x, y, width, height)
+        screenshot_widget = ImageLabel(image)
+        screenshot_widget.setFixedSize(width, height)
+        r:int = card.getBorderRadius()
+        screenshot_widget.setBorderRadius(r,r,r,r)
+        layout.addWidget(screenshot_widget)
+
+        # text
+        # with a gradient
+        content = QWidget(styleSheet=f"background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(0, 0, 0, 0), stop:1 rgba(0, 0, 0, 200)); border-radius: {r}px;")
+        content_layout = QVBoxLayout(content)
+        content_layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
+        content_layout.setContentsMargins(8, 8, 8, 8)
+        # name
+        j = json.load(z.open("json"))
+        save_name = j["_save_name"] or save_file.removesuffix("-LT1.save")
+        name_label = StrongBodyLabel(save_name)
+        name_label.setTextColor(QColorConstants.White)
+        content_layout.addWidget(name_label)
+
+        # date in dd/mm/yyyy
+        date = time.strftime("%d/%m/%Y", time.localtime(os.path.getmtime(save_path)))
+        date_label = CaptionLabel(date)
+        date_label.setTextColor(QColorConstants.White)
+        content_layout.addWidget(date_label)
+        layout.addWidget(content)
+        layout.setCurrentWidget(content)
+
+
+        card.setClickEnabled(True)
+        def card_callback():
+            self.modInterface.launchMod(extraEnvs={"MVC_SAVE_ID": save_file.removesuffix("-LT1.save")})
+            self.close()
+        card.clicked.connect(card_callback)
+
+        return card
+    
+    
+    def initUI(self):
+        layout = QVBoxLayout(self) # type: ignore # QLayout: Attempting to add QLayout "" to SaveSelectWindow "", which already has a layout
+        layout.setContentsMargins(0, self.titleBar.height(), 0, 0)
+ 
+        self.save_list_widget = ScrollArea()
+        self.save_list_widget.setObjectName("ba")
+        self.save_list_widget.setStyleSheet("QScrollArea#ba { background-color: transparent; border: none; }")
+        self.save_list_widget.setWidgetResizable(True)
+        save_list_content = QWidget(styleSheet="background-color: transparent;")
+        save_list_layout = FlowLayout(save_list_content)
+        #save_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        for save_file in self.save_files:
+            if save_file.startswith("auto-"): continue
+            save_button = self.createCard(save_file)
+            #save_button.clicked.connect(lambda checked, sf=save_file: self.load_save(sf))
+            save_list_layout.addWidget(save_button)
+
+        self.save_list_widget.setWidget(save_list_content)
+        layout.addWidget(self.save_list_widget)
+
+    def load_save(self, save_file):
+        print(f"Loading save file: {save_file}")
+        # Implement the logic to load the selected save file
 
 def get_rpyc_statements(unpickled_data):
     if isinstance(unpickled_data, tuple) and len(unpickled_data) == 2:
@@ -442,7 +603,7 @@ class MainWindow(FluentWindow):
         super().__init__()
         self.settings = QSettings()
         self.modAddEvent.connect(self.onAddNewModRequest)
-
+        self.navigationInterface.setReturnButtonVisible(False)
 
         self.mods = list[str]()
         self.loadModsList()
@@ -622,10 +783,10 @@ class ModEditDialog(MessageBoxBase):
         self.viewLayout.addWidget(self.versionLineEdit)
         self.viewLayout.addWidget(BodyLabel("Icon:"))
         self.viewLayout.addWidget(self.iconImage)
+        self.viewLayout.addWidget(self.iconChangeButton)
         self.viewLayout.addWidget(BodyLabel("Directory:"))
         self.viewLayout.addWidget(self.currentDirLabel)
         self.viewLayout.addWidget(self.directoryChangeButton)
-        self.viewLayout.addWidget(self.iconChangeButton)
     
     def onChangeDirectory(self):
         new_directory = QFileDialog.getExistingDirectory(self, "Select new mod directory")

@@ -1,14 +1,46 @@
 #include <ostream>
 #define FUSE_USE_VERSION 31
 #include <fuse3/fuse.h>
-#include <fuse3/fuse_lowlevel.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#include <direct.h>
+#include <chrono>
+#define lstat stat
+#define access _access
+#define open _open
+#define close _close
+#define chmod _chmod
+typedef unsigned short mode_t;
+typedef SSIZE_T ssize_t;
+
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
+// Windows polyfills for POSIX pread and pwrite
+static inline ssize_t pread(int fd, void *buf, size_t count, off_t offset) {
+    _lseeki64(fd, offset, SEEK_SET);
+    return _read(fd, buf, static_cast<unsigned int>(count));
+}
+
+static inline ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset) {
+    _lseeki64(fd, offset, SEEK_SET);
+    return _write(fd, buf, static_cast<unsigned int>(count));
+}
+#else
 #include <sys/statvfs.h>
 #include <unistd.h>
-#include <fcntl.h>
 #include <dirent.h>
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+#endif
 
 #include <string>
 #include <vector>
@@ -20,6 +52,8 @@
 #include <thread>
 #include <mutex>
 #include <memory>
+#include <algorithm>
+#include <cstring>
 
 namespace py = pybind11;
 namespace fs = std::filesystem;
@@ -58,12 +92,8 @@ class LibbiVFS : public PythonFileSystem {
 private:
     fs::path baseFolder;
     fs::path modFolder;
-    bool isRenpyGameFolder; // true if modFolder IS the "game/" folder directory itself
-    
-    bool containsRenpyEngine; // true if renpy/ and lib/ exists in the mod dir, ignored if isRenpyGameFolder is true
-                              // should an edge case of one of these existing separately, 
-                              // remove these 2 dirs from special handling in get_path()
-                              // it's like that to make sure it can avoid native libraries importing errors (the one with future.standard_library)
+    bool isRenpyGameFolder;
+    bool containsRenpyEngine;
 
     fs::path dbFolder;
     fs::path whiteoutFilePath;
@@ -71,20 +101,19 @@ private:
     std::mutex dbMutex;
 
     std::string strip_leading_slash(const std::string &path) const {
-        if (!path.empty() && path[0] == '/') {
+        if (!path.empty() && (path[0] == '/' || path[0] == '\\')) {
             return path.substr(1);
         }
         return path;
     }
 
-    // Normalized lookup keys for the whiteout database
     std::string normalize_path(const std::string &path) const {
         std::string p = path;
-        while (!p.empty() && p.back() == '/') {
+        while (!p.empty() && (p.back() == '/' || p.back() == '\\')) {
             p.pop_back();
         }
         if (p.empty()) return "/";
-        if (p[0] != '/') return "/" + p;
+        if (p[0] != '/' && p[0] != '\\') return "/" + p;
         return p;
     }
 
@@ -115,13 +144,11 @@ private:
         std::lock_guard<std::mutex> lock(dbMutex);
         std::string norm = normalize_path(path);
         
-        // Match exact path or match if a parent directory of this path is whiteouted
         if (whiteouts.count(norm)) return true;
         
-        // Nested path hierarchy check
         std::string parent = norm;
         while (true) {
-            size_t idx = parent.find_last_of('/');
+            size_t idx = parent.find_last_of("/\\");
             if (idx == std::string::npos || idx == 0) break;
             parent = parent.substr(0, idx);
             if (whiteouts.count(parent)) return true;
@@ -147,11 +174,12 @@ private:
 
     fs::path launcherRoot;
     bool verboseLog = false;
+
 public:
     LibbiVFS(std::string launcherRoot, std::string base, std::string mod, bool is_renpy)
-        : launcherRoot(launcherRoot), baseFolder(base), modFolder(mod), isRenpyGameFolder(is_renpy){
+        : launcherRoot(launcherRoot), baseFolder(base), modFolder(mod), isRenpyGameFolder(is_renpy) {
 
-        containsRenpyEngine = /*fs::exists(modFolder / "renpy") &&*/ fs::exists(modFolder / "lib");
+        containsRenpyEngine = fs::exists(modFolder / "lib");
         
         dbFolder = modFolder / ".libbivfs";
         whiteoutFilePath = dbFolder / "whiteouts.txt";
@@ -167,33 +195,27 @@ public:
         fs::path toModFolder = modFolder / stripped;
         fs::path toBaseFolder = baseFolder / stripped;
 
-        // add the patches/ folder to the equation (this one's to merge with the game/ folder basically)
-        if (path.rfind("/game", 0) == 0) {
-            auto patchesPath = launcherRoot / "patches" / path.substr((path.rfind("/game/", 0) == 0) ? 6 : 5); // strip "/game"
-            // if exists, use, else continue
+        if (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0) {
+            auto patchesPath = launcherRoot / "patches" / path.substr((path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? 6 : 5);
             if (fs::exists(patchesPath)) {
-                return patchesPath;
+                return patchesPath.string();
             }
-            // also returns if the parent directory exists and is a write operation
             if (write && fs::exists(patchesPath.parent_path())) {
-                return patchesPath;
+                return patchesPath.string();
             }
         }
 
-        // ensuring the engine loads the correct files
-        if (path.rfind("/lib", 0) == 0/* || path.rfind("/renpy", 0) == 0*/) {
+        if (path.rfind("/lib", 0) == 0 || path.rfind("\\lib", 0) == 0) {
             if (isRenpyGameFolder || !containsRenpyEngine) {
-                return toBaseFolder;
+                return toBaseFolder.string();
             } else {
-                return toModFolder;
+                return toModFolder.string();
             }
-        // the rest of them
         } else {
             if (write) {
                 if (isRenpyGameFolder) {
-                    if (path.rfind("/game", 0) == 0) {
-                        // modFolder IS the game folder. Strip '/game' or '/game/'
-                        std::string sub = (path.rfind("/game/", 0) == 0) ? path.substr(6) : path.substr(5);
+                    if (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0) {
+                        std::string sub = (path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? path.substr(6) : path.substr(5);
                         return (modFolder / sub).string();
                     } else {
                         return toBaseFolder.string();
@@ -202,10 +224,9 @@ public:
                     return toModFolder.string();
                 }
             } else {
-                // FIX: Account for isRenpyGameFolder when reading!
                 fs::path ret;
-                if (isRenpyGameFolder && path.rfind("/game", 0) == 0) {
-                    std::string sub = (path.rfind("/game/", 0) == 0) ? path.substr(6) : path.substr(5);
+                if (isRenpyGameFolder && (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0)) {
+                    std::string sub = (path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? path.substr(6) : path.substr(5);
                     ret = modFolder / sub;
                 } else {
                     ret = toModFolder;
@@ -226,11 +247,10 @@ public:
     }
 
     bool should_bypass_whiteout(const std::string &path) const {
-        return (path.rfind("/lib/", 0) == 0 || path == "/lib"/* ||
-                path.rfind("/renpy/", 0) == 0 || path == "/renpy"*/);
+        return (path.rfind("/lib/", 0) == 0 || path == "/lib" ||
+                path.rfind("\\lib\\", 0) == 0 || path == "\\lib");
     }
 
-    // ---------- real deal -----------
     int getattr(const std::string &path, struct stat *stbuf) override {
         if (is_whiteouted(path)) return -ENOENT;
 
@@ -245,28 +265,24 @@ public:
         if (is_whiteouted(path)) return -ENOENT;
 
         std::unordered_set<std::string> dirents = {".", ".."};
-        
         std::string stripped = strip_leading_slash(path);
         std::string mod_path;
         
-        // Independently determine the mod layer path to avoid the patches/ short-circuit
-        if (isRenpyGameFolder && path.rfind("/game", 0) == 0) {
-            std::string sub = (path.rfind("/game/", 0) == 0) ? path.substr(6) : path.substr(5);
+        if (isRenpyGameFolder && (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0)) {
+            std::string sub = (path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? path.substr(6) : path.substr(5);
             mod_path = (modFolder / sub).string();
-        } else if (!containsRenpyEngine && (path.rfind("/lib", 0) == 0/* || path.rfind("/renpy", 0) == 0*/)) {
+        } else if (!containsRenpyEngine && (path.rfind("/lib", 0) == 0 || path.rfind("\\lib", 0) == 0)) {
             mod_path = (baseFolder / stripped).string();
         } else {
             mod_path = (modFolder / stripped).string();
         }
 
         std::string base_path = (baseFolder / stripped).string();
-
         bool found = false;
         
-        // 1. Check the patches layer
-        if (path.rfind("/game", 0) == 0) {
+        if (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0) {
             fs::path patchesPath = launcherRoot / "patches";
-            fs::path patchesSubdir = patchesPath / path.substr((path.rfind("/game/", 0) == 0) ? 6 : 5);
+            fs::path patchesSubdir = patchesPath / path.substr((path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? 6 : 5);
             if (fs::is_directory(patchesSubdir)) {
                 found = true;
                 for (const auto &entry : fs::directory_iterator(patchesSubdir)) {
@@ -278,7 +294,6 @@ public:
             }
         }
         
-        // 2. Check the true mod layer
         if (fs::is_directory(mod_path)) {
             found = true;
             for (const auto &entry : fs::directory_iterator(mod_path)) {
@@ -288,8 +303,7 @@ public:
                 }
             }
         }
-        
-        // 3. Check the base game layer
+
         if (fs::is_directory(base_path)) {
             found = true;
             for (const auto &entry : fs::directory_iterator(base_path)) {
@@ -307,14 +321,15 @@ public:
         }
         return 0;
     }
+
     int read(const std::string &path, char *buf, size_t size, off_t offset) override {
         if (is_whiteouted(path)) return -ENOENT;
 
         std::string full_path = get_path(path);
-        int fd = open(full_path.c_str(), O_RDONLY);
+        int fd = open(full_path.c_str(), O_RDONLY | O_BINARY);
         if (fd == -1) return -errno;
 
-        int res = pread(fd, buf, size, offset);
+        int res = static_cast<int>(pread(fd, buf, size, offset));
         close(fd);
         if (res == -1) return -errno;
         return res;
@@ -324,10 +339,22 @@ public:
         if (is_whiteouted(path)) return -ENOENT;
 
         std::string full_path = get_path(path);
+#ifdef _WIN32
+        try {
+            std::string target = fs::read_symlink(full_path).string();
+            size_t copy_len = (std::min)(size - 1, target.size());
+            std::memcpy(buf, target.c_str(), copy_len);
+            buf[copy_len] = '\0';
+            return 0;
+        } catch (...) {
+            return -ENOENT;
+        }
+#else
         ssize_t res = ::readlink(full_path.c_str(), buf, size - 1);
         if (res == -1) return -errno;
         buf[res] = '\0';
         return 0;
+#endif
     }
 
     int access(const std::string &path, int mask) override {
@@ -344,19 +371,32 @@ public:
         if (is_whiteouted(path)) return -ENOENT;
 
         std::string full_path = get_path(path);
+#ifdef _WIN32
+        ULARGE_INTEGER freeBytes, totalBytes, totalFreeBytes;
+        if (GetDiskFreeSpaceExA(full_path.c_str(), &freeBytes, &totalBytes, &totalFreeBytes)) {
+            stbuf->f_bsize = 4096;
+            stbuf->f_frsize = 4096;
+            stbuf->f_blocks = totalBytes.QuadPart / 4096;
+            stbuf->f_bfree = totalFreeBytes.QuadPart / 4096;
+            stbuf->f_bavail = freeBytes.QuadPart / 4096;
+            return 0;
+        }
+        return -EIO;
+#else
         if (::statvfs(full_path.c_str(), stbuf) == -1) {
             return -errno;
         }
         return 0;
+#endif
     }
 
     int create(const std::string &path, mode_t mode) override {
         std::string full_path = get_path(path, true);
         if (fs::exists(full_path) && !is_whiteouted(path)) return -EEXIST;
 
-        remove_whiteout(path); // Clear whiteout if recreating file
+        remove_whiteout(path);
         fs::create_directories(fs::path(full_path).parent_path());
-        int fd = open(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, mode);
+        int fd = open(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, mode);
         if (fd == -1) return -errno;
         close(fd);
         return 0;
@@ -373,17 +413,16 @@ public:
                 fs::create_directories(fs::path(full_path).parent_path());
                 fs::copy_file(base_path, full_path, fs::copy_options::overwrite_existing);
             } else {
-                // If it doesn't exist anywhere, we must create it
                 fs::create_directories(fs::path(full_path).parent_path());
-                int fd = open(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+                int fd = open(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0666);
                 if (fd != -1) close(fd);
             }
         }
 
-        int fd = open(full_path.c_str(), O_WRONLY);
+        int fd = open(full_path.c_str(), O_WRONLY | O_BINARY);
         if (fd == -1) return -errno;
 
-        int res = pwrite(fd, buf, size, offset);
+        int res = static_cast<int>(pwrite(fd, buf, size, offset));
         close(fd);
         if (res == -1) return -errno;
         return res;
@@ -402,9 +441,17 @@ public:
                 return -ENOENT;
             }
         }
+#ifdef _WIN32
+        int fd = open(full_path.c_str(), O_RDWR | O_BINARY);
+        if (fd == -1) return -errno;
+        int res = _chsize(fd, static_cast<long>(size));
+        close(fd);
+        if (res != 0) return -errno;
+#else
         if (::truncate(full_path.c_str(), size) == -1) {
             return -errno;
         }
+#endif
         return 0;
     }
 
@@ -414,12 +461,10 @@ public:
 
         remove_whiteout(path);
         fs::create_directories(full_path);
-        ::chmod(full_path.c_str(), mode);
+        chmod(full_path.c_str(), mode);
         return 0;
     }
 
-    // --- Erasure Operations with Native Whiteouts ---
-    //
     int rmdir(const std::string &path) override {
         if (is_whiteouted(path)) return -ENOENT;
 
@@ -433,8 +478,6 @@ public:
             physically_removed = true;
         }
 
-        // Only register a whiteout if it existed in the mod folder, exists in the base folder, 
-        // and is not exempted under lib/ or renpy/
         if (existed_in_mod && fs::exists(base_path) && fs::is_directory(base_path)) {
             if (!should_bypass_whiteout(path)) {
                 add_whiteout(path);
@@ -458,8 +501,6 @@ public:
             physically_removed = true;
         }
 
-        // Only register a whiteout if it existed in the mod folder, exists in the base folder, 
-        // and is not exempted under lib/ or renpy/
         if (existed_in_mod && fs::exists(base_path) && !fs::is_directory(base_path)) {
             if (!should_bypass_whiteout(path)) {
                 add_whiteout(path);
@@ -476,7 +517,6 @@ public:
         std::string old_full = get_path(oldpath, true);
         std::string new_full = get_path(newpath, true);
 
-        // Copy up from base if it only exists there
         if (!fs::exists(old_full)) {
             std::string old_base = get_path(oldpath, false);
             if (fs::exists(old_base)) {
@@ -496,7 +536,6 @@ public:
             return -errno;
         }
 
-        // If old path was part of base, mark the old location as whiteouted, and clear whiteout for the new path
         std::string old_base = (baseFolder / strip_leading_slash(oldpath)).string();
         if (fs::exists(old_base)) {
             add_whiteout(oldpath);
@@ -520,10 +559,21 @@ public:
 
         std::string full_path = get_path(path, true);
         if (!fs::exists(full_path)) return -ENOENT;
+#ifdef _WIN32
+        try {
+            auto file_time = std::chrono::system_clock::from_time_t(tv[1].tv_sec);
+            fs::last_write_time(full_path, std::chrono::time_point_cast<fs::file_time_type::duration>(
+                file_time - std::chrono::system_clock::now() + fs::file_time_type::clock::now()));
+            return 0;
+        } catch (...) {
+            return -EIO;
+        }
+#else
         if (utimensat(AT_FDCWD, full_path.c_str(), tv, 0) == -1) {
             return -errno;
         }
         return 0;
+#endif
     }
 };
 
@@ -535,7 +585,6 @@ namespace FUSE_Glue {
     static PythonFileSystem* get_fs() {
         auto* ctx = fuse_get_context();
         if (!ctx || !ctx->private_data) {
-            // Fallback or safety check if called out-of-context
             return nullptr; 
         }
         return static_cast<PythonFileSystem*>(ctx->private_data);
@@ -627,7 +676,6 @@ namespace FUSE_Glue {
     }
 }
 
-// Global thread & session handles for non-blocking runs
 class ActiveMount {
 private:
     std::thread runThread;
@@ -647,9 +695,7 @@ public:
 
         struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
         fuse_opt_add_arg(&args, "libbi_fuse");
-        //fuse_opt_add_arg(&args, "-d");
 
-        // Create the high-level FUSE instance
         fh = fuse_new(&args, &ops, sizeof(ops), fs.cast<PythonFileSystem*>());
         fuse_opt_free_args(&args);
 
@@ -657,16 +703,13 @@ public:
             return false;
         }
 
-        // Mount the filesystem using high-level fuse_mount
         if (fuse_mount(fh, mountpoint.c_str()) != 0) {
             fuse_destroy(fh);
             fh = nullptr;
             return false;
         }
 
-        // Run the main loop in a background thread
         runThread = std::thread([this]() {
-            //py::gil_scoped_release release;
             fuse_loop(fh);
         });
 
@@ -675,7 +718,6 @@ public:
 
     void unmount() {
         if (fh) {
-            // High-level fuse exit and unmount sequence
             fuse_exit(fh);
             fuse_unmount(fh);
             
@@ -687,7 +729,7 @@ public:
             fh = nullptr;
         }
     }
-};;
+};
 
 // ============================================================================
 // 4. Module Declaration
@@ -702,8 +744,7 @@ PYBIND11_MODULE(libbifuse, m) {
         .def(py::init<std::string, std::string, std::string, bool>(),
              py::arg("launcherRoot"), py::arg("baseFolder"), py::arg("modFolder"), py::arg("isRenpyGameFolder"))
         .def("getPath", &LibbiVFS::get_path, py::arg("path"), py::arg("write") = false)
-        .def("enableYapping", &LibbiVFS::enableYapping)
-        ;
+        .def("enableYapping", &LibbiVFS::enableYapping);
 
     py::class_<ActiveMount>(m, "ActiveMount")
         .def(py::init<>())

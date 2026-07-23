@@ -87,3 +87,16 @@ init 999 python:
 init -67 python early:
     mod_uuid = os.getenv("MVC_MOD_ID") # variable provided by the launcher
     config.save_directory = mod_uuid
+
+
+init 999 python:
+    def _autoload_check():
+        import os
+        maybeSaveID = os.environ.pop("MVC_SAVE_ID", None)
+        if maybeSaveID:
+            import renpy
+            renpy.loadsave.load(maybeSaveID)
+        config.periodic_callbacks.remove(_autoload_check)
+
+    # conveniently start_callbacks exists since v6.99.11 so base ddlc will still let this through
+    config.periodic_callbacks.append(_autoload_check)
