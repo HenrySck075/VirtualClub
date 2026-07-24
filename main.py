@@ -9,15 +9,16 @@ import uuid
 from io import BytesIO
 import os, stat
 from typing import Any, Union
-from PySide6.QtGui import QColor, QColorConstants, QIcon, QImage
-from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QStackedLayout
-from PySide6.QtCore import QCoreApplication, QProcessEnvironment, QSettings, QSize, QStandardPaths, QTimer, Qt, Signal
-from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, qrouter
+from PySide6.QtGui import QColor, QColorConstants, QDesktopServices, QIcon, QImage
+from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QSpacerItem, QStackedLayout
+from PySide6.QtCore import QCoreApplication, QProcessEnvironment, QPropertyAnimation, QSettings, QSize, QStandardPaths, QStringListModel, QTimer, Qt, Signal, qVersion, QUrl
+from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SearchLineEdit, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, qrouter
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 import sys
 from PIL import Image
 
 from qfluentwidgets.components.widgets import PushButton
+from qfluentwidgets.components.widgets.stacked_widget import PopUpAniInfo
 
 from lib.rpyc_reader import peek_rpyc
 from libbifuse import LibbiVFS, ActiveMount
@@ -109,6 +110,95 @@ class GeneralConfigInterface(ScrollArea):
             self.folder = folder
             self.settings.setValue("baseGameInstallation", folder)
         self.bgfText.setText(f"DDLC installation folder: {self.folder or ''}")
+
+class AboutInterface(ScrollArea):
+    def __init__(self, window: MainWindow):
+        super().__init__()
+        self.mainWindow = window
+        self.enableTransparentBackground()
+        self.setWidgetResizable(True)
+        self.setObjectName("aboutInterface")
+        self.setWidget(self.createContent())
+
+    def createContent(self):
+        content = QWidget()
+        content.setObjectName("contentWidget")
+        content.setStyleSheet("#contentWidget { background-color: transparent; }")
+
+        layout = QVBoxLayout(content)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(36, 24, 36, 24)
+        layout.setSpacing(24)
+
+        app_name = QCoreApplication.applicationName() or "VirtualClub"
+        app_version = QCoreApplication.applicationVersion() or "Preview"
+
+        heroWidget = QWidget()
+        heroLayout = QHBoxLayout(heroWidget)
+        heroLayout.setContentsMargins(0, 0, 0, 0)
+        heroLayout.setSpacing(16)
+        heroLayout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        heroIcon = IconWidget(FIF.INFO)
+        heroIcon.setFixedSize(56, 56)
+
+        heroText = QWidget()
+        heroTextLayout = QVBoxLayout(heroText)
+        heroTextLayout.setContentsMargins(0, 0, 0, 0)
+        heroTextLayout.setSpacing(2)
+        heroTextLayout.addWidget(TitleLabel(app_name))
+        heroTextLayout.addWidget(BodyLabel(f"Version {app_version}"))
+        heroTextLayout.addWidget(CaptionLabel("A(nother) DDLC Mod Loader"))
+
+        heroLayout.addWidget(heroIcon)
+        heroLayout.addWidget(heroText)
+
+        readmeSummary = BodyLabel(
+            "Completely isolated Ren'Py mod sessions without copying files. "
+            "Keep one extracted mod folder and launch in a few clicks."
+        )
+        readmeSummary.setWordWrap(True)
+
+        disclaimer = CaptionLabel("This project is unaffiliated with Team Salvato.")
+        disclaimer.setWordWrap(True)
+
+        detailsGroup = SettingCardGroup("Details", content)
+        runtimeCard = SettingCard(FIF.DEVELOPER_TOOLS, "Runtime", f"Python {platform.python_version()} • Qt {qVersion()}", parent=detailsGroup)
+        modsCard = SettingCard(FIF.ADD, "Configured mods", str(len(self.mainWindow.mods)), parent=detailsGroup)
+        dataCard = SettingCard(FIF.FOLDER, "Data directory", data_dir, parent=detailsGroup)
+
+        detailsGroup.addSettingCard(runtimeCard)
+        detailsGroup.addSettingCard(modsCard)
+        detailsGroup.addSettingCard(dataCard)
+
+        resourcesGroup = SettingCardGroup("Resources", content)
+        demoCard = PushSettingCard(
+            text="Open",
+            icon=FIF.INFO,
+            title="Usage demo video",
+            content="https://youtu.be/1gYvaCy5jng",
+            parent=resourcesGroup
+        )
+        repoCard = PushSettingCard(
+            text="Open",
+            icon=FIF.INFO,
+            title="Project repository",
+            content="https://github.com/HenrySck075/VirtualClub",
+            parent=resourcesGroup
+        )
+        demoCard.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://youtu.be/1gYvaCy5jng")))
+        repoCard.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/HenrySck075/VirtualClub")))
+        resourcesGroup.addSettingCard(demoCard)
+        resourcesGroup.addSettingCard(repoCard)
+
+        layout.addWidget(heroWidget)
+        layout.addWidget(HorizontalSeparator())
+        layout.addWidget(readmeSummary)
+        layout.addWidget(disclaimer)
+        layout.addWidget(detailsGroup)
+        layout.addWidget(resourcesGroup)
+
+        return content
 
 class AddModDialog(MessageBoxBase):
     def __init__(self, parent=None):
@@ -211,7 +301,7 @@ class ModInterface(ScrollArea):
         self.folder = self.settings.value(f"{modId}/directory")
         self.developerEnabled:bool = self.settings.value(f"{modId}/developerMode", defaultValue=False, type=bool) # type: ignore
 
-        self.setObjectName(modId+self.version)
+        self.setObjectName(modId)
         self.setWidgetResizable(True)
         
         # Win11 Settings uses transparent backgrounds for scroll containers
@@ -506,11 +596,11 @@ class ModInterface(ScrollArea):
         
         # Remove dynamically
         self.mainWindow.removeInterface(self)
-        if self in self.mainWindow.navs:
-            self.mainWindow.navs.remove(self)
+        if self in self.mainWindow.modInterfaces:
+            self.mainWindow.modInterfaces.remove(self)
             
-        if self.mainWindow.navs:
-            self.mainWindow.switchTo(self.mainWindow.navs[0])
+        if self.mainWindow.modInterfaces:
+            self.mainWindow.switchTo(self.mainWindow.modInterfaces[0])
         else:
             self.mainWindow.switchTo(self.mainWindow.generalInterface)
             
@@ -642,225 +732,6 @@ def get_rpyc_statements(unpickled_data):
 
     return statements
 
-class MainWindow(FluentWindow):
-    def insertSubInterface(self, index: int, interface: QWidget, icon: Union[FluentIconBase, QIcon, str], text: str,
-                        position=NavigationItemPosition.TOP, parent=None, isTransparent=False) -> NavigationTreeWidget:
-        """ insert sub interface, the object name of `interface` should be set already
-        before calling this method
-
-        need to be completely honest with ya idk why he doesn't have this function in the class
-
-        Parameters
-        ----------
-        interface: QWidget
-            the subinterface to be added
-
-        icon: FluentIconBase | QIcon | str
-            the icon of navigation item
-
-        text: str
-            the text of navigation item
-
-        position: NavigationItemPosition
-            the position of navigation item
-
-        parent: QWidget | str
-            * QWidget: the parent of navigation item
-            * str: the parent route key of navigation item
-
-        isTransparent: bool
-            whether to use transparent background
-        """
-        if not interface.objectName():
-            raise ValueError("The object name of `interface` can't be empty string.")
-
-        parentRouteKey = parent
-        if parent and isinstance(parent, QWidget):
-            parentRouteKey = parent.objectName()
-            if not parentRouteKey:
-                raise ValueError("The object name of `parent` can't be empty string.")
-
-        interface.setProperty("isStackedTransparent", isTransparent)
-        self.stackedWidget.view.insertWidget(index,interface)
-
-        # add navigation item
-        routeKey = interface.objectName()
-        item = self.navigationInterface.insertItem(
-            index=index,
-            routeKey=routeKey,
-            icon=icon,
-            text=text,
-            onClick=lambda: self.switchTo(interface),
-            position=position,
-            tooltip=text,
-            parentRouteKey=parentRouteKey # type: ignore
-        )
-
-        # initialize selected item
-        if self.stackedWidget.count() == 1:
-            self.stackedWidget.currentChanged.connect(self._onCurrentInterfaceChanged)
-            self.navigationInterface.setCurrentItem(routeKey)
-            qrouter.setDefaultRouteKey(self.stackedWidget, routeKey) # type: ignore
-
-        self._updateStackedBackground()
-
-        return item
-
-
-    # Create the mod add event. used by the AddModDialog on its validate() function (which is an excuse to send data on ok button)
-    modAddEvent = Signal(str, name="balls")
-    def __init__(self):
-        super().__init__()
-        self.settings = QSettings()
-        self.modAddEvent.connect(self.onAddNewModRequest)
-        self.navigationInterface.setReturnButtonVisible(False)
-
-        self.mods = list[str]()
-        self.loadModsList()
-
-        self.navs: list[QWidget] = []
-        #self.navigationInterface.setAcrylicEnabled(True)
-        self.initNavigation()
-
-        # set a bigger windo size   
-        self.resize(900, 700)
-
-    def onAddNewModRequest(self, directory: str):
-        gamedir = os.path.join(directory, "game")
-        # build a complete index from every single .rpa files existing
-        indexes = {} # dict[archiveFile, index]
-        def walktuah(*paths):
-            for p in paths: yield from os.walk(p)
-        # walk both the mod's game directory and the base game directory to find all .rpa files
-        for root, dirs, files in walktuah(gamedir, os.path.join(self.settings.value("baseGameInstallation"),"game")):
-            for file in files:
-                if file.endswith(".rpa"):
-                    archiveFile = os.path.join(root, file)
-                    index = read_rpa_index(archiveFile)
-                    indexes[archiveFile] = index
-
-        def read_game_file(filepath):
-            if os.path.exists(os.path.join(gamedir, filepath)):
-                with open(os.path.join(gamedir, filepath), "rb") as f:
-                    return f.read()
-            else:
-                for arc, index in indexes.items():
-                    if filepath in index:
-                        return extract_single_file(arc, filepath, index)
-        # check for the unarchived state: look for options.rpyc
-        balls = BytesIO(read_game_file("options.rpyc")) # type: ignore
-        statements = get_rpyc_statements(peek_rpyc(balls))
-        statements = statements if isinstance(statements, list) else [statements]
-
-        requested_defines = {
-            "config": ["name", "window_icon", "version", "save_directory"],
-            "build": ["name"]
-        }
-        defines = {}
-        def lookup_defines(stmts):
-            for statement in stmts:
-                node_type = type(statement).__name__
-                if node_type == "Init" and hasattr(statement, 'block'):
-                    lookup_defines(statement.block)
-                elif node_type in ("Define", "Default"):
-                    store = getattr(statement, "store", "store")
-                    store = store.removeprefix("store.")
-                    if store == "store": store = ""
-
-                    if store in requested_defines:
-                        varname = getattr(statement, "varname", "")
-                        if varname in requested_defines[store]:
-                            code_obj = getattr(statement, "code", None)
-                            code_str = getattr(code_obj, "source", str(code_obj))
-
-                            print(code_str)
-
-                            defines[(store+"." if store != "" else "")+varname] = eval(code_str) # bit scary but what am i supposed to do
-        lookup_defines(statements)
-        print(defines)
-        
-        name = defines.get("config.name", "Doki Doki Literature Club!") # this rarely happens
-        version = defines.get("config.version", "1.0.0")
-        icon = defines.get("config.window_icon", "").removeprefix("/")
-        buildId = defines.get("build.name", "DDLC")
-        saveDirectory = defines.get("config.save_directory", "DDLC")
-
-        seed_string = f"{buildId}{name}{saveDirectory}{time.time()}"
-        mod_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, seed_string))
-
-        if not icon: icon = os.path.join(get_launcher_root(), "logoplacehold.jpg")
-        icon_content = read_game_file(icon)
-        icon_ext = os.path.splitext(icon)[1]
-
-        # icon path helper functions can't be used here since the configs doesn't exist yet
-        if icon_content is not None:
-            with open(os.path.join(icons_dir,mod_uuid+icon_ext), "wb") as f:
-                f.write(icon_content)
-
-            optimize_window_icon(os.path.join(icons_dir,mod_uuid+icon_ext), os.path.join(icons_dir,mod_uuid+".scaled.png"))
-            
-
-        self.writeEntry(mod_uuid, {
-            "name": name, 
-            "buildId": buildId,# used to lookup the bootstrapper file
-            "directory": directory, 
-            "version": version, 
-            "iconFilename": mod_uuid+icon_ext,
-            "originalIconPath": "/"+icon
-        })
-
-        interface = ModInterface(self, mod_uuid)
-        self.navs.append(interface)
-        self.addSubInterface(interface, QIcon(os.path.join(icons_dir, mod_uuid+icon_ext)), f"{name} ({version})", NavigationItemPosition.SCROLL)
-        self.switchTo(interface)
-        
-        self.settings.sync()
-    
-    def saveModsList(self):
-        self.settings.beginWriteArray("mods")
-        for i, buildId in enumerate(self.mods):
-            self.settings.setArrayIndex(i)
-            self.settings.setValue("b", buildId)
-        self.settings.endArray()
-    def loadModsList(self):
-        self.mods.clear()
-        size = self.settings.beginReadArray("mods")
-        for i in range(size):
-            self.settings.setArrayIndex(i)
-            buildId = self.settings.value("b")
-            if buildId:
-                self.mods.append(buildId.strip())
-        self.settings.endArray()
-
-    def initNavigation(self):
-        self.generalInterface = GeneralConfigInterface()
-        self.addSubInterface(self.generalInterface, FIF.SETTING, "General")
-        
-        for i in self.mods:
-            name = self.settings.value(f"{i}/name")
-            version = self.settings.value(f"{i}/version")
-            iconFilename = self.settings.value(f"{i}/iconFilename")
-
-            if name and version and iconFilename:
-                interface = ModInterface(self, i)
-                self.navs.append(interface)
-                self.addSubInterface(interface, QIcon(os.path.join(icons_dir,iconFilename)), f"{name} ({version})", NavigationItemPosition.SCROLL)
-
-        self.navigationInterface.addItem("sixswan", FIF.ADD, "Add new mod", self.onAddNewMod, position=NavigationItemPosition.BOTTOM)
-
-    def writeEntry(
-        self, buildId, 
-        configs: dict[str, Any]
-    ):
-        self.mods.append(buildId)
-        self.saveModsList()
-
-        for key, value in configs.items():
-            self.settings.setValue(f"{buildId}/{key}", value)
-    def onAddNewMod(self):
-        AddModDialog(self).exec()
-    def close(self, /) -> bool:
-        return super().close()
 
 class ModEditDialog(MessageBoxBase):
     def __init__(self, modId, modInterface: ModInterface, parent: MainWindow):
@@ -954,6 +825,260 @@ class ModEditDialog(MessageBoxBase):
         
         settings.sync()
         return True
+
+
+
+class MainWindow(FluentWindow):
+    def insertSubInterface(self, index: int, interface: QWidget, icon: Union[FluentIconBase, QIcon, str], text: str,
+                        position=NavigationItemPosition.TOP, parent=None, isTransparent=False) -> NavigationTreeWidget:
+        """ insert sub interface, the object name of `interface` should be set already
+        before calling this method
+
+        need to be completely honest with ya idk why he doesn't have this function in the class
+
+        Parameters
+        ----------
+        interface: QWidget
+            the subinterface to be added
+
+        icon: FluentIconBase | QIcon | str
+            the icon of navigation item
+
+        text: str
+            the text of navigation item
+
+        position: NavigationItemPosition
+            the position of navigation item
+
+        parent: QWidget | str
+            * QWidget: the parent of navigation item
+            * str: the parent route key of navigation item
+
+        isTransparent: bool
+            whether to use transparent background
+        """
+        if not interface.objectName():
+            raise ValueError("The object name of `interface` can't be empty string.")
+
+        parentRouteKey = parent
+        if parent and isinstance(parent, QWidget):
+            parentRouteKey = parent.objectName()
+            if not parentRouteKey:
+                raise ValueError("The object name of `parent` can't be empty string.")
+
+        interface.setProperty("isStackedTransparent", isTransparent)
+        self.stackedWidget.view.insertWidget(index,interface)
+        # i might just 
+        self.stackedWidget.view.aniInfos.insert(index, PopUpAniInfo(
+            widget=interface,
+            deltaX=0,
+            deltaY=76,
+            ani=QPropertyAnimation(interface, b'pos'),
+        ))
+
+        # add navigation item
+        routeKey = interface.objectName()
+        item = self.navigationInterface.insertItem(
+            index=index,
+            routeKey=routeKey,
+            icon=icon,
+            text=text,
+            onClick=lambda: self.switchTo(interface),
+            position=position,
+            tooltip=text,
+            parentRouteKey=parentRouteKey # type: ignore
+        )
+
+        # initialize selected item
+        if self.stackedWidget.count() == 1:
+            self.stackedWidget.currentChanged.connect(self._onCurrentInterfaceChanged)
+            self.navigationInterface.setCurrentItem(routeKey)
+            qrouter.setDefaultRouteKey(self.stackedWidget, routeKey) # type: ignore
+
+        self._updateStackedBackground()
+
+        return item
+
+
+    # Create the mod add event. used by the AddModDialog on its validate() function (which is an excuse to send data on ok button)
+    modAddEvent = Signal(str, name="balls")
+    def __init__(self):
+        super().__init__()
+        self.settings = QSettings()
+        self.modAddEvent.connect(self.onAddNewModRequest)
+        self.navigationInterface.setReturnButtonVisible(False)
+
+        self.mods = list[str]()
+        self.loadModsList()
+
+        self.modInterfaces: list[ModInterface] = []
+        #self.navigationInterface.setAcrylicEnabled(True)
+        self.initNavigation()
+        
+        self.searchBar = SearchLineEdit(self.titleBar)
+        self.searchBar.setPlaceholderText("Search for a mod")
+        self.searchBar.setMaximumWidth(500)
+        self.searchBar.setMinimumWidth(250)
+
+        itemsCap = 10
+
+        completer = QCompleter([i.name for i in self.modInterfaces], self.searchBar)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        completer.setMaxVisibleItems(itemsCap)
+
+        def completerActivateCB(name):
+            for interface in self.modInterfaces:
+                if interface.name == name:
+                    self.switchTo(interface)
+                    break
+        completer.activated.connect(completerActivateCB) 
+
+        self.searchBar.setCompleter(completer)
+        self.titleBar.hBoxLayout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self.titleBar.hBoxLayout.insertWidget(1, self.searchBar)
+
+        # set a bigger windo size   
+        self.resize(900, 700)
+
+    def onAddNewModRequest(self, directory: str):
+        gamedir = os.path.join(directory, "game")
+        # build a complete index from every single .rpa files existing
+        indexes = {} # dict[archiveFile, index]
+        def walktuah(*paths):
+            for p in paths: yield from os.walk(p)
+        # walk both the mod's game directory and the base game directory to find all .rpa files
+        for root, dirs, files in walktuah(gamedir, os.path.join(self.settings.value("baseGameInstallation"),"game")):
+            for file in files:
+                if file.endswith(".rpa"):
+                    archiveFile = os.path.join(root, file)
+                    index = read_rpa_index(archiveFile)
+                    indexes[archiveFile] = index
+
+        def read_game_file(filepath):
+            if os.path.exists(os.path.join(gamedir, filepath)):
+                with open(os.path.join(gamedir, filepath), "rb") as f:
+                    return f.read()
+            else:
+                for arc, index in indexes.items():
+                    if filepath in index:
+                        return extract_single_file(arc, filepath, index)
+        # check for the unarchived state: look for options.rpyc
+        balls = BytesIO(read_game_file("options.rpyc")) # type: ignore
+        statements = get_rpyc_statements(peek_rpyc(balls))
+        statements = statements if isinstance(statements, list) else [statements]
+
+        requested_defines = {
+            "config": ["name", "window_icon", "version", "save_directory"],
+            "build": ["name"]
+        }
+        defines = {}
+        def lookup_defines(stmts):
+            for statement in stmts:
+                node_type = type(statement).__name__
+                if node_type == "Init" and hasattr(statement, 'block'):
+                    lookup_defines(statement.block)
+                elif node_type in ("Define", "Default"):
+                    store = getattr(statement, "store", "store")
+                    store = store.removeprefix("store.")
+                    if store == "store": store = ""
+
+                    if store in requested_defines:
+                        varname = getattr(statement, "varname", "")
+                        if varname in requested_defines[store]:
+                            code_obj = getattr(statement, "code", None)
+                            code_str = getattr(code_obj, "source", str(code_obj))
+
+                            print(code_str)
+
+                            defines[(store+"." if store != "" else "")+varname] = eval(code_str) # bit scary but what am i supposed to do
+        lookup_defines(statements)
+        print(defines)
+        
+        name = defines.get("config.name", "Doki Doki Literature Club!") # this rarely happens
+        version = defines.get("config.version", "1.0.0")
+        icon = defines.get("config.window_icon", "").removeprefix("/")
+        buildId = defines.get("build.name", "DDLC")
+        saveDirectory = defines.get("config.save_directory", "DDLC")
+
+        seed_string = f"{buildId}{name}{saveDirectory}{time.time()}"
+        mod_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, seed_string))
+
+        if not icon: icon = os.path.join(get_launcher_root(), "logoplacehold.jpg")
+        icon_content = read_game_file(icon)
+        icon_ext = os.path.splitext(icon)[1]
+
+        # icon path helper functions can't be used here since the configs doesn't exist yet
+        if icon_content is not None:
+            with open(os.path.join(icons_dir,mod_uuid+icon_ext), "wb") as f:
+                f.write(icon_content)
+
+            optimize_window_icon(os.path.join(icons_dir,mod_uuid+icon_ext), os.path.join(icons_dir,mod_uuid+".scaled.png"))
+            
+
+        self.writeEntry(mod_uuid, {
+            "name": name, 
+            "buildId": buildId,# used to lookup the bootstrapper file
+            "directory": directory, 
+            "version": version, 
+            "iconFilename": mod_uuid+icon_ext,
+            "originalIconPath": "/"+icon
+        })
+
+        interface = ModInterface(self, mod_uuid)
+        self.modInterfaces.append(interface)
+        self.addSubInterface(interface, QIcon(os.path.join(icons_dir, mod_uuid+icon_ext)), f"{name} ({version})", NavigationItemPosition.SCROLL)
+        self.switchTo(interface)
+        
+        self.settings.sync()
+    
+    def saveModsList(self):
+        self.settings.beginWriteArray("mods")
+        for i, buildId in enumerate(self.mods):
+            self.settings.setArrayIndex(i)
+            self.settings.setValue("b", buildId)
+        self.settings.endArray()
+    def loadModsList(self):
+        self.mods.clear()
+        size = self.settings.beginReadArray("mods")
+        for i in range(size):
+            self.settings.setArrayIndex(i)
+            buildId = self.settings.value("b")
+            if buildId:
+                self.mods.append(buildId.strip())
+        self.settings.endArray()
+
+    def initNavigation(self):
+        self.generalInterface = GeneralConfigInterface()
+        self.addSubInterface(self.generalInterface, FIF.SETTING, "General")
+        self.aboutInterface = AboutInterface(self)
+        self.addSubInterface(self.aboutInterface, FIF.INFO, "About", NavigationItemPosition.BOTTOM)
+        
+        for i in self.mods:
+            name = self.settings.value(f"{i}/name")
+            version = self.settings.value(f"{i}/version")
+            iconFilename = self.settings.value(f"{i}/iconFilename")
+
+            if name and version and iconFilename:
+                interface = ModInterface(self, i)
+                self.modInterfaces.append(interface)
+                self.addSubInterface(interface, QIcon(os.path.join(icons_dir,iconFilename)), f"{name} ({version})", NavigationItemPosition.SCROLL)
+
+        self.navigationInterface.addItem("sixswan", FIF.ADD, "Add new mod", self.onAddNewMod, position=NavigationItemPosition.BOTTOM)
+
+    def writeEntry(
+        self, buildId, 
+        configs: dict[str, Any]
+    ):
+        self.mods.append(buildId)
+        self.saveModsList()
+
+        for key, value in configs.items():
+            self.settings.setValue(f"{buildId}/{key}", value)
+    def onAddNewMod(self):
+        AddModDialog(self).exec()
+    def close(self, /) -> bool:
+        return super().close()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
