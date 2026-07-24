@@ -649,9 +649,9 @@ namespace FUSE_Glue {
             stbuf->st_mode = std_st.st_mode;
             stbuf->st_nlink = std_st.st_nlink;
             stbuf->st_size = std_st.st_size;
-            stbuf->st_atim = std_st.st_atime;
-            stbuf->st_mtim = std_st.st_mtime;
-            stbuf->st_ctim = std_st.st_ctime;
+            stbuf->st_atim = {std_st.st_atime};
+            stbuf->st_mtim = {std_st.st_mtime};
+            stbuf->st_ctim = {std_st.st_ctime};
             stbuf->st_uid = std_st.st_uid;
             stbuf->st_gid = std_st.st_gid;
         }
