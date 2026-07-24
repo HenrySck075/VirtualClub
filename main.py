@@ -12,7 +12,7 @@ from typing import Any, Union
 from PySide6.QtGui import QColor, QColorConstants, QIcon, QImage
 from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QStackedLayout
 from PySide6.QtCore import QCoreApplication, QProcessEnvironment, QSettings, QSize, QStandardPaths, QTimer, Qt, Signal
-from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, qrouter
+from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, qrouter
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 import sys
 from PIL import Image
@@ -91,7 +91,7 @@ class GeneralConfigInterface(ScrollArea):
         baseGameFolderLine = QWidget()
         layout2 = QHBoxLayout(baseGameFolderLine)
         layout2.setAlignment(Qt.AlignmentFlag.AlignTop)
-        button = PushButton(FIF.FOLDER, "Open folder")
+        button = PushButton(FIF.FOLDER, "Change folder")
         def bgfButtonCallback():
             self.updateInstallationFolder(QFileDialog.getExistingDirectory(self, "Select extracted DDLC installation folder (NOT THE STEAM ONE)"))
         button.clicked.connect(bgfButtonCallback)
@@ -129,19 +129,17 @@ class AddModDialog(MessageBoxBase):
                 self.extractedFolderLabel.setText(f"Selected folder: {folder}")
                 self.selectedFolder = folder
         selectFolderButton.clicked.connect(selectFolderCallback)
-        self.gameFolderCheckbox = CheckBox("Is a \"game/\" folder (this one's for the good ending mod)")
 
         self.viewLayout.addWidget(self.titleLabel)
         self.viewLayout.addWidget(self.folderSelectLabel)
         self.viewLayout.addWidget(self.extractedFolderLabel)
         self.viewLayout.addWidget(selectFolderButton)
-        self.viewLayout.addWidget(self.gameFolderCheckbox)
 
     def validate(self):
         if not self.selectedFolder:
             return False
         mainWindow: MainWindow = self.parent() # type: ignore
-        mainWindow.modAddEvent.emit(self.selectedFolder, self.gameFolderCheckbox.isChecked())
+        mainWindow.modAddEvent.emit(self.selectedFolder)
         return True
 
 class PrimarySplitPushSettingCard(SettingCard):
@@ -211,7 +209,6 @@ class ModInterface(ScrollArea):
         self.version = self.settings.value(f"{modId}/version")
         self.iconFilename = self.settings.value(f"{modId}/iconFilename")
         self.folder = self.settings.value(f"{modId}/directory")
-        self.isRenpyGameDir = self.settings.value(f"{modId}/isRenpyGameDir", defaultValue=False, type=bool)
         self.developerEnabled:bool = self.settings.value(f"{modId}/developerMode", defaultValue=False, type=bool) # type: ignore
 
         self.setObjectName(modId+self.version)
@@ -368,7 +365,7 @@ class ModInterface(ScrollArea):
             if self.fuse != None: self.fuse.unmount()
             self.fuse = fuse = ActiveMount()
             vfs = LibbiVFS(
-                    launcherRoot, self.settings.value("baseGameInstallation"), self.folder, self.isRenpyGameDir,
+                    launcherRoot, self.settings.value("baseGameInstallation"), self.folder,
                 )
             fuse.mount(
                 mountdir, 
@@ -465,8 +462,7 @@ class ModInterface(ScrollArea):
             args = []
             # if the mod is a Ren'Py 6 mod (easiest detection is no lib/ in the mod folder, there could be edge case but we'll deal with that later)
             # add the -EO flag first. idk how that makes python able to find its libs but without the flag it cant.
-            # self.isRenpyGameDir works too because this flag is only reasonable if the mod was for v6
-            if self.isRenpyGameDir or not os.path.exists(os.path.join(self.folder, "lib")):
+            if not os.path.exists(os.path.join(self.folder, "lib")):
                 args.append("-EO")
             bootstrapperFile = f"{self.buildId}.py"
             if not os.path.exists(os.path.join(mountdir, bootstrapperFile)):
@@ -478,6 +474,13 @@ class ModInterface(ScrollArea):
             raise
 
     def onUninstallMod(self):
+        if MessageBox(
+            "Are you sure you want to uninstall this mod?",
+            "Removing it this way DOES NOT delete the selected mod folders, BUT it will delete all the save data! (unless i catched the wrong folder but whatever)",
+            self.mainWindow
+        ).exec():
+            pass
+        else: return
         print(f"[ModInterface] Purging metadata entries for mod environment: {self.modId}")
         self.mainWindow.mods.remove(self.modId)
         allKeys = self.settings.allKeys()
@@ -534,8 +537,8 @@ class ModInterface(ScrollArea):
         self.launchMod(extraEnvs={"MVC_SAVE_ID": save_id})
 
 class SaveSelectWindow(FluentWidget):
-    def __init__(self, modInterface: ModInterface):
-        super().__init__()
+    def __init__(self, modInterface: ModInterface, parent=None):
+        super().__init__(parent)
         self.modInterface = modInterface
         self.setBackgroundColor(QColorConstants.Transparent)
         self.setWindowTitle("Select a save file")
@@ -705,7 +708,7 @@ class MainWindow(FluentWindow):
 
 
     # Create the mod add event. used by the AddModDialog on its validate() function (which is an excuse to send data on ok button)
-    modAddEvent = Signal(str, bool, name="balls")
+    modAddEvent = Signal(str, name="balls")
     def __init__(self):
         super().__init__()
         self.settings = QSettings()
@@ -722,11 +725,14 @@ class MainWindow(FluentWindow):
         # set a bigger windo size   
         self.resize(900, 700)
 
-    def onAddNewModRequest(self, directory: str, isGameDir: bool):
-        gamedir = directory if isGameDir else os.path.join(directory, "game")
+    def onAddNewModRequest(self, directory: str):
+        gamedir = os.path.join(directory, "game")
         # build a complete index from every single .rpa files existing
         indexes = {} # dict[archiveFile, index]
-        for root, dirs, files in os.walk(gamedir):
+        def walktuah(*paths):
+            for p in paths: yield from os.walk(p)
+        # walk both the mod's game directory and the base game directory to find all .rpa files
+        for root, dirs, files in walktuah(gamedir, os.path.join(self.settings.value("baseGameInstallation"),"game")):
             for file in files:
                 if file.endswith(".rpa"):
                     archiveFile = os.path.join(root, file)
@@ -775,13 +781,14 @@ class MainWindow(FluentWindow):
         
         name = defines.get("config.name", "Doki Doki Literature Club!") # this rarely happens
         version = defines.get("config.version", "1.0.0")
-        icon = defines["config.window_icon"].removeprefix("/")
+        icon = defines.get("config.window_icon", "").removeprefix("/")
         buildId = defines.get("build.name", "DDLC")
         saveDirectory = defines.get("config.save_directory", "DDLC")
 
         seed_string = f"{buildId}{name}{saveDirectory}{time.time()}"
         mod_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, seed_string))
 
+        if not icon: icon = os.path.join(get_launcher_root(), "logoplacehold.jpg")
         icon_content = read_game_file(icon)
         icon_ext = os.path.splitext(icon)[1]
 
@@ -798,7 +805,6 @@ class MainWindow(FluentWindow):
             "buildId": buildId,# used to lookup the bootstrapper file
             "directory": directory, 
             "version": version, 
-            "isRenpyGameDir": isGameDir,
             "iconFilename": mod_uuid+icon_ext,
             "originalIconPath": "/"+icon
         })

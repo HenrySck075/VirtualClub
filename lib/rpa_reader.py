@@ -67,12 +67,25 @@ def extract_single_file(rpa_path, target_filename, index=None):
 # --- Example Usage ---
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python rpa_reader.py <path_to_archive.rpa>")
+        print("Usage: python rpa_reader.py <path_to_archive.rpa> [<files_to_extract>...]")
         sys.exit(1)
         
     rpa_file = sys.argv[1]
 
+    extracts = sys.argv[2:]
+
     archive_index = read_rpa_index(rpa_file)
-    print("Files available in archive:")
-    for path in list(archive_index.keys()): # print first 5 files safely
-        print(f" - {path}")
+
+    if len(extracts) != 0:
+        for filename in extracts:
+            try:
+                data = extract_single_file(rpa_file, filename, archive_index)
+                with open(filename, "wb") as out_file:
+                    out_file.write(data)
+                print(f"Extracted: {filename}")
+            except FileNotFoundError:
+                print(f"File not found in archive: {filename}")
+    else:
+        print("Files available in archive:")
+        for path in list(archive_index.keys()): # print first 5 files safely
+            print(f" - {path}")

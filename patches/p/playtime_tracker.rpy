@@ -87,7 +87,6 @@ init python:
                 self.last_save = now
 
         def save(self):
-            print(not not config.savedir)
             """Writes current playtime values to .mvc_playtime."""
             if not config.savedir:
                 return

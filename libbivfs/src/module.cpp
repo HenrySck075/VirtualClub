@@ -142,7 +142,6 @@ class LibbiVFS : public PythonFileSystem {
 private:
     fs::path baseFolder;
     fs::path modFolder;
-    bool isRenpyGameFolder;
     bool containsRenpyEngine;
 
     fs::path dbFolder;
@@ -226,8 +225,8 @@ private:
     bool verboseLog = false;
 
 public:
-    LibbiVFS(std::string launcherRoot, std::string base, std::string mod, bool is_renpy)
-        : launcherRoot(launcherRoot), baseFolder(base), modFolder(mod), isRenpyGameFolder(is_renpy) {
+    LibbiVFS(std::string launcherRoot, std::string base, std::string mod)
+        : launcherRoot(launcherRoot), baseFolder(base), modFolder(mod) {
 
         containsRenpyEngine = fs::exists(modFolder / "lib");
         
@@ -256,31 +255,16 @@ public:
         }
 
         if (path.rfind("/lib", 0) == 0 || path.rfind("\\lib", 0) == 0) {
-            if (isRenpyGameFolder || !containsRenpyEngine) {
+            if (!containsRenpyEngine) {
                 return toBaseFolder.string();
             } else {
                 return toModFolder.string();
             }
         } else {
             if (write) {
-                if (isRenpyGameFolder) {
-                    if (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0) {
-                        std::string sub = (path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? path.substr(6) : path.substr(5);
-                        return (modFolder / sub).string();
-                    } else {
-                        return toBaseFolder.string();
-                    }
-                } else {
-                    return toModFolder.string();
-                }
+                return toModFolder.string();
             } else {
-                fs::path ret;
-                if (isRenpyGameFolder && (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0)) {
-                    std::string sub = (path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? path.substr(6) : path.substr(5);
-                    ret = modFolder / sub;
-                } else {
-                    ret = toModFolder;
-                }
+                fs::path ret = toModFolder;
                 
                 if (!fs::exists(ret)) {
                     ret = toBaseFolder;
@@ -318,10 +302,7 @@ public:
         std::string stripped = strip_leading_slash(path);
         std::string mod_path;
         
-        if (isRenpyGameFolder && (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0)) {
-            std::string sub = (path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? path.substr(6) : path.substr(5);
-            mod_path = (modFolder / sub).string();
-        } else if (!containsRenpyEngine && (path.rfind("/lib", 0) == 0 || path.rfind("\\lib", 0) == 0)) {
+        if (!containsRenpyEngine && (path.rfind("/lib", 0) == 0 || path.rfind("\\lib", 0) == 0)) {
             mod_path = (baseFolder / stripped).string();
         } else {
             mod_path = (modFolder / stripped).string();
@@ -895,8 +876,8 @@ PYBIND11_MODULE(libbifuse, m) {
     py::class_<PythonFileSystem>(m, "PythonFileSystem");
 
     py::class_<LibbiVFS, PythonFileSystem>(m, "LibbiVFS")
-        .def(py::init<std::string, std::string, std::string, bool>(),
-             py::arg("launcherRoot"), py::arg("baseFolder"), py::arg("modFolder"), py::arg("isRenpyGameFolder"))
+        .def(py::init<std::string, std::string, std::string>(),
+             py::arg("launcherRoot"), py::arg("baseFolder"), py::arg("modFolder"))
         .def("getPath", &LibbiVFS::get_path, py::arg("path"), py::arg("write") = false)
         .def("enableYapping", &LibbiVFS::enableYapping);
 
