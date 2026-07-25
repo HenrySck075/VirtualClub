@@ -80,22 +80,16 @@ jobs:
             ADD_DATA_SEP=":"
           fi
 
-          uv run pyinstaller --onefile --noconsole -n VirtualClub --add-data "patches${ADD_DATA_SEP}patches" main.py
-
-      - name: Rename and Prepare Binary
-        run: |
-          mkdir -p bin_out
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            mv dist/VirtualClub.exe bin_out/VirtualClub-windows-x64.exe
-          else
-            mv dist/VirtualClub bin_out/VirtualClub-linux-x64
-          fi
+          uv run pyinstaller --noconsole -n VirtualClub --add-data "patches${ADD_DATA_SEP}patches" main.py
+      - name: Zip the thing
+        shell: bash
+        run: 7z a -tzip VirtualClub.zip ./dist/VirtualClub/*
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: binary-${{ runner.os }}
-          path: bin_out/*
+          name: VirtualClub-${{ runner.os }}.zip
+          path: VirtualClub.zip 
           if-no-files-found: error
 
   release:
@@ -112,7 +106,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release_assets
-          pattern: binary-*
+          pattern: VirtualClub-*
           merge-multiple: true
 
       - name: Create Git Tag and GitHub Release
@@ -123,7 +117,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            release_assets/VirtualClub-windows-x64.exe
-            release_assets/VirtualClub-linux-x64
+            release_assets/VirtualClub-Windows.zip
+            release_assets/VirtualClub-Linux.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -811,7 +811,7 @@ class ModEditDialog(MessageBoxBase):
         mainWindow: MainWindow = self.parent()  # type: ignore
         
         # Replace the QTimer reload/switchTo logic with targeted interface insertion
-        index = mainWindow.stackedWidget.indexOf(self.modInterface)
+        index = mainWindow.modInterfaces.index(self.modInterface)
         mainWindow.removeInterface(self.modInterface)
         
         mainWindow.insertSubInterface(
