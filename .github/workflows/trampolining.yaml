@@ -81,15 +81,17 @@ jobs:
           fi
 
           uv run pyinstaller --noconsole -n VirtualClub --add-data "patches${ADD_DATA_SEP}patches" main.py
-      - name: Zip the thing
+
+      - name: Zip the executable
         shell: bash
-        run: 7z a -tzip VirtualClub.zip ./dist/VirtualClub/*
+        run: |
+          7z a -tzip "VirtualClub-${{ runner.os }}.zip" ./dist/VirtualClub/*
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: VirtualClub-${{ runner.os }}.zip
-          path: VirtualClub.zip 
+          name: VirtualClub-${{ runner.os }}
+          path: VirtualClub-${{ runner.os }}.zip
           if-no-files-found: error
 
   release:
@@ -102,6 +104,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Extract Version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(python3 -c "
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              print(tomllib.load(f)['project']['version'])
+          ")
+          echo "version=v$VERSION" >> $GITHUB_OUTPUT
+
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -112,12 +124,11 @@ jobs:
       - name: Create Git Tag and GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: release-${{ github.sha }}
-          name: Release ${{ github.sha }}
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
           draft: false
           prerelease: false
           files: |
-            release_assets/VirtualClub-Windows.zip
-            release_assets/VirtualClub-Linux.zip
+            release_assets/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
