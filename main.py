@@ -12,7 +12,7 @@ from typing import Any, Union
 from PySide6.QtGui import QColor, QColorConstants, QDesktopServices, QIcon, QImage
 from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QSpacerItem, QStackedLayout
 from PySide6.QtCore import QCoreApplication, QProcessEnvironment, QPropertyAnimation, QSettings, QSize, QStandardPaths, QStringListModel, QTimer, Qt, Signal, qVersion, QUrl
-from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SearchLineEdit, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, qrouter
+from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, ConfigItem, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SearchLineEdit, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, qrouter
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 import sys
 from PIL import Image
@@ -176,7 +176,7 @@ class AboutInterface(ScrollArea):
             text="Open",
             icon=FIF.INFO,
             title="Usage demo video",
-            content="https://youtu.be/1gYvaCy5jng",
+            content="https://youtu.be/c0ExzdKAdfE",
             parent=resourcesGroup
         )
         repoCard = PushSettingCard(
@@ -186,7 +186,7 @@ class AboutInterface(ScrollArea):
             content="https://github.com/HenrySck075/VirtualClub",
             parent=resourcesGroup
         )
-        demoCard.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://youtu.be/1gYvaCy5jng")))
+        demoCard.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://youtu.be/c0ExzdKAdfE")))
         repoCard.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/HenrySck075/VirtualClub")))
         resourcesGroup.addSettingCard(demoCard)
         resourcesGroup.addSettingCard(repoCard)
@@ -287,6 +287,38 @@ def format_duration(seconds: int):
     return ", ".join(parts)
 
 class ModInterface(ScrollArea):
+    @property
+    def name(self): return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = value
+        self.titleLabel.setText(value)
+
+    @property
+    def version(self): return self._version
+
+    @version.setter 
+    def version(self, value): 
+        self._version = value
+        self.versionLabel.setText(f"Version {value}")
+
+    @property
+    def folder(self): return self._folder
+
+    @folder.setter
+    def folder(self, value):
+        self._folder = value
+        self.directoryLabel.setText(f"Directory: {value}")
+
+    @property
+    def iconFilename(self): return self._iconFilename
+
+    @iconFilename.setter 
+    def iconFilename(self, value):
+        self._iconFilename = value
+        self.iconWidget.setIcon(QIcon(os.path.join(icons_dir,self._iconFilename)))
+
     def __init__(self, window: MainWindow, modId):
         super().__init__()
         self.enableTransparentBackground()
@@ -294,12 +326,11 @@ class ModInterface(ScrollArea):
         self.modId = modId
         self.mainWindow = window
         
-        self.name = self.settings.value(f"{modId}/name")
+        self._name = self.settings.value(f"{modId}/name")
         self.buildId = self.settings.value(f"{modId}/buildId")
-        self.version = self.settings.value(f"{modId}/version")
-        self.iconFilename = self.settings.value(f"{modId}/iconFilename")
-        self.folder = self.settings.value(f"{modId}/directory")
-        self.developerEnabled:bool = self.settings.value(f"{modId}/developerMode", defaultValue=False, type=bool) # type: ignore
+        self._version = self.settings.value(f"{modId}/version")
+        self._iconFilename = self.settings.value(f"{modId}/iconFilename")
+        self._folder = self.settings.value(f"{modId}/directory")
 
         self.setObjectName(modId)
         self.setWidgetResizable(True)
@@ -308,6 +339,12 @@ class ModInterface(ScrollArea):
         # self.setStyleSheet("QScrollArea { background-color: transparent; border: none; }")
         self.setWidget(self.createContent())
         self.fuse: ActiveMount|None = None
+
+    @property
+    def developerEnabled(self): return self.settings.value(f"{self.modId}/developerMode", False, type=bool)
+
+    @property
+    def shouldForceRecomp(self): return self.settings.value(f"{self.modId}/forceRecomp", False, type=bool)
 
     def createContent(self):
         content = QWidget()
@@ -333,24 +370,28 @@ class ModInterface(ScrollArea):
         titleLayout.setContentsMargins(0, 0, 0, 0)
         titleLayout.setSpacing(2)
         
-        titleLabel = TitleLabel(self.name)
-        versionLabel = BodyLabel(f"Version {self.version}")
-        versionLabel.setTextColor(QColor(Qt.GlobalColor.gray), QColor(Qt.GlobalColor.darkGray))
-        directoryLabel = BodyLabel(f"Directory: {self.folder}")
-        directoryLabel.setTextColor(QColor(Qt.GlobalColor.gray), QColor(Qt.GlobalColor.darkGray))
+        self.titleLabel = TitleLabel()
+        self.name = self._name
+        self.versionLabel = BodyLabel()
+        self.version = self._version
+        self.versionLabel.setTextColor(QColor(Qt.GlobalColor.gray), QColor(Qt.GlobalColor.darkGray))
+        self.directoryLabel = BodyLabel()
+        self.folder = self._folder
+        self.directoryLabel.setTextColor(QColor(Qt.GlobalColor.gray), QColor(Qt.GlobalColor.darkGray))
         metaEditButton = PushButton(FIF.EDIT, "Edit")
         metaEditButton.clicked.connect(lambda: ModEditDialog(self.modId, self, self.mainWindow).exec())
         
-        titleLayout.addWidget(titleLabel)
-        titleLayout.addWidget(versionLabel)
-        titleLayout.addWidget(directoryLabel)
+        titleLayout.addWidget(self.titleLabel)
+        titleLayout.addWidget(self.versionLabel)
+        titleLayout.addWidget(self.directoryLabel)
         titleLayout.addWidget(metaEditButton)
 
         # the mod icon
-        iconWidget = IconWidget(QIcon(os.path.join(icons_dir,self.iconFilename)))
+        self.iconWidget = IconWidget()
+        self.iconFilename = self._iconFilename
         iconSize = 120
-        iconWidget.setFixedSize(iconSize, iconSize)
-        headerLayout.addWidget(iconWidget)
+        self.iconWidget.setFixedSize(iconSize, iconSize)
+        headerLayout.addWidget(self.iconWidget)
         headerLayout.addWidget(titleWidget)
         
         layout.addWidget(headerWidget)
@@ -397,10 +438,21 @@ class ModInterface(ScrollArea):
         )
         self.startCard.clicked.connect(self.onStartMod)
 
-        self.devModeCard = SwitchSettingCard(FIF.DEVELOPER_TOOLS, "Developer mode", "Toggle developer tools in the game.",parent=modActionsGroup)
-        self.devModeCard.setChecked(self.developerEnabled)
-        # yeah theres configItem ik
-        self.devModeCard.checkedChanged.connect(self.onSetDevMode)
+        
+        self.devModeCard = SwitchSettingCard(
+            FIF.DEVELOPER_TOOLS, 
+            "Developer mode", 
+            "Toggle developer tools in the game.",
+            ConfigItem(self.modId, "developerMode", False),
+            modActionsGroup
+        )
+        self.forceRecompCard = SwitchSettingCard(
+            FIF.ROTATE, 
+            "Force recompile", 
+            "Force the engine to recompile any (loose) .rpyc files on launch. Helpful for testing patches / developing.",
+            ConfigItem(self.modId, "forceRecomp", False),
+            modActionsGroup
+        )
         
         # Secondary Action Card
         self.uninstallCard = PushSettingCard(
@@ -415,16 +467,12 @@ class ModInterface(ScrollArea):
         # Add cards to the group container
         modActionsGroup.addSettingCard(self.startCard)
         modActionsGroup.addSettingCard(self.devModeCard)
+        modActionsGroup.addSettingCard(self.forceRecompCard)
         modActionsGroup.addSettingCard(self.uninstallCard)
         
         layout.addWidget(modActionsGroup)
         return content
 
-    def onSetDevMode(self, enabled: bool):
-        self.developerEnabled = enabled
-        self.settings.setValue(f"{self.modId}/developerMode", enabled)
-        self.settings.sync()
-    
     def onStartMod(self):
         self.launchMod()
 
@@ -515,6 +563,18 @@ class ModInterface(ScrollArea):
                     print(f"Adding executable permissions to {python_exc}")
                     # Retain current permissions but add user, group, and other execute permissions
                     os.chmod(python_exc, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+            if self.shouldForceRecomp:
+                # deletes the .rpyc files to force recompilation
+                # also solves the ghost script issue
+                for root, dirs, files in os.walk(mountdir):
+                    for file in files:
+                        if file.endswith(".rpyc"):
+                            rpyc_path = os.path.join(root, file)
+                            try:
+                                os.remove(rpyc_path)
+                            except Exception as e:
+                                print(f"[ModInterface] Failed to delete {rpyc_path}: {e}")
 
             # Launch via QProcess so the PySide GUI remains responsive and can track life cycle
             self.process = QProcess()
@@ -806,22 +866,11 @@ class ModEditDialog(MessageBoxBase):
         self.modInterface.name = new_name
         self.modInterface.version = new_version
         self.modInterface.folder = new_directory
-        self.modInterface.setObjectName(self.modId + new_version)
 
         mainWindow: MainWindow = self.parent()  # type: ignore
         
-        # Replace the QTimer reload/switchTo logic with targeted interface insertion
-        index = mainWindow.modInterfaces.index(self.modInterface)
-        mainWindow.removeInterface(self.modInterface)
-        
-        mainWindow.insertSubInterface(
-            index=index,
-            interface=self.modInterface,
-            icon=QIcon(os.path.join(icons_dir, self.modInterface.iconFilename)),
-            text=f"{new_name} ({new_version})",
-            position=NavigationItemPosition.SCROLL
-        )
-        mainWindow.switchTo(self.modInterface)
+        balls: NavigationTreeWidget = mainWindow.navigationInterface.widget(self.modInterface.objectName()) # type: ignore
+        balls.setText(f"{new_name} (v{new_version})")
         
         settings.sync()
         return True
@@ -995,7 +1044,7 @@ class MainWindow(FluentWindow):
         lookup_defines(statements)
         print(defines)
         
-        name = defines.get("config.name", "Doki Doki Literature Club!") # this rarely happens
+        name = defines.get("config.name", "Doki Doki Modding Club!") # this rarely happens
         version = defines.get("config.version", "1.0.0")
         icon = defines.get("config.window_icon", "").removeprefix("/")
         buildId = defines.get("build.name", "DDLC")
@@ -1027,7 +1076,7 @@ class MainWindow(FluentWindow):
 
         interface = ModInterface(self, mod_uuid)
         self.modInterfaces.append(interface)
-        self.addSubInterface(interface, QIcon(os.path.join(icons_dir, mod_uuid+icon_ext)), f"{name} ({version})", NavigationItemPosition.SCROLL)
+        self.addSubInterface(interface, QIcon(os.path.join(icons_dir, mod_uuid+icon_ext)), f"{name} (v{version})", NavigationItemPosition.SCROLL)
         self.switchTo(interface)
         
         self.settings.sync()

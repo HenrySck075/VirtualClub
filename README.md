@@ -4,7 +4,7 @@ A brand new way to "install" and get a **completely isolated** mod session in ju
 
 wait whats with the "install" in quotation mark? well theres **no files copying happening behind the scene at all**! using [pure magic](libbivfs/src/module.cpp), you can play any* mods without wasting any more disk space from a second unnecessary copy. You just need to keep one copy of the extracted mod folder though.
 
-See the usage demo video [here](https://youtu.be/1gYvaCy5jng), and download the program from the Releases section at the right side of your page.
+See the usage demo video [here](https://youtu.be/c0ExzdKAdfE), and download the program from the Releases section at the right side of your page.
 
 *This project is unaffiliated with Team Salvato, just in case it wasn't THAT obvious. in all honesty i think this works with any renpy games using engine version >= 6.99.11 but the main focus is ddlc so yeah.*
 
