@@ -1,7 +1,10 @@
+"Here you can find everything. (except the FUSE side which is under libbivfs/src/module.cpp)"
+
 from __future__ import annotations
 
 import json
 import platform
+import tempfile
 import zipfile
 import shutil
 import time
@@ -10,9 +13,9 @@ from io import BytesIO
 import os, stat
 from typing import Any, Union
 from PySide6.QtGui import QColor, QColorConstants, QDesktopServices, QIcon, QImage
-from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QSpacerItem, QStackedLayout
+from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QSpacerItem, QStackedLayout, QTreeWidget, QTreeWidgetItem
 from PySide6.QtCore import QCoreApplication, QProcessEnvironment, QPropertyAnimation, QSettings, QSize, QStandardPaths, QStringListModel, QTimer, Qt, Signal, qVersion, QUrl
-from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, ConfigItem, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SearchLineEdit, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, qrouter
+from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, ConfigItem, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SearchLineEdit, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, TreeWidget, qrouter
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 import sys
 from PIL import Image
@@ -23,6 +26,25 @@ from qfluentwidgets.components.widgets.stacked_widget import PopUpAniInfo
 from lib.rpyc_reader import peek_rpyc
 from libbifuse import LibbiVFS, ActiveMount
 from lib.rpa_reader import extract_single_file, read_rpa_index
+import subprocess
+
+def open_folder(path: str):
+    """Opens a folder in the operating system's default file manager."""
+    # Resolve relative paths or ~ to absolute paths
+    absolute_path = os.path.abspath(os.path.expanduser(path))
+
+    if not os.path.exists(absolute_path):
+        raise FileNotFoundError(f"Path does not exist: {absolute_path}")
+
+    system = platform.system()
+
+    if system == "Windows":
+        os.startfile(absolute_path)  # Built-in to Python on Windows # type: ignore # TODO: is this true
+    elif system == "Darwin":  # macOS
+        subprocess.Popen(["open", absolute_path])
+    else:  # Linux / Unix Desktop Environments (GNOME, KDE, XFCE, etc.)
+        # xdg-open uses freedesktop.org standards to launch default file manager
+        subprocess.Popen(["xdg-open", absolute_path])
 
 def get_launcher_root():
     try:
@@ -438,7 +460,16 @@ class ModInterface(ScrollArea):
         )
         self.startCard.clicked.connect(self.onStartMod)
 
-        
+        self.openVFSCard = PushSettingCard(
+            text="Open",
+            icon=FIF.FOLDER,
+            title="Open virtual folder",
+            content="If mods asks you to delete scripts.rpa then delete them through this way.",
+            parent=modActionsGroup
+        )
+        self.openVFSCard.clicked.connect(lambda: open_folder(self.mount()))
+
+
         self.devModeCard = SwitchSettingCard(
             FIF.DEVELOPER_TOOLS, 
             "Developer mode", 
@@ -466,6 +497,8 @@ class ModInterface(ScrollArea):
 
         # Add cards to the group container
         modActionsGroup.addSettingCard(self.startCard)
+        modActionsGroup.addSettingCard(self.openVFSCard)
+
         modActionsGroup.addSettingCard(self.devModeCard)
         modActionsGroup.addSettingCard(self.forceRecompCard)
         modActionsGroup.addSettingCard(self.uninstallCard)
@@ -475,6 +508,29 @@ class ModInterface(ScrollArea):
 
     def onStartMod(self):
         self.launchMod()
+
+    def mount(self):
+        mountdir = tempfile.mkdtemp(prefix=f"renpy_mod_{self.modId}_")
+
+        launcherRoot = get_launcher_root()
+
+        # unmounts existing mount point for this mod if any
+        if self.fuse != None: self.fuse.unmount()
+        # magic, but in a nutshell its a delta vfs. exists until the game process exits
+        self.fuse = fuse = ActiveMount()
+        vfs = LibbiVFS(
+                launcherRoot, self.settings.value("baseGameInstallation"), self.folder,
+            )
+        fuse.mount(
+            mountdir, 
+            vfs 
+        )
+
+        return mountdir
+
+    def unmount(self):
+        self.fuse.unmount()
+        self.fuse = None
 
     def launchMod(self, extraEnvs = {}):
         print(f"[ModInterface] Launching mod session via FUSE pipeline: {self.name} (ID: {self.modId})")
@@ -486,29 +542,12 @@ class ModInterface(ScrollArea):
         setState(True)
 
 
-        import platform
-        import tempfile
-        import os
         from PySide6.QtCore import QProcess
 
         try:
             # Create a unique, platform-agnostic temporary directory to serve as the mount point
             # tempfile.mkdtemp handles the distinct permission structures of Windows, macOS, and Linux cleanly.
-            mountdir = tempfile.mkdtemp(prefix=f"renpy_mod_{self.modId}_")
-
-            launcherRoot = get_launcher_root()
-            print(launcherRoot)
-
-            # magic, but in a nutshell its a delta vfs. exists until the game process exits
-            if self.fuse != None: self.fuse.unmount()
-            self.fuse = fuse = ActiveMount()
-            vfs = LibbiVFS(
-                    launcherRoot, self.settings.value("baseGameInstallation"), self.folder,
-                )
-            fuse.mount(
-                mountdir, 
-                vfs 
-            )
+            mountdir = self.mount()
             #vfs.enableYapping()
 
             # get the architecture to determine where to look for the python under lib/
@@ -542,9 +581,7 @@ class ModInterface(ScrollArea):
             
             def cleanup():
                 try:
-                    fuse.unmount()
-                    os.rmdir(mountdir)
-                    self.fuse = None
+                    self.unmount() 
                 except Exception as e:
                     print(f"[ModInterface] Cleanup warning: {e}")
                 finally:
@@ -620,6 +657,7 @@ class ModInterface(ScrollArea):
             args.append(os.path.join(mountdir, bootstrapperFile))
             self.process.start(python_exc, args)
         except Exception:
+            if self.fuse is not None: self.unmount()
             setState(False)
             raise
 
