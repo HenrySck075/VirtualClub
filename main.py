@@ -15,7 +15,7 @@ from typing import Any, Union
 from PySide6.QtGui import QColor, QColorConstants, QDesktopServices, QIcon, QImage
 from PySide6.QtWidgets import QApplication, QCompleter, QFileDialog, QHBoxLayout, QSpacerItem, QStackedLayout, QTreeWidget, QTreeWidgetItem
 from PySide6.QtCore import QCoreApplication, QProcessEnvironment, QPropertyAnimation, QSettings, QSize, QStandardPaths, QStringListModel, QTimer, Qt, Signal, qVersion, QUrl
-from qfluentwidgets import Action, BodyLabel, CaptionLabel, CheckBox, ConfigItem, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SearchLineEdit, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, TreeWidget, qrouter
+from qfluentwidgets import Action, BodyLabel, CaptionLabel, CardWidget, CheckBox, ConfigItem, FlowLayout, FluentIconBase, FluentWidget, FluentWindow, HorizontalSeparator, IconWidget, ImageLabel, LineEdit, MessageBox, MessageBoxBase, NavigationItemPosition, NavigationTreeWidget, PrimarySplitPushButton, PushSettingCard, RoundMenu,  ScrollArea, FluentIcon as FIF, SearchLineEdit, SettingCard, SettingCardGroup, SimpleCardWidget, StrongBodyLabel, SubtitleLabel, SwitchSettingCard, TitleLabel, TreeWidget, qrouter
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 import sys
 from PIL import Image
@@ -23,6 +23,7 @@ from PIL import Image
 from qfluentwidgets.components.widgets import PushButton
 from qfluentwidgets.components.widgets.stacked_widget import PopUpAniInfo
 
+from lib.qfwextra import FluentWindowTwo
 from lib.rpyc_reader import peek_rpyc
 from libbifuse import LibbiVFS, ActiveMount
 from lib.rpa_reader import extract_single_file, read_rpa_index
@@ -88,6 +89,37 @@ def optimize_window_icon(input_path, output_path, size=(256, 256)):
         optimized_img.save(output_path, "PNG", optimize=True, compress_level=9)
         print(f"Icon saved successfully to {output_path}!")
 
+# stole this one from the example
+class AppCard(CardWidget):
+    def __init__(self, icon, title, content, parent=None):
+        super().__init__(parent)
+        self.iconWidget = IconWidget(icon)
+        self.titleLabel = BodyLabel(title, self)
+        self.contentLabel = CaptionLabel(content, self)
+        self.openButton = IconWidget(FIF.CHEVRON_RIGHT, self)
+        self.openButton.setFixedSize(16,16)
+
+        self.hBoxLayout = QHBoxLayout(self)
+        self.vBoxLayout = QVBoxLayout()
+
+        self.setFixedHeight(73)
+        self.iconWidget.setFixedSize(48, 48)
+        self.contentLabel.setTextColor(QColor("#606060"), QColor("#d2d2d2"))
+
+        self.hBoxLayout.setContentsMargins(20, 11, 11, 11)
+        self.hBoxLayout.setSpacing(15)
+        self.hBoxLayout.addWidget(self.iconWidget)
+
+        self.vBoxLayout.setContentsMargins(0, 0, 0, 0)
+        self.vBoxLayout.setSpacing(0)
+        self.vBoxLayout.addWidget(self.titleLabel, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.vBoxLayout.addWidget(self.contentLabel, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.vBoxLayout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self.hBoxLayout.addLayout(self.vBoxLayout)
+
+        self.hBoxLayout.addStretch(1)
+        self.hBoxLayout.addWidget(self.openButton, 0, Qt.AlignmentFlag.AlignRight)
+
 class GeneralConfigInterface(ScrollArea):
     def __init__(self):
         super().__init__()
@@ -123,6 +155,7 @@ class GeneralConfigInterface(ScrollArea):
         layout2.addWidget(button)
 
         layout.addWidget(baseGameFolderLine)
+        layout.addWidget(AppCard(None, "hi", "hello"))
 
         return content
 
@@ -181,7 +214,7 @@ class AboutInterface(ScrollArea):
         )
         readmeSummary.setWordWrap(True)
 
-        disclaimer = CaptionLabel("This project is unaffiliated with Team Salvato.")
+        disclaimer = CaptionLabel("This project is unaffiliated with Team Salvato.\nThis notice is here simply because I'm still using DDLC branding for some part of the interface & code. And technically is in the name if you squint your eyes hard enough.\nIt is indeed the main focus even though this program is perfectly general-purpose.")
         disclaimer.setWordWrap(True)
 
         detailsGroup = SettingCardGroup("Details", content)
@@ -915,78 +948,7 @@ class ModEditDialog(MessageBoxBase):
 
 
 
-class MainWindow(FluentWindow):
-    def insertSubInterface(self, index: int, interface: QWidget, icon: Union[FluentIconBase, QIcon, str], text: str,
-                        position=NavigationItemPosition.TOP, parent=None, isTransparent=False) -> NavigationTreeWidget:
-        """ insert sub interface, the object name of `interface` should be set already
-        before calling this method
-
-        need to be completely honest with ya idk why he doesn't have this function in the class
-
-        Parameters
-        ----------
-        interface: QWidget
-            the subinterface to be added
-
-        icon: FluentIconBase | QIcon | str
-            the icon of navigation item
-
-        text: str
-            the text of navigation item
-
-        position: NavigationItemPosition
-            the position of navigation item
-
-        parent: QWidget | str
-            * QWidget: the parent of navigation item
-            * str: the parent route key of navigation item
-
-        isTransparent: bool
-            whether to use transparent background
-        """
-        if not interface.objectName():
-            raise ValueError("The object name of `interface` can't be empty string.")
-
-        parentRouteKey = parent
-        if parent and isinstance(parent, QWidget):
-            parentRouteKey = parent.objectName()
-            if not parentRouteKey:
-                raise ValueError("The object name of `parent` can't be empty string.")
-
-        interface.setProperty("isStackedTransparent", isTransparent)
-        self.stackedWidget.view.insertWidget(index,interface)
-        # i might just 
-        self.stackedWidget.view.aniInfos.insert(index, PopUpAniInfo(
-            widget=interface,
-            deltaX=0,
-            deltaY=76,
-            ani=QPropertyAnimation(interface, b'pos'),
-        ))
-
-        # add navigation item
-        routeKey = interface.objectName()
-        item = self.navigationInterface.insertItem(
-            index=index,
-            routeKey=routeKey,
-            icon=icon,
-            text=text,
-            onClick=lambda: self.switchTo(interface),
-            position=position,
-            tooltip=text,
-            parentRouteKey=parentRouteKey # type: ignore
-        )
-
-        # initialize selected item
-        if self.stackedWidget.count() == 1:
-            self.stackedWidget.currentChanged.connect(self._onCurrentInterfaceChanged)
-            self.navigationInterface.setCurrentItem(routeKey)
-            qrouter.setDefaultRouteKey(self.stackedWidget, routeKey) # type: ignore
-
-        self._updateStackedBackground()
-
-        return item
-
-
+class MainWindow(FluentWindowTwo):
     # Create the mod add event. used by the AddModDialog on its validate() function (which is an excuse to send data on ok button)
     modAddEvent = Signal(str, name="balls")
     def __init__(self):

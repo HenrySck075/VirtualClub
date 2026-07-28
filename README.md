@@ -1,3 +1,7 @@
+# a big note
+
+Active development is currently happening over at the `feature/avalonia` branch. The old versions aka this one can still be downloaded at the Releases tab at the side, but any issues made for this one won't be considered.
+
 # VirtualClub: A(nother) DDLC Mod Loader
 
 A brand new way to "install" and get a **completely isolated** mod session in just a few clicks, without ever worrying about if you installed the mod right!
