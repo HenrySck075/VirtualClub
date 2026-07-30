@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:local="using:VirtualClub.Views"
+             x:Class="VirtualClub.Views.ModInterfacePage"
+             x:DataType="local:ModInterfacePageModel">
+
+    <ScrollViewer Padding="36,24">
+        <StackPanel Spacing="8">
+            
+            <!-- Header -->
+            <Grid ColumnDefinitions="Auto,*" RowSpacing="16" ColumnSpacing="16">
+                <Image x:Name="ModIcon" Width="120" Height="120" Source="{Binding IconPath}"/>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                    <TextBlock x:Name="ModTitle" Text="{Binding Name}" FontSize="28" FontWeight="SemiBold" />
+                    <TextBlock x:Name="ModVersion" Text="{Binding VersionText}" Foreground="Gray" />
+                    <TextBlock x:Name="ModDirectory" Text="{Binding Directory}" Foreground="Gray" />
+                    <Button Content="Edit" Margin="0,8,0,0">
+                        <Button.Flyout>
+                            <!-- Attach ModEditDialog logic here -->
+                            <Flyout />
+                        </Button.Flyout>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <Separator />
+
+            <!-- Playtime -->
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,8">
+                <ui:FASymbolIcon Symbol="Clock" />
+                <TextBlock VerticalAlignment="Center">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="Playtime: {0} (Active: {1})">
+                            <Binding Path="PlaytimeText" />
+                            <Binding Path="ActivePlaytimeText" />
+                        </MultiBinding>
+                    </TextBlock.Text>
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Mod Management Cards -->
+        
+            <ui:FASettingsExpander Header="Launch application" 
+                            Description="Run this Ren'Py mod configuration environment." 
+                            IconSource="Play">
+                <ui:FASettingsExpander.Footer>
+                    <SplitButton Content="Start" Click="OnStartClicked">
+                        <SplitButton.Flyout>
+                            <MenuFlyout>
+                                <MenuItem Header="Start from save" Click="OnStartFromSaveClicked" />
+                            </MenuFlyout>
+                        </SplitButton.Flyout>
+                    </SplitButton>
+                </ui:FASettingsExpander.Footer>
+            </ui:FASettingsExpander>
+
+            <ui:FASettingsExpander Header="Open virtual folder" 
+                            Description="If mods ask you to delete scripts.rpa, delete them through here." 
+                            IconSource="Folder">
+                <ui:FASettingsExpander.Footer>
+                    <Button Content="Open" Click="OnOpenVirtualFolderClicked" />
+                </ui:FASettingsExpander.Footer>
+            </ui:FASettingsExpander>
+
+            <ui:FASettingsExpander Header="Developer mode" 
+                            Description="Toggle developer tools in the game." 
+                            IconSource="Code">
+                <ui:FASettingsExpander.Footer>
+                    <ToggleSwitch x:Name="DevModeToggle" />
+                </ui:FASettingsExpander.Footer>
+            </ui:FASettingsExpander>
+
+            <ui:FASettingsExpander Header="Force recompile" 
+                            Description="Force the engine to recompile any loose .rpyc files on launch." 
+                            IconSource="Sync">
+                <ui:FASettingsExpander.Footer>
+                    <ToggleSwitch x:Name="ForceRecompileToggle" />
+                </ui:FASettingsExpander.Footer>
+            </ui:FASettingsExpander>
+
+            <ui:FASettingsExpander Header="Remove mod" 
+                            Description="Delete mod deployment indices and meta configs." 
+                            IconSource="Delete">
+                <ui:FASettingsExpander.Footer>
+                    <Button Content="Uninstall" Classes="accent" Click="OnUninstallClicked" />
+                </ui:FASettingsExpander.Footer>
+            </ui:FASettingsExpander>
+            
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

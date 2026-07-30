@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             x:Class="VirtualClub.Views.HomePage"
+             x:CompileBindings="True">
+    <ScrollViewer Padding="36,24">
+        <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Left">
+            <TextBlock Text="Welcome to VirtualClub!" FontSize="24" FontWeight="Bold" />
+            <TextBlock Text="This is the home page of the VirtualClub application. Use the navigation menu to explore different sections." TextWrapping="Wrap" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

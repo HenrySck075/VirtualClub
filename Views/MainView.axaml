@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             x:Class="VirtualClub.Views.MainView"
+             x:CompileBindings="True">
+   <UserControl.Resources>
+        <!-- Removes vertical spacing reserved for the pane header/search box -->
+        <Thickness x:Key="NavigationViewAutoCompleteBoxMargin">0</Thickness>
+        <Thickness x:Key="NavigationViewHeaderMargin">0</Thickness>
+    </UserControl.Resources>
+        <!-- Search Bar embedded in the title bar area -->
+        <ui:FANavigationView x:Name="NavView" 
+                           IsSettingsVisible="True"
+                           IsBackButtonVisible="True"
+                           IsPaneToggleButtonVisible="False"
+                           IsBackEnabled="True"
+                           PaneDisplayMode="Left"
+                           >
+            <!-- this creates a space below the back button. i know what it was for but idk why -->
+            <ui:FANavigationView.ContentOverlay>
+            <AutoCompleteBox x:Name="ModSearchBox" 
+                    PlaceholderText="Search for a mod" 
+                    Width="300" 
+                    HorizontalAlignment="Center" 
+                    Margin="0,10,0,10"/>
+            </ui:FANavigationView.ContentOverlay>
+
+
+
+            <ui:FANavigationView.MenuItems>
+                <ui:FANavigationViewItem Content="Home" Tag="home" IconSource="Home" x:Name="amogus"/>
+                <ui:FANavigationViewItem Content="Mods" Tag="list" IconSource="Library" />
+            </ui:FANavigationView.MenuItems>
+
+            <ui:FANavigationView.FooterMenuItems>
+                <ui:FANavigationViewItem Content="About" Tag="about" IconSource="ContactInfo" />
+            </ui:FANavigationView.FooterMenuItems>
+        
+            <!-- Content Frame for Page Navigation -->
+            <ui:FAFrame x:Name="ContentFrame" />
+        </ui:FANavigationView>
+    
+</UserControl>

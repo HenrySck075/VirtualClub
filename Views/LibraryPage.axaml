@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:VirtualClub.Views"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             x:Class="VirtualClub.Views.LibraryPage"
+             x:DataType="local:LibraryPageViewModel">
+
+    <ScrollViewer Padding="36,24">
+        <StackPanel Spacing="20">
+            <!-- Header Bar -->
+            <Grid ColumnDefinitions="*,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+                <TextBlock Text="Mod Library" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" x:Name="SearchBox" PlaceholderText="Search mods..." VerticalAlignment="Center" Width="250" TextChanged="OnSearchTextChanged" />
+                <Button Grid.Column="2" Classes="accent" Click="OnAddModClicked">
+                    <ui:FASymbolIcon Symbol="Add" />
+                </Button>
+            </Grid>
+
+            <!-- Grid of Mod Cards -->
+            <ItemsControl x:Name="ModCardsItemsControl" ItemsSource="{Binding FilteredMods}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <ui:FASettingsExpander Header="{Binding Name}" Description="{Binding VersionText}"
+                                         Margin="0,0,12,12" Width="280" Height="80" 
+                                         IsClickEnabled="True"
+                                         Click="OnModCardClicked" Tag="{Binding Id}">
+                            <ui:FASettingsExpander.IconSource>
+                                <ui:FABitmapIconSource UriSource="{Binding IconPath}" />
+                            </ui:FASettingsExpander.IconSource>
+                        </ui:FASettingsExpander>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

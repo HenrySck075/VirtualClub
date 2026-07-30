@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
+             xmlns:local="using:VirtualClub.Views"
+             mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
+             x:Class="VirtualClub.Views.SettingsView">
+
+    <ScrollViewer Margin="20">
+        <StackPanel Spacing="8" HorizontalAlignment="Left">
+
+            <TextBlock Text="App Settings" 
+                       FontSize="24" 
+                       FontWeight="SemiBold" 
+                       Margin="0,0,0,12" />
+
+            <!-- Settings card with a button to specify base game install directory -->
+            <ui:FASettingsExpander Header="Base Directory"
+                                Description="{Binding BaseDirectory, RelativeSource={RelativeSource AncestorType=local:SettingsView}, StringFormat='Specify the base game install directory. (Currently {0})'}"
+                                IconSource="Folder"
+                                >
+                <ui:FASettingsExpander.Footer>
+                    <Button Content="Browse" Click="OnBrowseBaseDirectoryClicked" />
+                </ui:FASettingsExpander.Footer>
+            </ui:FASettingsExpander>
+
+            <!-- Standalone Settings Card 2: Dropdown / ComboBox -->
+            <ui:FASettingsExpander Header="App Theme"
+                                 Description="Select your preferred visual appearance"
+                                 IconSource="DarkTheme">
+                <ui:FASettingsExpander.Footer>
+                    <ComboBox x:Name="ThemeComboBox" 
+                              SelectedIndex="0" 
+                              Width="150"
+                              SelectionChanged="OnThemeSelectionChanged">
+                        <ComboBoxItem Content="System Default" />
+                        <ComboBoxItem Content="Dark" />
+                        <ComboBoxItem Content="Light" />
+                    </ComboBox>
+                </ui:FASettingsExpander.Footer>
+            </ui:FASettingsExpander>
+
+            <!-- Action / Clickable Card (Acts like a Button) -->
+            <ui:FASettingsExpander x:Name="UpdateCheckCard"
+                                 Header="Check for Updates"
+                                 Description="Current Version: 1.0.0"
+                                 IconSource="Sync"
+                                 IsClickEnabled="True"
+                                 Click="OnCheckForUpdatesClicked" />
+
+            
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
