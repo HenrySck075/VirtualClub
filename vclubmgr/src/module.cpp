@@ -1,8 +1,7 @@
+#include <mutex>
 #include <ostream>
 #define FUSE_USE_VERSION 31
 #include <fuse3/fuse.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <shared_mutex>
@@ -18,6 +17,9 @@
 #include <memory>
 #include <algorithm>
 #include <cstring>
+
+#include "cxxopts.hpp"
+#include <nlohmann/json.hpp>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -56,8 +58,12 @@ static inline ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset
 }
 #else
 #include <sys/statvfs.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <spawn.h>
+extern char** environ;
+
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
@@ -69,46 +75,20 @@ inline int access_file(const char *path, int mode) { return ::access(path, mode)
 inline int chmod_file(const char *path, mode_t mode) { return ::chmod(path, mode); }
 #endif
 
-namespace py = pybind11;
 namespace fs = std::filesystem;
 
 // ============================================================================
-// 1. Core PythonFileSystem Interface
+// 2. LibbiVFS
 // ============================================================================
 
-class PythonFileSystem {
-public:
-    virtual ~PythonFileSystem() = default;
-    
-    virtual int getattr(const std::string &path, struct stat *stbuf) { return -ENOSYS; }
-    virtual int readdir(const std::string &path, const std::function<void(const std::string&)> &filler) { return -ENOSYS; }
-    virtual int open(const std::string &path, int flags, uint64_t &fh) { return -ENOSYS; }
-    virtual int read(uint64_t fh, char *buf, size_t size, off_t offset) { return -ENOSYS; }
-    virtual int release(uint64_t fh) { return 0; }
-    virtual int readlink(const std::string &path, char *buf, size_t size) { return -ENOSYS; }
-    virtual int access(const std::string &path, int mask) { return -ENOSYS; }
-    virtual int statfs(const std::string &path, struct statvfs *stbuf) { return -ENOSYS; }
-    
-    virtual int create(const std::string &path, mode_t mode) { return -ENOSYS; }
-    virtual int write(uint64_t fh, const char *buf, size_t size, off_t offset) { return -ENOSYS; }
-    virtual int truncate(const std::string &path, off_t size) { return -ENOSYS; }
-    virtual int mkdir(const std::string &path, mode_t mode) { return -ENOSYS; }
-    virtual int rmdir(const std::string &path) { return -ENOSYS; }
-    virtual int unlink(const std::string &path) { return -ENOSYS; }
-    virtual int rename(const std::string &oldpath, const std::string &newpath) { return -ENOSYS; }
-    virtual int chmod(const std::string &path, mode_t mode) { return -ENOSYS; }
-    virtual int utimens(const std::string &path, const struct timespec tv[2]) { return -ENOSYS; }
-};
-
-// ============================================================================
-// 2. Upgraded LibbiVFS
-// ============================================================================
-
-class LibbiVFS : public PythonFileSystem {
+class LibbiVFS {
 private:
     fs::path baseFolder;
     fs::path modFolder;
+    const std::string modId; // for the init
     bool containsRenpyEngine;
+
+    friend void* fuse_init(struct fuse_conn_info *, struct fuse_config *cfg);
 
     fs::path dbFolder;
     fs::path whiteoutFilePath;
@@ -180,8 +160,8 @@ private:
     bool verboseLog = false;
 
 public:
-    LibbiVFS(std::string launcherRoot, std::string base, std::string mod)
-        : launcherRoot(launcherRoot), baseFolder(base), modFolder(mod) {
+    LibbiVFS(std::string launcherRoot, std::string base, std::string mod, std::string modId = "")
+        : launcherRoot(launcherRoot), baseFolder(base), modFolder(mod), modId(modId) {
         containsRenpyEngine = fs::exists(modFolder / "lib");
         dbFolder = modFolder / ".libbivfs";
         whiteoutFilePath = dbFolder / "whiteouts.txt";
@@ -221,13 +201,13 @@ public:
                 path.rfind("\\lib\\", 0) == 0 || path == "\\lib");
     }
 
-    int getattr(const std::string &path, struct stat *stbuf) override {
+    int getattr(const std::string &path, struct stat *stbuf) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path);
         return (lstat(full_path.c_str(), stbuf) == -1) ? -errno : 0;
     }
 
-    int readdir(const std::string &path, const std::function<void(const std::string&)> &filler) override {
+    int readdir(const std::string &path, const std::function<void(const std::string&)> &filler) {
         if (is_whiteouted(path)) return -ENOENT;
 
         std::unordered_set<std::string> dirents = {".", ".."};
@@ -262,7 +242,7 @@ public:
         return 0;
     }
 
-    int open(const std::string &path, int flags, uint64_t &fh) override {
+    int open(const std::string &path, int flags, uint64_t &fh) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path);
         int fd = open_file(full_path.c_str(), flags | O_BINARY);
@@ -271,22 +251,22 @@ public:
         return 0;
     }
 
-    int read(uint64_t fh, char *buf, size_t size, off_t offset) override {
+    int read(uint64_t fh, char *buf, size_t size, off_t offset) {
         int res = static_cast<int>(pread(static_cast<int>(fh), buf, size, offset));
         return (res == -1) ? -errno : res;
     }
 
-    int write(uint64_t fh, const char *buf, size_t size, off_t offset) override {
+    int write(uint64_t fh, const char *buf, size_t size, off_t offset) {
         int res = static_cast<int>(pwrite(static_cast<int>(fh), buf, size, offset));
         return (res == -1) ? -errno : res;
     }
 
-    int release(uint64_t fh) override {
+    int release(uint64_t fh) {
         close_file(static_cast<int>(fh));
         return 0;
     }
 
-    int readlink(const std::string &path, char *buf, size_t size) override {
+    int readlink(const std::string &path, char *buf, size_t size) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path);
 #ifdef _WIN32
@@ -305,12 +285,12 @@ public:
 #endif
     }
 
-    int access(const std::string &path, int mask) override {
+    int access(const std::string &path, int mask) {
         if (is_whiteouted(path)) return -ENOENT;
         return (access_file(get_path(path).c_str(), mask) == -1) ? -errno : 0;
     }
 
-    int statfs(const std::string &path, struct statvfs *stbuf) override {
+    int statfs(const std::string &path, struct statvfs *stbuf) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path);
 #ifdef _WIN32
@@ -328,7 +308,7 @@ public:
 #endif
     }
 
-    int create(const std::string &path, mode_t mode) override {
+    int create(const std::string &path, mode_t mode) {
         std::string full_path = get_path(path, true);
         if (fs::exists(full_path) && !is_whiteouted(path)) return -EEXIST;
 
@@ -340,7 +320,7 @@ public:
         return 0;
     }
 
-    int truncate(const std::string &path, off_t size) override {
+    int truncate(const std::string &path, off_t size) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path, true);
         if (!fs::exists(full_path)) {
@@ -360,7 +340,7 @@ public:
 #endif
     }
 
-    int mkdir(const std::string &path, mode_t mode) override {
+    int mkdir(const std::string &path, mode_t mode) {
         std::string full_path = get_path(path, true);
         if (fs::exists(full_path) && !is_whiteouted(path)) return -EEXIST;
 
@@ -370,7 +350,7 @@ public:
         return 0;
     }
 
-    int rmdir(const std::string &path) override {
+    int rmdir(const std::string &path) {
       if (is_whiteouted(path)) return -ENOENT;
 
       std::string mod_path = get_path(path, true);
@@ -394,7 +374,7 @@ public:
       return 0;
     }
 
-    int unlink(const std::string &path) override {
+    int unlink(const std::string &path) {
       if (is_whiteouted(path)) return -ENOENT;
 
       std::string mod_path = get_path(path, true);
@@ -418,7 +398,7 @@ public:
       return 0;
     }
 
-    int rename(const std::string &oldpath, const std::string &newpath) override {
+    int rename(const std::string &oldpath, const std::string &newpath) {
         if (is_whiteouted(oldpath)) return -ENOENT;
 
         std::string old_full = get_path(oldpath, true);
@@ -442,14 +422,14 @@ public:
         return 0;
     }
 
-    int chmod(const std::string &path, mode_t mode) override {
+    int chmod(const std::string &path, mode_t mode) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path, true);
         if (!fs::exists(full_path)) return -ENOENT;
         return (chmod_file(full_path.c_str(), mode) == -1) ? -errno : 0;
     }
 
-    int utimens(const std::string &path, const struct timespec tv[2]) override {
+    int utimens(const std::string &path, const struct timespec tv[2]) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path, true);
         if (!fs::exists(full_path)) return -ENOENT;
@@ -471,9 +451,9 @@ public:
 // ============================================================================
 
 namespace FUSE_Glue {
-    static PythonFileSystem* get_fs() {
+    static LibbiVFS* get_fs() {
         auto* ctx = fuse_get_context();
-        return (ctx && ctx->private_data) ? static_cast<PythonFileSystem*>(ctx->private_data) : nullptr;
+        return (ctx && ctx->private_data) ? static_cast<LibbiVFS*>(ctx->private_data) : nullptr;
     }
 
 #ifdef _WIN32
@@ -608,72 +588,389 @@ namespace FUSE_Glue {
     }
 }
 
-class ActiveMount {
-private:
-    std::thread runThread;
-    struct fuse* fh = nullptr;
-    std::string mountpoint;
-    py::object keptAliveFsReference;
-public:
-    ActiveMount() = default;
-    ~ActiveMount() { unmount(); }
+static bool g_doStartGame = false;
 
-    bool mountNonBlocking(const std::string &m_point, py::object &fs) {
-        mountpoint = m_point;
-        keptAliveFsReference = fs;
-        struct fuse_operations ops = FUSE_Glue::get_ops();
 
-        struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-        fuse_opt_add_arg(&args, "libbi_fuse");
-        fuse_opt_add_arg(&args, "-o");
-        fuse_opt_add_arg(&args, "kernel_cache,attr_timeout=10,entry_timeout=10,negative_timeout=2");
+// ============================================================================
 
-        fh = fuse_new(&args, &ops, sizeof(ops), fs.cast<PythonFileSystem*>());
-        fuse_opt_free_args(&args);
 
-        if (!fh) return false;
 
-        if (fuse_mount(fh, mountpoint.c_str()) != 0) {
-            fuse_destroy(fh);
-            fh = nullptr;
-            return false;
-        }
-
-        runThread = std::thread([this]() {
-            fuse_loop_mt(fh, 0);
-        });
-
-        return true;
+std::filesystem::path get_appdata_dir() {
+#if defined(_WIN32)
+    if (const char* appdata = std::getenv("APPDATA")) {
+        return std::filesystem::path(appdata);
     }
-
-    void unmount() {
-        if (fh) {
-            fuse_exit(fh);
-            fuse_unmount(fh);
-            if (runThread.joinable()) runThread.join();
-            fuse_destroy(fh);
-            fh = nullptr;
-        }
+#elif defined(__APPLE__)
+    if (const char* home = std::getenv("HOME")) {
+        return std::filesystem::path(home) / "Library" / "Application Support";
     }
+#else // Linux / Unix
+    if (const char* xdg = std::getenv("XDG_DATA_HOME")) {
+        return std::filesystem::path(xdg);
+    } else if (const char* home = std::getenv("HOME")) {
+        return std::filesystem::path(home) / ".config";
+    }
+#endif
+    return {};
+}
+
+// for all intents and purposes refer to SessionManager.cs
+struct SessionLaunchConfigs {
+    const std::string& modId;
+    const std::string& modFolder;
+    const std::string& buildId;
+    const std::string& mountDir;
+    bool enableDevelopers;
+    bool forceRecompile;
+
+    fuse* fh;
 };
 
-// ============================================================================
-// 4. Module Declaration
-// ============================================================================
+void start_game(SessionLaunchConfigs configs);
 
-PYBIND11_MODULE(libbifuse, m) {
-    m.doc() = "mao";
+void* fuse_init(struct fuse_conn_info *, struct fuse_config *cfg) {
+    if (g_doStartGame) {
+        auto modsFile = get_appdata_dir() / "VirtualClub" / "mods.json";
+        if (std::filesystem::exists(modsFile)) {
+            std::ifstream f(modsFile);
+            nlohmann::json modsJson;
+            try {
+                f >> modsJson;
+            } catch (const nlohmann::json::parse_error& e) {
+                std::cerr << "Failed to parse mods.json: " << e.what() << std::endl;
+                return 0;
+            }
+            f.close();
+            if (modsJson.is_object() && modsJson["mods"].is_object()) {
+                auto publicData = static_cast<LibbiVFS*>(fuse_get_context()->private_data);  
 
-    py::class_<PythonFileSystem>(m, "PythonFileSystem");
+                auto& mods = modsJson["mods"];
+                auto& modInfo = mods[publicData->modId];
 
-    py::class_<LibbiVFS, PythonFileSystem>(m, "LibbiVFS")
-        .def(py::init<std::string, std::string, std::string>(),
-             py::arg("launcherRoot"), py::arg("baseFolder"), py::arg("modFolder"))
-        .def("getPath", &LibbiVFS::get_path, py::arg("path"), py::arg("write") = false)
-        .def("enableYapping", &LibbiVFS::enableYapping);
+                if (modInfo.is_object()) {
+                    std::string buildId = modInfo.value("buildId", "DDLC");
+                    std::string mountDir = publicData->modFolder.string();
+                    bool enableDevelopers = modInfo.value("enableDeveloperMode", false);
+                    bool forceRecompile = modInfo.value("forceRecompile", false);
 
-    py::class_<ActiveMount>(m, "ActiveMount")
-        .def(py::init<>())
-        .def("mount", &ActiveMount::mountNonBlocking, py::arg("mountpoint"), py::arg("fs"))
-        .def("unmount", &ActiveMount::unmount);
+                    SessionLaunchConfigs configs = {
+                        .modId = publicData->modId,
+                        .modFolder = publicData->modFolder.string(),
+                        .buildId = buildId,
+                        .mountDir = mountDir,
+                        .enableDevelopers = enableDevelopers,
+                        .forceRecompile = forceRecompile
+                    };
+                    start_game(configs);
+                } else {
+                    std::cerr << "Mod info for ID " << publicData->modId << " is not an object. Stop tampering with the database next time, kids." << std::endl;
+                }
+            }
+        }
+    }
+}
+
+void spawn_process(
+    const std::string& command,
+    const std::vector<std::string>& argv,
+    const std::vector<std::string>& extra_env,
+    std::function<void(int exit_code)> on_exit)
+{
+    // Launch a background thread to block on child execution
+    std::thread([command, argv, extra_env, on_exit]() {
+        int exit_code = -1;
+
+#if defined(_WIN32)
+        // -------------------------------------------------------------
+        // WINDOWS IMPLEMENTATION
+        // -------------------------------------------------------------
+        char* sys_env = GetEnvironmentStringsA();
+        if (!sys_env) {
+            if (on_exit) on_exit(-1);
+            return;
+        }
+
+        std::vector<char> env_block;
+        
+        // 1. Copy existing system environment block
+        char* ptr = sys_env;
+        while (*ptr != '\0') {
+            size_t len = std::strlen(ptr) + 1;
+            env_block.insert(env_block.end(), ptr, ptr + len);
+            ptr += len;
+        }
+        FreeEnvironmentStringsA(sys_env);
+
+        // 2. Append extra "KEY=VALUE" strings
+        for (const auto& var : extra_env) {
+            env_block.insert(env_block.end(), var.c_str(), var.c_str() + var.length() + 1);
+        }
+
+        // 3. Add final double null terminator required by Windows
+        env_block.push_back('\0');
+
+        STARTUPINFOA si = { sizeof(si) };
+        PROCESS_INFORMATION pi = { 0 };
+        std::string cmd = command;
+        // the arguments
+        for (const auto& arg : argv) {
+            cmd += " \"" + arg + "\""; // ???????????????
+        }
+
+        if (CreateProcessA(NULL, cmd.data(), NULL, NULL, FALSE, 0, env_block.data(), NULL, &si, &pi)) {
+            // Block thread until child exits
+            WaitForSingleObject(pi.hProcess, INFINITE);
+
+            DWORD code = 0;
+            if (GetExitCodeProcess(pi.hProcess, &code)) {
+                exit_code = static_cast<int>(code);
+            }
+
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+        }
+
+#else
+        // -------------------------------------------------------------
+        // LINUX / POSIX IMPLEMENTATION
+        // -------------------------------------------------------------
+        std::vector<char*> env_vec;
+
+        // 1. Point to existing environment pointers
+        for (char** env = environ; *env != nullptr; ++env) {
+            env_vec.push_back(*env);
+        }
+
+        // 2. Copy extra environment strings into local storage to ensure lifetime safety
+        std::vector<std::string> env_storage = extra_env;
+        for (auto& s : env_storage) {
+            env_vec.push_back(s.data());
+        }
+
+        // 3. Null-terminate the array
+        env_vec.push_back(nullptr);
+
+        std::vector<char*> argv_vec;
+        for (const auto& arg : argv) {
+            argv_vec.push_back(const_cast<char*>(arg.c_str()));
+        }
+        argv_vec.push_back(nullptr);
+
+
+        pid_t pid;
+        // posix_spawn internally uses vfork (CLONE_VM / CLONE_VFORK): zero memory duplication
+        int status = posix_spawn(&pid, command.c_str(), NULL, NULL, argv_vec.data(), env_vec.data());
+
+        if (status == 0) {
+            int wait_status = 0;
+            // Block thread until process terminates
+            if (waitpid(pid, &wait_status, 0) != -1) {
+                if (WIFEXITED(wait_status)) {
+                    exit_code = WEXITSTATUS(wait_status);
+                } else if (WIFSIGNALED(wait_status)) {
+                    exit_code = 128 + WTERMSIG(wait_status);
+                }
+            }
+        }
+#endif
+
+        // Trigger callback on background thread upon exit
+        if (on_exit) {
+            on_exit(exit_code);
+        }
+    }).detach();
+}
+
+void start_game(SessionLaunchConfigs configs) {
+    // Step 1. get the bundled pythonw executable
+
+    fs::path mountPath = configs.mountDir;
+    std::optional<fs::path> pythonwPath;
+    // mac
+    #if defined(__APPLE__)
+    {
+        auto p = mountPath / (configs.modId+".app") / "Contents" / "MacOS" / "pythonw";
+        if (fs::exists(p)) {
+            pythonwPath = p;
+        }
+    }
+    #else 
+    //forgive me
+        std::string platformKey = 
+        #if defined(_WIN32)
+            "windows"
+        #elif defined(__linux__)
+            "linux"
+        #endif
+        "-"
+        #if defined(__x86_64__) || defined(_M_X64)
+            "x86_64"
+        #elif defined(__i386__) || defined(_M_IX86)
+            "i686"
+        #endif
+        ;
+
+        std::string exeName = 
+        #if defined(_WIN32)
+                "pythonw.exe"
+        #else
+                "pythonw"  
+        #endif
+        ;
+
+        {
+            auto py3Path = mountPath / "lib" / ("py3-" + platformKey) / exeName;
+            if (fs::exists(py3Path)) {
+                pythonwPath = py3Path;
+            }
+        }
+
+        if (!pythonwPath) {
+            auto py2Path = mountPath / "lib" / ("py2-" + platformKey) / exeName;
+            if (fs::exists(py2Path)) {
+                pythonwPath = py2Path;
+            }
+        }
+
+        if (!pythonwPath) {
+            auto directPath = mountPath / "lib" / platformKey / exeName;
+            if (fs::exists(directPath)) {
+                pythonwPath = directPath;
+            }
+        }
+
+        #endif
+    if (!pythonwPath) {
+        std::cerr << "Could not find pythonw executable for the current environment in the mod folder." << std::endl;
+        return;
+    }
+
+    // Step 1.5: Set executable permission on specifically Linux platform 
+    #if defined(__linux__)
+    {
+        fs::permissions(*pythonwPath, fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec, fs::perm_options::add);
+    }
+    #endif
+
+    // Step 2. Purge loose .rpyc files if forceRecompile is set
+    if (configs.forceRecompile) {
+        for (const auto& entry : fs::recursive_directory_iterator(mountPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".rpyc") {
+                fs::remove(entry.path());
+            }
+        }
+    }
+
+    // Step 3. Resolve bootstrapper python file at the root
+    const std::string bootstrapperFiles[] {configs.buildId+".py", "DDLC.py", "renpy.py"};
+    std::string bootstrapperPath;
+    for (const auto& file : bootstrapperFiles) {
+        auto candidate = mountPath / file;
+        if (fs::exists(candidate)) {
+            bootstrapperPath = candidate.string();
+            break;
+        }
+    }
+
+    if (bootstrapperPath.empty()) {
+        std::cerr << "Could not find a bootstrapper python file in the mod folder." << std::endl;
+        return;
+    }
+
+    // Step 4. Prepare environment variables and launch the game
+    std::vector<std::string> extra_env;
+    std::vector<std::string> argv;
+    extra_env.push_back("MVC_MOD_ID=" + configs.modId);
+    if (configs.enableDevelopers) extra_env.push_back("MVC_DEVELOPER=Mon-ika");
+    // TODO: selected save id
+
+    // Ren'Py 6 fallback launch flag. cant believe i have to do this
+    // TODO: this check's works but it's weird, given that we're going 
+    // to allow users to omit the renpy engine from the mod folder. not now though so no care
+    if (fs::exists(fs::path(configs.modFolder) / "lib")) {
+        argv.push_back("-EO");
+    }
+    argv.push_back(bootstrapperPath);
+
+    spawn_process(pythonwPath->string(), argv, extra_env, [configs](int exit_code) {
+        std::cout << "Game exited with code: " << exit_code << std::endl;
+        fuse_exit(configs.fh);
+    });
+}
+
+// create a temp directory for the mount point and return its path
+std::string get_mount_point(std::string mod_id) {
+    std::string temp_dir_template = std::filesystem::temp_directory_path().string() + "/vclubmgr_mount_" + mod_id;
+    char* temp_dir = mkdtemp(&temp_dir_template[0]);
+    if (!temp_dir) {
+        throw std::runtime_error("Failed to create temporary mount point");
+    }
+    return std::string(temp_dir);
+}
+
+// usage: vclubmgr [--start_game --mod_id=<mod_id>] <launcher_root> <base_folder> <mod_folder>
+int main(int argc, char *argv[]) {
+    cxxopts::Options options("vclubmgr", "A simple FUSE filesystem for managing game mods");
+
+    options.add_options()
+        ("start_game", "Start the game after mounting")
+        ("launcher_root", "Root directory of the launcher", cxxopts::value<std::string>())
+        ("base_folder", "Base folder for the filesystem", cxxopts::value<std::string>())
+        ("mod_folder", "Folder containing the mods", cxxopts::value<std::string>())
+        ("mod_id", "ID of the mod to mount", cxxopts::value<std::string>())
+        ;
+
+    options.parse_positional({"launcher_root", "base_folder", "mod_folder"});
+
+    auto result = options.parse(argc, argv);
+
+    if (result.count("launcher_root") == 0 || result.count("base_folder") == 0 || result.count("mod_folder") == 0) {
+        std::cerr << options.help() << std::endl;
+        return 1;
+    }
+
+    bool doStartGame = g_doStartGame = result.count("start_game") > 0;
+    if (doStartGame && result.count("mod_id") == 0) {
+        std::cerr << "Error: --start_game requires --mod_id to be specified." << std::endl;
+        return 1;
+    }
+
+    std::string launcherRoot = result["launcher_root"].as<std::string>();
+    std::string baseFolder = result["base_folder"].as<std::string>();
+    std::string modFolder = result["mod_folder"].as<std::string>();
+    std::string modId = doStartGame ? result["mod_id"].as<std::string>() : "";
+
+    std::unique_ptr<LibbiVFS> vfs = std::make_unique<LibbiVFS>(launcherRoot, baseFolder, modFolder);
+    auto mountpoint = get_mount_point(modId.empty() ? "default" : modId);
+    
+    struct fuse_operations ops = FUSE_Glue::get_ops();
+
+    struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
+    fuse_opt_add_arg(&args, "libbi_fuse");
+    fuse_opt_add_arg(&args, "-o");
+    fuse_opt_add_arg(&args, "kernel_cache,attr_timeout=10,entry_timeout=10,negative_timeout=2");
+
+    fuse* fh = fuse_new(&args, &ops, sizeof(ops), vfs.get());
+    fuse_opt_free_args(&args);
+
+    if (!fh) return 1;
+
+    if (fuse_set_signal_handlers(fuse_get_session(fh)) != 0) {
+        std::cerr << "yo chat i might not be going to receive stop signals pay attention to this\n";
+    }
+
+    if (fuse_mount(fh, mountpoint.c_str()) != 0) {
+        fuse_destroy(fh);
+        fh = nullptr;
+        return 1;
+    }
+
+    fuse_loop_mt(fh, 0);
+
+    fuse_remove_signal_handlers(fuse_get_session(fh));
+
+    //fuse_exit(fh);
+    fuse_unmount(fh);
+    fuse_destroy(fh);
+    return 0;
 }

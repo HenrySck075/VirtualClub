@@ -1,14 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
-project(libbifuse)
+project(vclubmgr LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-set(Python3_FIND_VIRTUALENV FIRST)
-set(PYBIND11_FINDPYTHON ON)
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-find_package(pybind11 REQUIRED)
 
 if(WIN32)
     # WinFsp configuration
@@ -33,6 +28,11 @@ else()
     set(FUSE_INCLUDE_DIRS ${FUSE3_INCLUDE_DIRS})
 endif()
 
-pybind11_add_module(${PROJECT_NAME} src/module.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE Python3::Python ${FUSE_LIBRARIES})
-target_include_directories(${PROJECT_NAME} PRIVATE ${Python3_INCLUDE_DIRS} ${FUSE_INCLUDE_DIRS})
+include(FetchContent)
+
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
+add_library(${PROJECT_NAME} src/module.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${FUSE_LIBRARIES} nlohmann_json::nlohmann_json)
+target_include_directories(${PROJECT_NAME} PRIVATE ${FUSE_INCLUDE_DIRS})

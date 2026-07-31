@@ -13,14 +13,53 @@
                 <Image x:Name="ModIcon" Width="120" Height="120" Source="{Binding IconPath}"/>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                     <TextBlock x:Name="ModTitle" Text="{Binding Name}" FontSize="28" FontWeight="SemiBold" />
-                    <TextBlock x:Name="ModVersion" Text="{Binding VersionText}" Foreground="Gray" />
+                    <TextBlock x:Name="ModVersion" Text="{Binding Version, StringFormat=Version {0}}" Foreground="Gray" />
                     <TextBlock x:Name="ModDirectory" Text="{Binding Directory}" Foreground="Gray" />
-                    <Button Content="Edit" Margin="0,8,0,0">
-                        <Button.Flyout>
-                            <!-- Attach ModEditDialog logic here -->
-                            <Flyout />
-                        </Button.Flyout>
-                    </Button>
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0" >
+                        <SplitButton Click="OnStartClicked" Classes="accent">
+                            <SplitButton.Content>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <ui:FASymbolIcon Symbol="Play" />
+                                    <TextBlock Text="Start" />
+                                </StackPanel>
+                            </SplitButton.Content>
+                            <SplitButton.Flyout>
+                                <MenuFlyout>
+                                    <MenuItem Header="Start from save" Click="OnStartFromSaveClicked" />
+                                </MenuFlyout>
+                            </SplitButton.Flyout>
+                        </SplitButton>
+                        <Button>
+                            <Button.Content>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <ui:FASymbolIcon Symbol="Edit" />
+                                    <TextBlock Text="Edit" />
+                                </StackPanel>
+                            </Button.Content>
+                            <Button.Flyout>
+                                <Flyout>
+                                    <StackPanel Spacing="8" Margin="8">
+                                        <TextBlock Text="Name"></TextBlock>
+                                        <TextBox Text="{Binding Name, Mode=TwoWay}" />
+                                        <TextBlock Text="Version"></TextBlock>
+                                        <TextBox Text="{Binding Version, Mode=TwoWay}" />
+                                        <TextBlock Text="Directory"></TextBlock>
+                                        <TextBlock Text="{Binding Directory}">
+                                            <TextBlock.Foreground>
+                                                <SolidColorBrush Color="Gray" />
+                                            </TextBlock.Foreground>
+                                        </TextBlock>
+                                        <Button Content="Change directory" Click="OnChangeDirectoryClicked" />
+                                        <TextBlock Text="Icon"></TextBlock>
+                                        <Image Width="64" Height="64" Source="{Binding IconPath}" HorizontalAlignment="Center"/>
+                                        <Button Content="Change icon" Click="OnChangeIconClicked" />
+
+                                        <Button Content="Save" Click="OnSaveMetaEditClicked" HorizontalAlignment="Right" />
+                                    </StackPanel>
+                                </Flyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
 
@@ -40,21 +79,6 @@
             </StackPanel>
 
             <!-- Mod Management Cards -->
-        
-            <ui:FASettingsExpander Header="Launch application" 
-                            Description="Run this Ren'Py mod configuration environment." 
-                            IconSource="Play">
-                <ui:FASettingsExpander.Footer>
-                    <SplitButton Content="Start" Click="OnStartClicked">
-                        <SplitButton.Flyout>
-                            <MenuFlyout>
-                                <MenuItem Header="Start from save" Click="OnStartFromSaveClicked" />
-                            </MenuFlyout>
-                        </SplitButton.Flyout>
-                    </SplitButton>
-                </ui:FASettingsExpander.Footer>
-            </ui:FASettingsExpander>
-
             <ui:FASettingsExpander Header="Open virtual folder" 
                             Description="If mods ask you to delete scripts.rpa, delete them through here." 
                             IconSource="Folder">

@@ -122,6 +122,7 @@ public sealed class ModIndexer
             icon = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logoplacehold.jpg");
         }
 
+        /// TODO: somehow move this logic out of the extraction function
         Debug.WriteLine($"Scanning for icon at: {icon}");
 
         byte[]? iconContent = readGameFile(icon);
@@ -135,6 +136,8 @@ public sealed class ModIndexer
             string iconsDir = Path.Combine(App.AppDataService.AppDataFolder, "icons");
             Directory.CreateDirectory(iconsDir);
             File.WriteAllBytes(Path.Combine(iconsDir, iconFilename), iconContent);
+
+            LarpingUtils.Iconize(Path.Combine(iconsDir, iconFilename), Path.Combine(iconsDir, $"{modId}.icon.png"), 256, 256);
         }
 
         return new ModEntry

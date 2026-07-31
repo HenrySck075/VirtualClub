@@ -4,6 +4,7 @@ using System.IO;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using FluentAvalonia.UI.Controls;
+using FluentAvalonia.UI.Media.Animation;
 using VirtualClub.Core;
 
 namespace VirtualClub.Views;
@@ -101,7 +102,10 @@ public partial class LibraryPage : UserControl
     {
         if (sender is not FASettingsExpander button || button.DataContext is not ModCardViewModel mod) return;
 
+        var t = new FASlideNavigationTransitionInfo();
+        t.Effect = FASlideNavigationTransitionEffect.FromRight;
+
         // Navigate to the ModInterfacePage with the selected mod's ID
-        MainView.instance?.ContentFrame.Navigate(typeof(ModInterfacePage), mod.Id);
+        MainView.instance?.ContentFrame.Navigate(typeof(ModInterfacePage), mod.Id, t);
     }
 }

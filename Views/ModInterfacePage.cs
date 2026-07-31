@@ -1,14 +1,31 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
 using FluentAvalonia.UI.Controls;
 using FluentAvalonia.UI.Navigation;
 using VirtualClub.Core;
 
 namespace VirtualClub.Views;
-public record ModInterfacePageModel(string Id, string Name, string VersionText, Bitmap IconPath, string Directory, string PlaytimeText, string ActivePlaytimeText);
+public partial class ModInterfacePageModel : ObservableObject
+{
+    public string Id { get; init; } = string.Empty;
+    [ObservableProperty]
+    public partial string Name { get; set; }
+    [ObservableProperty]
+    public partial string Version { get; set; }
+    [ObservableProperty]
+    public partial Bitmap IconPath { get; set; }
+    [ObservableProperty]
+    public partial string Directory { get; set; }
+    [ObservableProperty]
+    public partial string PlaytimeText { get; set; }
+    [ObservableProperty]
+    public partial string ActivePlaytimeText { get; set; }
+}// (string Id, string Name, string Version, Bitmap IconPath, string Directory, string PlaytimeText, string ActivePlaytimeText);
 
 public partial class ModInterfacePage : UserControl
 {
@@ -46,15 +63,15 @@ public partial class ModInterfacePage : UserControl
                     }
                 }
 
-                var model = new ModInterfacePageModel(
-                    id,
-                    modEntry.Name,
-                    $"v{modEntry.Version}",
-                    new Bitmap(Path.Combine(EnvironmentManager.GetDataDirectory(), "icons", modEntry.IconFilename)),
-                    modEntry.Directory,
-                    playtimeText,
-                    activePlaytimeText
-                );
+                var model = new ModInterfacePageModel{
+                    Id=id,
+                    Name=modEntry.Name,
+                    Version=modEntry.Version,
+                    IconPath=new Bitmap(Path.Combine(EnvironmentManager.GetDataDirectory(), "icons", modEntry.IconFilename)),
+                    Directory=modEntry.Directory,
+                    PlaytimeText=playtimeText,
+                    ActivePlaytimeText=activePlaytimeText
+                };
 
                 DataContext = model;
             }
@@ -79,5 +96,102 @@ public partial class ModInterfacePage : UserControl
     public void OnUninstallClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         // Uninstall logic here
+    }
+
+    // edit flyout
+    public void OnChangeDirectoryClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return;
+
+        var folders = topLevel.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
+        {
+            Title = "Select a mod directory containing a valid Ren'Py game structure",
+            AllowMultiple = false
+        }).ContinueWith(task =>
+        {
+            if (task.Result.Count > 0)
+            {
+                string selectedPath = task.Result[0].Path.LocalPath;
+                Debug.WriteLine($"Selected directory: {selectedPath}");
+
+                if (DataContext is ModInterfacePageModel model)
+                {
+                    model.Directory = selectedPath; // Update the model's directory
+                }
+            }
+        });
+    }
+
+    // to skip doing the expensive icon changing work if the user didn't actually change the icon, we use this flag to track if the icon was changed
+    private bool _isIconChanged = false;
+    public void OnChangeIconClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        // do the same thing as OnChangeDirectoryClicked but for the icon file, and we dont replace the mod entry's IconFilename value
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return;
+
+        var files = topLevel.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+        {
+            Title = "Select an icon file for the mod",
+            AllowMultiple = false,
+            FileTypeFilter = new List<Avalonia.Platform.Storage.FilePickerFileType>
+            {
+                new Avalonia.Platform.Storage.FilePickerFileType("Image Files")
+                {
+                    Patterns = new List<string> { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif" }
+                }
+            }
+        }).ContinueWith(task =>
+        {
+            if (task.Result.Count > 0)
+            {
+                string selectedPath = task.Result[0].Path.LocalPath;
+                Debug.WriteLine($"Selected icon file: {selectedPath}");
+
+                if (DataContext is ModInterfacePageModel model)
+                {
+                    // Update the model's icon path
+                    model.IconPath = new Bitmap(selectedPath);
+                    _isIconChanged = true;
+                }
+            }
+        });
+    }
+
+    public void OnSaveMetaEditClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ModInterfacePageModel model)
+        {
+            var modEntry = App.AppDataService.Index.Mods.GetValueOrDefault(model.Id);
+            if (modEntry != null)
+            {
+                modEntry.Directory = model.Directory;
+                modEntry.Name = model.Name;
+                modEntry.Version = model.Version;
+
+                if (_isIconChanged && model.IconPath != null)
+                {
+                    // Save the new icon to the icons directory
+                    string iconsDir = Path.Combine(App.AppDataService.AppDataFolder, "icons");
+                    string newIconExt = Path.GetExtension(model.IconPath.ToString() ?? ".png");
+                    Directory.CreateDirectory(iconsDir);
+                    string newIconPath = Path.Combine(iconsDir, $"{modEntry.Id}{newIconExt}");
+
+                    using (var stream = File.OpenWrite(newIconPath))
+                    {
+                        model.IconPath.Save(stream);
+                    }
+
+                    LarpingUtils.Iconize(newIconPath, Path.Combine(iconsDir, $"{modEntry.Id}.icon.png"), 256, 256);
+
+                    modEntry.IconFilename = $"{modEntry.Id}{newIconExt}";
+                }
+
+                // Save the updated mods index to disk
+                App.AppDataService.Save();
+            }
+        }
     }
 }

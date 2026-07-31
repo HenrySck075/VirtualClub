@@ -5,21 +5,14 @@ using Avalonia.Media.Imaging;
 
 namespace VirtualClub.Core;
 
-public class UriToBitmapConverter : IValueConverter
+public sealed class LarpingUtils 
 {
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public static void Iconize(string inputPath, string outputPath, int width = 256, int height = 256)
     {
-        if (value is Uri uri && uri.IsFile)
+        using (var image = new Bitmap(inputPath))
         {
-            return new Bitmap(uri.LocalPath);
+            var resizedImage = image.CreateScaledBitmap(new Avalonia.PixelSize(width, height), BitmapInterpolationMode.HighQuality);
+            resizedImage.Save(outputPath);
         }
-        if (value is string path && !string.IsNullOrEmpty(path))
-        {
-            return new Bitmap(path);
-        }
-        return null;
     }
-
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => throw new NotImplementedException();
 }

@@ -1,7 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:VirtualClub.Views"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
              x:Class="VirtualClub.Views.MainView"
              x:CompileBindings="True">
@@ -15,7 +14,8 @@
                            IsSettingsVisible="True"
                            IsBackButtonVisible="True"
                            IsPaneToggleButtonVisible="False"
-                           IsBackEnabled="True"
+                           IsBackEnabled="{Binding CanGoBack, RelativeSource={RelativeSource AncestorType=local:MainView}}"
+                           BackRequested="NavView_BackRequested"
                            PaneDisplayMode="Left"
                            >
             <!-- this creates a space below the back button. i know what it was for but idk why -->

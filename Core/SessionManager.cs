@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace VirtualClub.Core;
 
-public class ModLauncher
+public class SessionManager
 {
     public static async Task LaunchAsync(
         string modId, 
@@ -40,9 +40,20 @@ public class ModLauncher
         }
 
         // Bootstrapper resolution
-        string bootstrapper = Path.Combine(mountDir, $"{buildId}.py");
-        if (!File.Exists(bootstrapper))
-            bootstrapper = Path.Combine(mountDir, "DDLC.py");
+        string[] bootstrapperFiles = {$"{buildId}.py", "DDLC.py", "renpy.py"};
+        string bootstrapper = string.Empty;
+        foreach (var file in bootstrapperFiles)
+        {
+            var path = Path.Combine(mountDir, file);
+            if (File.Exists(path))
+            {
+                bootstrapper = path;
+                break;
+            }
+        }
+
+        if (string.IsNullOrEmpty(bootstrapper))
+            throw new FileNotFoundException($"Could not find a valid bootstrapper for mod '{modId}' in mount directory '{mountDir}'.");
 
         var startInfo = new ProcessStartInfo
         {
