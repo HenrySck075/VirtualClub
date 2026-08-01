@@ -18,7 +18,7 @@ public partial class ModInterfacePageModel : ObservableObject
     [ObservableProperty]
     public partial string Version { get; set; }
     [ObservableProperty]
-    public partial Bitmap IconPath { get; set; }
+    public partial Bitmap Icon { get; set; }
     [ObservableProperty]
     public partial string Directory { get; set; }
     [ObservableProperty]
@@ -67,7 +67,7 @@ public partial class ModInterfacePage : UserControl
                     Id=id,
                     Name=modEntry.Name,
                     Version=modEntry.Version,
-                    IconPath=new Bitmap(Path.Combine(EnvironmentManager.GetDataDirectory(), "icons", modEntry.IconFilename)),
+                    Icon=new Bitmap(Path.Combine(EnvironmentManager.GetDataDirectory(), "icons", modEntry.IconFilename)),
                     Directory=modEntry.Directory,
                     PlaytimeText=playtimeText,
                     ActivePlaytimeText=activePlaytimeText
@@ -95,7 +95,7 @@ public partial class ModInterfacePage : UserControl
 
     public void OnUninstallClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        // Uninstall logic here
+        ModIndexer.DeleteMod((DataContext as ModInterfacePageModel)?.Id ?? string.Empty);
     }
 
     // edit flyout
@@ -153,7 +153,7 @@ public partial class ModInterfacePage : UserControl
                 if (DataContext is ModInterfacePageModel model)
                 {
                     // Update the model's icon path
-                    model.IconPath = new Bitmap(selectedPath);
+                    model.Icon = new Bitmap(selectedPath);
                     _isIconChanged = true;
                 }
             }
@@ -171,22 +171,18 @@ public partial class ModInterfacePage : UserControl
                 modEntry.Name = model.Name;
                 modEntry.Version = model.Version;
 
-                if (_isIconChanged && model.IconPath != null)
+                if (_isIconChanged && model.Icon != null)
                 {
                     // Save the new icon to the icons directory
                     string iconsDir = Path.Combine(App.AppDataService.AppDataFolder, "icons");
-                    string newIconExt = Path.GetExtension(model.IconPath.ToString() ?? ".png");
                     Directory.CreateDirectory(iconsDir);
-                    string newIconPath = Path.Combine(iconsDir, $"{modEntry.Id}{newIconExt}");
+                    string newIconPath = Path.Combine(iconsDir, $"{modEntry.Id}.png");
 
-                    using (var stream = File.OpenWrite(newIconPath))
-                    {
-                        model.IconPath.Save(stream);
-                    }
+                    model.Icon.Save(newIconPath, new PngBitmapEncoderOptions());
 
                     LarpingUtils.Iconize(newIconPath, Path.Combine(iconsDir, $"{modEntry.Id}.icon.png"), 256, 256);
 
-                    modEntry.IconFilename = $"{modEntry.Id}{newIconExt}";
+                    modEntry.IconFilename = $"{modEntry.Id}.png";
                 }
 
                 // Save the updated mods index to disk

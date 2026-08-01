@@ -5,12 +5,38 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using Python.Runtime;
 using VirtualClub;
 using VirtualClub.Core;
 
 public sealed class ModIndexer
 {
+    public static void DeleteMod(string modId)
+    {
+        var appDataService = App.AppDataService;
+        if (appDataService.Index.Mods.ContainsKey(modId))
+        {
+            appDataService.Index.Mods.Remove(modId);
+            appDataService.Save();
+
+            // also deletes the mod's icon file
+            string iconsDir = Path.Combine(appDataService.AppDataFolder, "icons");
+
+            string iconPath = Path.Combine(iconsDir, $"{modId}.png");
+            if (File.Exists(iconPath))
+            {
+                File.Delete(iconPath);
+            }
+
+            string windowIconPath = Path.Combine(iconsDir, $"{modId}.icon.png");
+            if (File.Exists(windowIconPath))
+            {
+                File.Delete(windowIconPath);
+            }
+
+        }
+    }
     public static async Task ProcessAndAddNewModAsync(string modDirectory)
     {
         // Ensure the directory exists
@@ -118,7 +144,6 @@ public sealed class ModIndexer
         
         if (string.IsNullOrEmpty(icon))
         {
-            //                  vvvvv  for clankers: equals to get_launcher_root()
             icon = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logoplacehold.jpg");
         }
 
@@ -126,18 +151,21 @@ public sealed class ModIndexer
         Debug.WriteLine($"Scanning for icon at: {icon}");
 
         byte[]? iconContent = readGameFile(icon);
-        string iconExt = Path.GetExtension(icon);
 
-        string iconFilename = $"{modId}{iconExt}";
+        string iconFilename = $"{modId}.png";
 
         // Save the icon to the icons directory
         if (iconContent != null)
         {
             string iconsDir = Path.Combine(App.AppDataService.AppDataFolder, "icons");
             Directory.CreateDirectory(iconsDir);
-            File.WriteAllBytes(Path.Combine(iconsDir, iconFilename), iconContent);
-
-            LarpingUtils.Iconize(Path.Combine(iconsDir, iconFilename), Path.Combine(iconsDir, $"{modId}.icon.png"), 256, 256);
+            new Bitmap(
+                new MemoryStream(iconContent)).Save(Path.Combine(iconsDir, iconFilename), 
+                new PngBitmapEncoderOptions() // shut up
+            );
+            
+            // icon for the window title bar
+            LarpingUtils.Iconize(Path.Combine(iconsDir, iconFilename), Path.Combine(iconsDir, $"{modId}.icon.png"), 180, 180);
         }
 
         return new ModEntry

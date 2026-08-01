@@ -77,16 +77,46 @@ inline int chmod_file(const char *path, mode_t mode) { return ::chmod(path, mode
 
 namespace fs = std::filesystem;
 
+std::filesystem::path get_appdata_dir() {
+#if defined(_WIN32)
+    if (const char* appdata = std::getenv("APPDATA")) {
+        return std::filesystem::path(appdata);
+    }
+#elif defined(__APPLE__)
+    if (const char* home = std::getenv("HOME")) {
+        return std::filesystem::path(home) / "Library" / "Application Support";
+    }
+#else // Linux / Unix
+    if (const char* xdg = std::getenv("XDG_DATA_HOME")) {
+        return std::filesystem::path(xdg);
+    } else if (const char* home = std::getenv("HOME")) {
+        return std::filesystem::path(home) / ".config";
+    }
+#endif
+    return {};
+}
+
 // ============================================================================
 // 2. LibbiVFS
 // ============================================================================
+void* fuse_init(struct fuse_conn_info *, struct fuse_config *cfg);
+
+struct VFSStartupConfigs {
+    const std::string modId; 
+    const std::string saveId; 
+
+    const std::string mountpoint;
+};
 
 class LibbiVFS {
 private:
     fs::path baseFolder;
     fs::path modFolder;
-    const std::string modId; // for the init
+    VFSStartupConfigs startupConfigs;
     bool containsRenpyEngine;
+
+    nlohmann::json modsJson;
+    nlohmann::json settingsJson;
 
     friend void* fuse_init(struct fuse_conn_info *, struct fuse_config *cfg);
 
@@ -160,10 +190,61 @@ private:
     bool verboseLog = false;
 
 public:
-    LibbiVFS(std::string launcherRoot, std::string base, std::string mod, std::string modId = "")
-        : launcherRoot(launcherRoot), baseFolder(base), modFolder(mod), modId(modId) {
+    LibbiVFS(std::string launcherRoot, decltype(startupConfigs) startupConfigs)
+        : launcherRoot(launcherRoot), startupConfigs(startupConfigs) {
+        
+        auto modsFile = get_appdata_dir() / "VirtualClub" / "mods.json";
+        if (std::filesystem::exists(modsFile)) {
+            std::ifstream f(modsFile);
+            try {
+                f >> modsJson;
+            } catch (const nlohmann::json::parse_error& e) {
+                std::cerr << "Failed to parse mods.json: " << e.what() << std::endl;
+            } 
+            f.close();
+        }
+
+        auto settingsFile = get_appdata_dir() / "VirtualClub" / "settings.json";
+        if (std::filesystem::exists(settingsFile)) {
+            std::ifstream f(settingsFile);
+            try {
+                f >> settingsJson;
+            } catch (const nlohmann::json::parse_error& e) {
+                std::cerr << "Failed to parse settings.json: " << e.what() << std::endl;
+            } 
+            f.close();
+        }
+
+        baseFolder = settingsJson.value("baseGameInstallationPath", "");
+        if (baseFolder.empty()) {
+            std::cerr << "Base game installation path not found in settings.json. Please set it in the launcher." << std::endl;
+            throw std::runtime_error("Base game installation path not found.");
+        }
+
+        {
+            auto modsIndex = modsJson["mods"];
+            if (modsIndex.is_object()) {
+                auto modInfo = modsIndex[startupConfigs.modId];
+                if (modInfo.is_object()) {
+                    std::string modPath = modInfo.value("directory", "");
+                    if (!modPath.empty()) {
+                        modFolder = fs::path(modPath);
+                    } else {
+                        std::cerr << "Mod path not found for mod ID: " << startupConfigs.modId << std::endl;
+                        throw std::runtime_error("Mod path not found.");
+                    }
+                } else {
+                    std::cerr << "Mod info for ID " << startupConfigs.modId << " is not an object." << std::endl;
+                    throw std::runtime_error("Invalid mod info.");
+                }
+            } else {
+                std::cerr << "Mods index is not an object in mods.json." << std::endl;
+                throw std::runtime_error("Invalid mods index.");
+            }
+        }
+
         containsRenpyEngine = fs::exists(modFolder / "lib");
-        dbFolder = modFolder / ".libbivfs";
+        dbFolder = modFolder / ".vclubmgr";
         whiteoutFilePath = dbFolder / "whiteouts.txt";
         load_whiteouts();
     }
@@ -222,7 +303,7 @@ public:
                 found = true;
                 for (const auto &entry : fs::directory_iterator(dir)) {
                     std::string name = entry.path().filename().string();
-                    if (name != ".libbivfs" && !is_whiteouted(path + "/" + name)) {
+                    if (name != ".vclubmgr" && !is_whiteouted(path + "/" + name)) {
                         dirents.insert(name);
                     }
                 }
@@ -584,6 +665,7 @@ namespace FUSE_Glue {
         ops.rename   = rename_glue;
         ops.chmod    = chmod_glue;
         ops.utimens  = utimens_glue;
+        ops.init     = fuse_init;
         return ops;
     }
 }
@@ -595,31 +677,14 @@ static bool g_doStartGame = false;
 
 
 
-std::filesystem::path get_appdata_dir() {
-#if defined(_WIN32)
-    if (const char* appdata = std::getenv("APPDATA")) {
-        return std::filesystem::path(appdata);
-    }
-#elif defined(__APPLE__)
-    if (const char* home = std::getenv("HOME")) {
-        return std::filesystem::path(home) / "Library" / "Application Support";
-    }
-#else // Linux / Unix
-    if (const char* xdg = std::getenv("XDG_DATA_HOME")) {
-        return std::filesystem::path(xdg);
-    } else if (const char* home = std::getenv("HOME")) {
-        return std::filesystem::path(home) / ".config";
-    }
-#endif
-    return {};
-}
-
 // for all intents and purposes refer to SessionManager.cs
 struct SessionLaunchConfigs {
-    const std::string& modId;
-    const std::string& modFolder;
-    const std::string& buildId;
-    const std::string& mountDir;
+    const std::string modId; 
+    const std::string saveId; 
+
+    const std::string modFolder;
+    const std::string buildId;
+    const std::string mountDir;
     bool enableDevelopers;
     bool forceRecompile;
 
@@ -628,56 +693,56 @@ struct SessionLaunchConfigs {
 
 void start_game(SessionLaunchConfigs configs);
 
-void* fuse_init(struct fuse_conn_info *, struct fuse_config *cfg) {
+void* fuse_init(struct fuse_conn_info *conn, struct fuse_config *cfg) {
+    auto publicData = static_cast<LibbiVFS*>(fuse_get_context()->private_data);  
     if (g_doStartGame) {
-        auto modsFile = get_appdata_dir() / "VirtualClub" / "mods.json";
-        if (std::filesystem::exists(modsFile)) {
-            std::ifstream f(modsFile);
-            nlohmann::json modsJson;
-            try {
-                f >> modsJson;
-            } catch (const nlohmann::json::parse_error& e) {
-                std::cerr << "Failed to parse mods.json: " << e.what() << std::endl;
-                return 0;
-            }
-            f.close();
-            if (modsJson.is_object() && modsJson["mods"].is_object()) {
-                auto publicData = static_cast<LibbiVFS*>(fuse_get_context()->private_data);  
+        auto modsJson = publicData->modsJson;
+        // should also fail the check if the parser failed
+        if (modsJson.is_object() && modsJson["mods"].is_object()) {
 
-                auto& mods = modsJson["mods"];
-                auto& modInfo = mods[publicData->modId];
+            auto& mods = modsJson["mods"];
+            auto& modInfo = mods[publicData->startupConfigs.modId];
 
-                if (modInfo.is_object()) {
-                    std::string buildId = modInfo.value("buildId", "DDLC");
-                    std::string mountDir = publicData->modFolder.string();
-                    bool enableDevelopers = modInfo.value("enableDeveloperMode", false);
-                    bool forceRecompile = modInfo.value("forceRecompile", false);
+            if (modInfo.is_object()) {
+                std::string buildId = modInfo.value("buildId", "DDLC");
+                bool enableDevelopers = modInfo.value("enableDeveloperMode", false);
+                bool forceRecompile = modInfo.value("forceRecompile", false);
 
-                    SessionLaunchConfigs configs = {
-                        .modId = publicData->modId,
-                        .modFolder = publicData->modFolder.string(),
-                        .buildId = buildId,
-                        .mountDir = mountDir,
-                        .enableDevelopers = enableDevelopers,
-                        .forceRecompile = forceRecompile
-                    };
+                SessionLaunchConfigs configs = {
+                    .modId = publicData->startupConfigs.modId,
+                    .saveId = publicData->startupConfigs.saveId,
+
+                    .modFolder = publicData->modFolder.string(),
+                    .buildId = buildId,
+                    .mountDir = publicData->startupConfigs.mountpoint,
+                    .enableDevelopers = enableDevelopers,
+                    .forceRecompile = forceRecompile,
+                    .fh = fuse_get_context()->fuse
+                };
+
+                std::thread([configs]() {
                     start_game(configs);
-                } else {
-                    std::cerr << "Mod info for ID " << publicData->modId << " is not an object. Stop tampering with the database next time, kids." << std::endl;
-                }
+                }).detach();
+            } else {
+                std::cerr << "Mod info for ID " << publicData->startupConfigs.modId << " is not an object. Stop tampering with the database next time, kids." << std::endl;
             }
         }
+    
     }
+
+    return publicData;
 }
 
 void spawn_process(
     const std::string& command,
     const std::vector<std::string>& argv,
     const std::vector<std::string>& extra_env,
-    std::function<void(int exit_code)> on_exit)
+    std::function<void()> on_created,
+    std::function<void(int exit_code)> on_exit
+)
 {
     // Launch a background thread to block on child execution
-    std::thread([command, argv, extra_env, on_exit]() {
+    std::thread([command, argv, extra_env, on_created, on_exit]() {
         int exit_code = -1;
 
 #if defined(_WIN32)
@@ -711,13 +776,14 @@ void spawn_process(
 
         STARTUPINFOA si = { sizeof(si) };
         PROCESS_INFORMATION pi = { 0 };
-        std::string cmd = command;
-        // the arguments
+        // Wrap command in quotes to handle paths with spaces safely
+        std::string cmd = "\"" + command + "\"";
         for (const auto& arg : argv) {
-            cmd += " \"" + arg + "\""; // ???????????????
+            cmd += " \"" + arg + "\"";
         }
 
         if (CreateProcessA(NULL, cmd.data(), NULL, NULL, FALSE, 0, env_block.data(), NULL, &si, &pi)) {
+            if (on_created) on_created();
             // Block thread until child exits
             WaitForSingleObject(pi.hProcess, INFINITE);
 
@@ -734,34 +800,59 @@ void spawn_process(
         // -------------------------------------------------------------
         // LINUX / POSIX IMPLEMENTATION
         // -------------------------------------------------------------
+        std::vector<std::string> env_storage;
         std::vector<char*> env_vec;
 
-        // 1. Point to existing environment pointers
-        for (char** env = environ; *env != nullptr; ++env) {
-            env_vec.push_back(*env);
+        // Parse key names from extra_env (e.g. "LD_LIBRARY_PATH")
+        std::vector<std::string> extra_keys;
+        for (const auto& var : extra_env) {
+            auto pos = var.find('=');
+            if (pos != std::string::npos) {
+                extra_keys.push_back(var.substr(0, pos));
+            }
         }
 
-        // 2. Copy extra environment strings into local storage to ensure lifetime safety
-        std::vector<std::string> env_storage = extra_env;
+        // Copy existing environment except keys that are overridden in extra_env
+        for (char** env = environ; *env != nullptr; ++env) {
+            std::string entry(*env);
+            auto pos = entry.find('=');
+            std::string key = (pos != std::string::npos) ? entry.substr(0, pos) : entry;
+
+            bool is_overridden = false;
+            for (const auto& k : extra_keys) {
+                if (k == key) { is_overridden = true; break; }
+            }
+
+            if (!is_overridden) {
+                env_storage.push_back(entry);
+            }
+        }
+
+        // Add extra environment variables
+        for (const auto& var : extra_env) {
+            env_storage.push_back(var);
+        }
+
         for (auto& s : env_storage) {
             env_vec.push_back(s.data());
         }
-
-        // 3. Null-terminate the array
         env_vec.push_back(nullptr);
 
         std::vector<char*> argv_vec;
+        
+        // FIX: argv[0] must be the command/executable name by POSIX convention
+        argv_vec.push_back(const_cast<char*>(command.c_str()));
+        
         for (const auto& arg : argv) {
             argv_vec.push_back(const_cast<char*>(arg.c_str()));
         }
         argv_vec.push_back(nullptr);
 
-
         pid_t pid;
-        // posix_spawn internally uses vfork (CLONE_VM / CLONE_VFORK): zero memory duplication
         int status = posix_spawn(&pid, command.c_str(), NULL, NULL, argv_vec.data(), env_vec.data());
 
         if (status == 0) {
+            if (on_created) on_created();
             int wait_status = 0;
             // Block thread until process terminates
             if (waitpid(pid, &wait_status, 0) != -1) {
@@ -841,8 +932,7 @@ void start_game(SessionLaunchConfigs configs) {
 
         #endif
     if (!pythonwPath) {
-        std::cerr << "Could not find pythonw executable for the current environment in the mod folder." << std::endl;
-        return;
+        throw std::runtime_error("Could not find pythonw executable for the current environment in the mod folder.");
     }
 
     // Step 1.5: Set executable permission on specifically Linux platform 
@@ -862,7 +952,7 @@ void start_game(SessionLaunchConfigs configs) {
     }
 
     // Step 3. Resolve bootstrapper python file at the root
-    const std::string bootstrapperFiles[] {configs.buildId+".py", "DDLC.py", "renpy.py"};
+    const std::array<std::string, 3> bootstrapperFiles {configs.buildId+".py", "DDLC.py", "renpy.py"};
     std::string bootstrapperPath;
     for (const auto& file : bootstrapperFiles) {
         auto candidate = mountPath / file;
@@ -873,8 +963,7 @@ void start_game(SessionLaunchConfigs configs) {
     }
 
     if (bootstrapperPath.empty()) {
-        std::cerr << "Could not find a bootstrapper python file in the mod folder." << std::endl;
-        return;
+        throw std::runtime_error("Could not find a bootstrapper python file in the mod folder.");
     }
 
     // Step 4. Prepare environment variables and launch the game
@@ -882,25 +971,47 @@ void start_game(SessionLaunchConfigs configs) {
     std::vector<std::string> argv;
     extra_env.push_back("MVC_MOD_ID=" + configs.modId);
     if (configs.enableDevelopers) extra_env.push_back("MVC_DEVELOPER=Mon-ika");
-    // TODO: selected save id
+    if (configs.saveId != "") extra_env.push_back("MVC_SAVE_ID=" + configs.saveId);
+
+    #ifdef __linux__
+    // get current list of LD_LIBRARY_PATH
+    const char* ld_library_path = std::getenv("LD_LIBRARY_PATH");
+    extra_env.push_back("LD_LIBRARY_PATH=" + pythonwPath->parent_path().string() + ":" + (ld_library_path ? ld_library_path : ""));
+    #endif
 
     // Ren'Py 6 fallback launch flag. cant believe i have to do this
     // TODO: this check's works but it's weird, given that we're going 
     // to allow users to omit the renpy engine from the mod folder. not now though so no care
-    if (fs::exists(fs::path(configs.modFolder) / "lib")) {
+    if (!fs::exists(fs::path(configs.modFolder) / "lib")) {
         argv.push_back("-EO");
     }
     argv.push_back(bootstrapperPath);
 
-    spawn_process(pythonwPath->string(), argv, extra_env, [configs](int exit_code) {
-        std::cout << "Game exited with code: " << exit_code << std::endl;
-        fuse_exit(configs.fh);
-    });
+    auto lockFilePath = fs::path(configs.mountDir) / ".vclubmgr" / ".lock";
+
+    spawn_process(
+        pythonwPath->string(), argv, extra_env, 
+        [lockFilePath]() {
+            fs::create_directories(lockFilePath.parent_path());
+            std::ofstream lockFile(lockFilePath);
+            lockFile.close();
+        },
+        [configs, lockFilePath](int exit_code) {
+            std::cout << "Game exited with code: " << exit_code << std::endl;
+            if (exit_code == 0) fuse_exit(configs.fh);
+
+            try {
+                fs::remove(lockFilePath);
+            } catch (const std::exception& e) {
+                std::cerr << "Failed to remove lock file: " << e.what() << std::endl;
+            }
+        }
+    );
 }
 
 // create a temp directory for the mount point and return its path
 std::string get_mount_point(std::string mod_id) {
-    std::string temp_dir_template = std::filesystem::temp_directory_path().string() + "/vclubmgr_mount_" + mod_id;
+    std::string temp_dir_template = std::filesystem::temp_directory_path() / ("vclubmgr_mount_" + mod_id+"_XXXXXX");
     char* temp_dir = mkdtemp(&temp_dir_template[0]);
     if (!temp_dir) {
         throw std::runtime_error("Failed to create temporary mount point");
@@ -908,45 +1019,70 @@ std::string get_mount_point(std::string mod_id) {
     return std::string(temp_dir);
 }
 
-// usage: vclubmgr [--start_game --mod_id=<mod_id>] <launcher_root> <base_folder> <mod_folder>
+std::string get_binary_directory() {
+    #if defined(_WIN32)
+        char buffer[MAX_PATH];
+        GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        return std::filesystem::path(buffer).parent_path().string();
+    #elif defined(__APPLE__)
+        char buffer[PATH_MAX];
+        uint32_t size = sizeof(buffer);
+        if (_NSGetExecutablePath(buffer, &size) == 0) {
+            return std::filesystem::path(buffer).parent_path().string();
+        }
+    #else // Linux and other Unix-like systems
+        char buffer[PATH_MAX];
+        ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+        if (len != -1) {
+            buffer[len] = '\0';
+            return std::filesystem::path(buffer).parent_path().string();
+        }
+    #endif
+    throw std::runtime_error("Failed to determine binary directory");
+}
+
+// usage: vclubmgr [--start] [--save_id=<save_id>] [--launcher_root=<launcher_root>] <mod_id>
 int main(int argc, char *argv[]) {
     cxxopts::Options options("vclubmgr", "A simple FUSE filesystem for managing game mods");
 
     options.add_options()
-        ("start_game", "Start the game after mounting")
-        ("launcher_root", "Root directory of the launcher", cxxopts::value<std::string>())
-        ("base_folder", "Base folder for the filesystem", cxxopts::value<std::string>())
-        ("mod_folder", "Folder containing the mods", cxxopts::value<std::string>())
+        ("start", "Start the game after mounting")
+        ("launcher_root", "Root directory of the launcher. Defaults to where the executable is located.", cxxopts::value<std::string>())
         ("mod_id", "ID of the mod to mount", cxxopts::value<std::string>())
+        ("save_id", "ID of the save to load", cxxopts::value<std::string>())
         ;
 
-    options.parse_positional({"launcher_root", "base_folder", "mod_folder"});
+    options.parse_positional({"mod_id"});
+
+    options.positional_help("<mod_id>");
 
     auto result = options.parse(argc, argv);
 
-    if (result.count("launcher_root") == 0 || result.count("base_folder") == 0 || result.count("mod_folder") == 0) {
+    if (result.count("mod_id") == 0) {
         std::cerr << options.help() << std::endl;
         return 1;
     }
 
-    bool doStartGame = g_doStartGame = result.count("start_game") > 0;
-    if (doStartGame && result.count("mod_id") == 0) {
-        std::cerr << "Error: --start_game requires --mod_id to be specified." << std::endl;
-        return 1;
-    }
+    bool doStartGame = g_doStartGame = result.count("start") > 0;
 
-    std::string launcherRoot = result["launcher_root"].as<std::string>();
-    std::string baseFolder = result["base_folder"].as<std::string>();
-    std::string modFolder = result["mod_folder"].as<std::string>();
-    std::string modId = doStartGame ? result["mod_id"].as<std::string>() : "";
-
-    std::unique_ptr<LibbiVFS> vfs = std::make_unique<LibbiVFS>(launcherRoot, baseFolder, modFolder);
+    std::string launcherRoot = result.count("launcher_root") > 0 ? result["launcher_root"].as<std::string>() : get_binary_directory();
+    std::string modId = result.count("mod_id") > 0 ? result["mod_id"].as<std::string>() : "";
+    std::string saveId = result.count("save_id") > 0 ? result["save_id"].as<std::string>() : "";
+    
     auto mountpoint = get_mount_point(modId.empty() ? "default" : modId);
+    std::unique_ptr<LibbiVFS> vfs = std::make_unique<LibbiVFS>(
+        launcherRoot,
+        VFSStartupConfigs{
+            .modId = modId,
+            .saveId = saveId,
+            .mountpoint = mountpoint
+        }
+    );
     
     struct fuse_operations ops = FUSE_Glue::get_ops();
 
     struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
-    fuse_opt_add_arg(&args, "libbi_fuse");
+    fuse_opt_add_arg(&args, "vclubmgr_vfs");
     fuse_opt_add_arg(&args, "-o");
     fuse_opt_add_arg(&args, "kernel_cache,attr_timeout=10,entry_timeout=10,negative_timeout=2");
 
@@ -972,5 +1108,12 @@ int main(int argc, char *argv[]) {
     //fuse_exit(fh);
     fuse_unmount(fh);
     fuse_destroy(fh);
+
+    // delete the mount folder
+    try {
+        fs::remove_all(mountpoint);
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to remove mount point: " << e.what() << std::endl;
+    }
     return 0;
 }

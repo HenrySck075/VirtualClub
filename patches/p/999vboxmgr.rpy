@@ -22,11 +22,7 @@ init 999 python:
     import os
     import sys
 
-    def get_qt_app_data_location(org_name, app_name):
-        """
-        Replicates QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
-        Compatible with Python 2 and Python 3.
-        """
+    def get_app_data_location(app_name):
         # Detect platform
         platform = sys.platform
 
@@ -37,31 +33,31 @@ init 999 python:
             if not base_dir:
                 base_dir = os.path.join(os.environ.get("USERPROFILE", "C:\\"), "AppData", "Roaming")
             
-            # Qt formats AppDataLocation as AppData/Roaming/OrgName/AppName on Windows
-            return os.path.join(base_dir, org_name, app_name)
+            # Qt formats AppDataLocation as AppData/Roaming/AppName on Windows
+            return os.path.join(base_dir, app_name)
 
         elif platform == "darwin":
-            # macOS: ~/Library/Application Support/OrgName/AppName
+            # macOS: ~/Library/Application Support/AppName
             home = os.path.expanduser("~")
-            return os.path.join(home, "Library", "Application Support", org_name, app_name)
+            return os.path.join(home, "Library", "Application Support", app_name)
 
         else:
-            # Linux / Unix: Uses XDG_DATA_HOME or defaults to ~/.local/share
-            # Qt format: ~/.local/share/OrgName/AppName
+            # Linux / Unix: Uses XDG_DATA_HOME or defaults to ~/.config
+            # Qt format: ~/.config/AppName
             base_dir = os.environ.get("XDG_DATA_HOME")
             if not base_dir:
-                base_dir = os.path.join(os.path.expanduser("~"), ".local", "share")
+                base_dir = os.path.join(os.path.expanduser("~"), ".config")
             
-            return os.path.join(base_dir, org_name, app_name)
+            return os.path.join(base_dir, app_name)
 
 # 1. Calculate the exact standard AppData location
-    launcherDataLocation = get_qt_app_data_location("MetaverseEnterprise", "VirtualClub")
+    launcherDataLocation = get_app_data_location("VirtualClub")
 
 # 2. balls
 
     mod_uuid = os.getenv("MVC_MOD_ID") # variable provided by the launcher
 
-    icon_filename = mod_uuid + ".scaled.png"
+    icon_filename = mod_uuid + ".icon.png"
     absolute_icon_path = os.path.join(launcherDataLocation, "icons", icon_filename)
 
 # 3. Apply the icon path directly to Ren'Py's configuration

@@ -10,7 +10,7 @@
             
             <!-- Header -->
             <Grid ColumnDefinitions="Auto,*" RowSpacing="16" ColumnSpacing="16">
-                <Image x:Name="ModIcon" Width="120" Height="120" Source="{Binding IconPath}"/>
+                <Image x:Name="ModIcon" Width="120" Height="120" Source="{Binding Icon}"/>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                     <TextBlock x:Name="ModTitle" Text="{Binding Name}" FontSize="28" FontWeight="SemiBold" />
                     <TextBlock x:Name="ModVersion" Text="{Binding Version, StringFormat=Version {0}}" Foreground="Gray" />
@@ -38,20 +38,15 @@
                             </Button.Content>
                             <Button.Flyout>
                                 <Flyout>
-                                    <StackPanel Spacing="8" Margin="8">
+                                    <StackPanel Spacing="8" Margin="8" MinWidth="300">
                                         <TextBlock Text="Name"></TextBlock>
                                         <TextBox Text="{Binding Name, Mode=TwoWay}" />
                                         <TextBlock Text="Version"></TextBlock>
                                         <TextBox Text="{Binding Version, Mode=TwoWay}" />
                                         <TextBlock Text="Directory"></TextBlock>
-                                        <TextBlock Text="{Binding Directory}">
-                                            <TextBlock.Foreground>
-                                                <SolidColorBrush Color="Gray" />
-                                            </TextBlock.Foreground>
-                                        </TextBlock>
                                         <Button Content="Change directory" Click="OnChangeDirectoryClicked" />
                                         <TextBlock Text="Icon"></TextBlock>
-                                        <Image Width="64" Height="64" Source="{Binding IconPath}" HorizontalAlignment="Center"/>
+                                        <Image Width="64" Height="64" Source="{Binding Icon}" HorizontalAlignment="Center"/>
                                         <Button Content="Change icon" Click="OnChangeIconClicked" />
 
                                         <Button Content="Save" Click="OnSaveMetaEditClicked" HorizontalAlignment="Right" />

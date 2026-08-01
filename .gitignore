@@ -482,6 +482,9 @@ $RECYCLE.BIN/
 *.swp
 
 
-
+# C++ / developers stuff
 build/
 .cache/
+
+vclubmgr
+vclubmgr.exe

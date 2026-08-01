@@ -11,121 +11,49 @@ public class SessionManager
 {
     public static async Task LaunchAsync(
         string modId, 
-        string mountDir, 
-        string modDirectory, 
-        string buildId, 
-        bool forceRecompile, 
-        bool devMode, 
         string? selectedSaveId = null)
     {
-        string pythonExe = ResolvePythonExecutable(mountDir, modId);
-
-        // Linux permission restoration fix
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        // delegate the task to `vclubmgr` binary sitting at the application root
+        string vclubmgrPath = Path.Combine(AppContext.BaseDirectory, "vclubmgr");
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            vclubmgrPath += ".exe";
+        
+        if (!File.Exists(vclubmgrPath))
+            throw new FileNotFoundException($"Could not find vclubmgr binary at {vclubmgrPath}. Check if you have installed the program correctly and try again.");
+        
+        // usage: vclubmgr [--start] [--save_id=<save_id>] [--launcher_root=<launcher_root>] <mod_id>
+        var args = new List<string>
         {
-            var mode = File.GetUnixFileMode(pythonExe);
-            if (!mode.HasFlag(UnixFileMode.UserExecute))
-            {
-                File.SetUnixFileMode(pythonExe, mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
-            }
-        }
-
-        // Force recompile: purge loose .rpyc files
-        if (forceRecompile)
-        {
-            foreach (var rpycFile in Directory.EnumerateFiles(mountDir, "*.rpyc", SearchOption.AllDirectories))
-            {
-                try { File.Delete(rpycFile); } catch { /* Ignore locked/permission files */ }
-            }
-        }
-
-        // Bootstrapper resolution
-        string[] bootstrapperFiles = {$"{buildId}.py", "DDLC.py", "renpy.py"};
-        string bootstrapper = string.Empty;
-        foreach (var file in bootstrapperFiles)
-        {
-            var path = Path.Combine(mountDir, file);
-            if (File.Exists(path))
-            {
-                bootstrapper = path;
-                break;
-            }
-        }
-
-        if (string.IsNullOrEmpty(bootstrapper))
-            throw new FileNotFoundException($"Could not find a valid bootstrapper for mod '{modId}' in mount directory '{mountDir}'.");
+            "--start",
+            !string.IsNullOrEmpty(selectedSaveId) ? $"--save_id={selectedSaveId}" : "",
+            $"--launcher_root=\"{AppContext.BaseDirectory}\"",
+            modId
+        };
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = pythonExe,
-            WorkingDirectory = mountDir,
+            FileName = vclubmgrPath,
+            Arguments = string.Join(" ", args),
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true
         };
 
-        // Inject Environment Variables
-        startInfo.EnvironmentVariables["MVC_MOD_ID"] = modId;
-        if (devMode) startInfo.EnvironmentVariables["MVC_DEVELOPER"] = "Mon-ika";
-        if (!string.IsNullOrEmpty(selectedSaveId)) startInfo.EnvironmentVariables["MVC_SAVE_ID"] = selectedSaveId;
-
-        // Ren'Py 6 fallback flag
-        if (!Directory.Exists(Path.Combine(modDirectory, "lib")))
+        using (var process = new Process { StartInfo = startInfo })
         {
-            startInfo.ArgumentList.Add("-EO");
+            process.Start();
+
+            // Optionally, read the output and error streams
+            string output = await process.StandardOutput.ReadToEndAsync();
+            string error = await process.StandardError.ReadToEndAsync();
+
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                throw new Exception($"vclubmgr exited with code {process.ExitCode}. Error: {error}");
+            }
         }
-        startInfo.ArgumentList.Add(bootstrapper);
-
-        // Linux LD_LIBRARY_PATH resolution
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            string pyDir = Path.GetDirectoryName(pythonExe)!;
-            string currentLd = startInfo.EnvironmentVariables["LD_LIBRARY_PATH"] ?? "";
-            startInfo.EnvironmentVariables["LD_LIBRARY_PATH"] = string.IsNullOrEmpty(currentLd) ? pyDir : $"{pyDir}:{currentLd}";
-        }
-
-        using var process = new Process { StartInfo = startInfo };
-        
-        process.OutputDataReceived += (s, e) => { if (e.Data != null) Console.WriteLine($"[OUT] {e.Data}"); };
-        process.ErrorDataReceived += (s, e) => { if (e.Data != null) Console.Error.WriteLine($"[ERR] {e.Data}"); };
-
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        await process.WaitForExitAsync();
-    }
-
-    private static string ResolvePythonExecutable(string mountDir, string modId)
-    {
-        string platformKey = GetPlatformKey();
-        string exeName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "pythonw.exe" : "pythonw";
-
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            return Path.Combine(mountDir, $"{modId}.app", "Contents", "MacOS", "pythonw");
-
-        // Try Py3 -> Py2 -> direct platform dir
-        string py3Path = Path.Combine(mountDir, "lib", $"py3-{platformKey}", exeName);
-        if (File.Exists(py3Path)) return py3Path;
-
-        string py2Path = Path.Combine(mountDir, "lib", $"py2-{platformKey}", exeName);
-        if (File.Exists(py2Path)) return py2Path;
-
-        string directPath = Path.Combine(mountDir, "lib", platformKey, exeName);
-        if (File.Exists(directPath)) return directPath;
-
-        throw new FileNotFoundException($"Could not find a valid Python executable for target environment: {platformKey}");
-    }
-
-    private static string GetPlatformKey()
-    {
-        bool is64 = RuntimeInformation.OSArchitecture == Architecture.X64;
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return is64 ? "windows-x86_64" : "windows-i686";
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            return is64 ? "linux-x86_64" : "linux-i686";
-
-        return "unknown";
     }
 }
