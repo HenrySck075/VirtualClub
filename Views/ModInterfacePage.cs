@@ -10,6 +10,7 @@ using FluentAvalonia.UI.Navigation;
 using VirtualClub.Core;
 
 namespace VirtualClub.Views;
+
 public partial class ModInterfacePageModel : ObservableObject
 {
     public string Id { get; init; } = string.Empty;
@@ -25,6 +26,14 @@ public partial class ModInterfacePageModel : ObservableObject
     public partial string PlaytimeText { get; set; }
     [ObservableProperty]
     public partial string ActivePlaytimeText { get; set; }
+    [ObservableProperty]
+    public partial bool IsDevMode { get; set; }
+    [ObservableProperty]
+    public partial bool IsForceRecompile { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSessionNotRunning))]
+    public partial bool IsSessionRunning { get; set; }
+    public bool IsSessionNotRunning { get => !IsSessionRunning; }
 }// (string Id, string Name, string Version, Bitmap IconPath, string Directory, string PlaytimeText, string ActivePlaytimeText);
 
 public partial class ModInterfacePage : UserControl
@@ -39,7 +48,8 @@ public partial class ModInterfacePage : UserControl
     // every single ai collectively decided OnNavigatedTo is a real function. help.
     public void OnNavigatedTo(object? sender, FANavigationEventArgs e)
     {
-        if (e.Parameter is string id) {
+        if (e.Parameter is string id)
+        {
             // Load mod data based on the provided ID
             var modEntry = App.AppDataService.Index.Mods.GetValueOrDefault(id);
             if (modEntry != null)
@@ -63,24 +73,41 @@ public partial class ModInterfacePage : UserControl
                     }
                 }
 
-                var model = new ModInterfacePageModel{
-                    Id=id,
-                    Name=modEntry.Name,
-                    Version=modEntry.Version,
-                    Icon=new Bitmap(Path.Combine(EnvironmentManager.GetDataDirectory(), "icons", modEntry.IconFilename)),
-                    Directory=modEntry.Directory,
-                    PlaytimeText=playtimeText,
-                    ActivePlaytimeText=activePlaytimeText
+                var model = new ModInterfacePageModel
+                {
+                    Id = id,
+                    Name = modEntry.Name,
+                    Version = modEntry.Version,
+                    Icon = new Bitmap(Path.Combine(EnvironmentManager.GetDataDirectory(), "icons", modEntry.IconFilename)),
+                    Directory = modEntry.Directory,
+                    PlaytimeText = playtimeText,
+                    ActivePlaytimeText = activePlaytimeText,
+                    IsSessionRunning = SessionManager.IsSessionRunning(id),
+                    IsDevMode = modEntry.EnableDeveloperMode,
+                    IsForceRecompile = modEntry.ForceRecompile
                 };
 
                 DataContext = model;
+
+                // im dumb so wait for existing session to exit if one was actually running
+                if (model.IsSessionRunning)
+                {
+                    SessionManager.OnSessionExitCallback(id, () =>
+                    {
+                        model.IsSessionRunning = false;
+                    });
+                }
             }
         }
     }
 
     public void OnStartClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        // Start the mod interface logic here
+        SessionManager.LaunchAsync((DataContext as ModInterfacePageModel)?.Id ?? string.Empty);
+        SessionManager.OnSessionExitCallback((DataContext as ModInterfacePageModel)?.Id ?? string.Empty, () =>
+        {
+            (DataContext as ModInterfacePageModel)?.IsSessionRunning = false;
+        });
     }
 
     public void OnStartFromSaveClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -186,6 +213,32 @@ public partial class ModInterfacePage : UserControl
                 }
 
                 // Save the updated mods index to disk
+                App.AppDataService.Save();
+            }
+        }
+    }
+
+    private void DevModeToggle_IsCheckedChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ModInterfacePageModel model)
+        {
+            var modEntry = App.AppDataService.Index.Mods.GetValueOrDefault(model.Id);
+            if (modEntry != null)
+            {
+                modEntry.EnableDeveloperMode = model.IsDevMode = DevModeToggle.IsChecked ?? false;
+                App.AppDataService.Save();
+            }
+        }
+    }
+
+    private void ForceRecompileToggle_IsCheckedChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (DataContext is ModInterfacePageModel model)
+        {
+            var modEntry = App.AppDataService.Index.Mods.GetValueOrDefault(model.Id);
+            if (modEntry != null)
+            {
+                modEntry.ForceRecompile = model.IsForceRecompile = ForceRecompileToggle.IsChecked ?? false;
                 App.AppDataService.Save();
             }
         }

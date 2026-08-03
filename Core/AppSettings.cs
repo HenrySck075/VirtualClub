@@ -107,7 +107,7 @@ public class AppDataService
 
     public string AppDataFolder { get; private set; }
 
-    public AppDataService(string appName = "VirtualClub")
+    public AppDataService()
     {
         // Platform-agnostic path: 
         // Windows: C:\Users\<User>\AppData\Roaming\<appName>

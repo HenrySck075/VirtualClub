@@ -9,7 +9,64 @@ namespace VirtualClub.Core;
 
 public class SessionManager
 {
-    public static async Task LaunchAsync(
+    private static readonly Dictionary<string, Process> _sessions = new Dictionary<string, Process>();
+    private static readonly Dictionary<string, Task> _sessionTasks = new Dictionary<string, Task>();
+
+    private static void _addSession(string modId, Process process)
+    {
+        _sessions[modId] = process;
+        var b = process.WaitForExitAsync();
+        _sessionTasks[modId] = b;
+        b.ContinueWith(t =>
+        {
+            _sessions.Remove(modId);
+        });
+    }
+
+    // used on startup
+    public static async void RestoreSessionsList()
+    {
+        var mods = App.AppDataService.Index.Mods;
+
+        var locksPath = Path.Combine(App.AppDataService.AppDataFolder, "locks");
+
+        foreach (var key in mods.Keys)
+        {
+            var lockFilePath = Path.Combine(locksPath, $"{key}.lock");
+            if (File.Exists(lockFilePath))
+            {
+                try
+                {
+                    var lines = await File.ReadAllLinesAsync(lockFilePath);
+                    if (lines.Length >= 2 && int.TryParse(lines[1], out int pid))
+                    {
+                        try
+                        {
+                            var process = Process.GetProcessById(pid);
+                            if (!process.HasExited)
+                            {
+                                process.EnableRaisingEvents = true;
+                                _addSession(key, process);
+                            }
+                        }
+                        catch (ArgumentException)
+                        {
+                            // Process with the specified PID does not exist
+                            // nuke the lock
+
+                            File.Delete(lockFilePath);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error reading lock file for mod {key}: {ex.Message}");
+                }
+            }
+        }
+    }
+
+    public static void LaunchAsync(
         string modId, 
         string? selectedSaveId = null)
     {
@@ -34,25 +91,50 @@ public class SessionManager
         {
             FileName = vclubmgrPath,
             Arguments = string.Join(" ", args),
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
+            UseShellExecute = true,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
+            RedirectStandardInput = false,
+            CreateNoWindow = true,
         };
 
         using (var process = new Process { StartInfo = startInfo })
         {
             process.Start();
 
-            // Optionally, read the output and error streams
-            string output = await process.StandardOutput.ReadToEndAsync();
-            string error = await process.StandardError.ReadToEndAsync();
+            _addSession(modId, process);
+        }
+    }
 
-            await process.WaitForExitAsync();
+    public static bool IsSessionRunning(string modId)
+    {
+        if (_sessions.TryGetValue(modId, out var process))
+        {
+            return !process.HasExited;
+        }
+        return false;
+    }
 
-            if (process.ExitCode != 0)
+    public static void OnSessionExitCallback(string modId, Action callback)
+    {
+        if (_sessionTasks.TryGetValue(modId, out var task))
+        {
+            task.ContinueWith(t => callback());
+        }
+    }
+
+    public static void TerminateSession(string modId)
+    {
+        if (_sessions.TryGetValue(modId, out var process))
+        {
+            try
             {
-                throw new Exception($"vclubmgr exited with code {process.ExitCode}. Error: {error}");
+                process.Kill(); // hope this sends sigterm
+                process.WaitForExit();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error terminating session for mod {modId}: {ex.Message}");
             }
         }
     }

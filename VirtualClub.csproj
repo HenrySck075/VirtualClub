@@ -22,9 +22,9 @@
     <PackageReference Include="Avalonia.Markup.Xaml.Loader" Version="12.1.0" PrivateAssets="All" />
     <PackageReference Include="HotAvalonia" Version="3.*" PrivateAssets="All" />
 
-    <Content Include="patches\**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-
+    <Content Include="patches\**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="vclubmgr" CopyToOutputDirectory="PreserveNewest" Condition="!$(TargetFramework.Contains('windows'))" /> <!-- unix -->
+    <Content Include="vclubmgr.exe" CopyToOutputDirectory="PreserveNewest" Condition="$(TargetFramework.Contains('windows'))" /> <!-- windows -->
+    <Content Include="app-icon.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

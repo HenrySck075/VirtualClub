@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using FluentAvalonia.Styling;
 using VirtualClub.Core;
+using VirtualClub.Views;
 
 namespace VirtualClub;
 
@@ -20,6 +22,10 @@ public partial class App : Application
         {
             desktop.MainWindow = new MainWindow();
         }
+        else if (ApplicationLifetime is ISingleViewApplicationLifetime singleView)
+        {
+            singleView.MainView = new MainView();
+        }
 
         base.OnFrameworkInitializationCompleted();
 
@@ -29,5 +35,9 @@ public partial class App : Application
             Theme.Dark => Avalonia.Styling.ThemeVariant.Dark,
             _ => Avalonia.Styling.ThemeVariant.Default
         };
+
+        //var faTheme = AvaloniaLocator.CurrentMutable.GetService<FluentAvaloniaTheme>();
+
+        SessionManager.RestoreSessionsList();
     }
 }

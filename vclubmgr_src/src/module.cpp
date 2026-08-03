@@ -21,6 +21,26 @@
 #include "cxxopts.hpp"
 #include <nlohmann/json.hpp>
 
+// inline platform-specific macros to make the code look more readable
+#if defined(_WIN32) || defined(_WIN64)
+#define MVC_WIN(...) __VA_ARGS__
+#define MVC_MAC(...)
+#define MVC_LINUX(...)
+#define MVC_UNIX(...)
+#elif defined(__APPLE__)
+#define MVC_WIN(...) 
+#define MVC_MAC(...) __VA_ARGS__
+#define MVC_LINUX(...)
+#define MVC_UNIX(...) __VA_ARGS__
+#elif defined(__linux__)
+#define MVC_WIN(...) 
+#define MVC_MAC(...)
+#define MVC_LINUX(...) __VA_ARGS__
+#define MVC_UNIX(...) __VA_ARGS__
+#else
+#error "what"
+#endif
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -30,6 +50,7 @@
 #include <direct.h>
 
 typedef unsigned short mode_t;
+typedef unsigned long pid_t;
 typedef SSIZE_T ssize_t;
 
 #ifndef O_BINARY
@@ -78,22 +99,27 @@ inline int chmod_file(const char *path, mode_t mode) { return ::chmod(path, mode
 namespace fs = std::filesystem;
 
 std::filesystem::path get_appdata_dir() {
+    std::filesystem::path ret;
 #if defined(_WIN32)
     if (const char* appdata = std::getenv("APPDATA")) {
-        return std::filesystem::path(appdata);
+        ret = std::filesystem::path(appdata);
     }
 #elif defined(__APPLE__)
     if (const char* home = std::getenv("HOME")) {
-        return std::filesystem::path(home) / "Library" / "Application Support";
+        ret = std::filesystem::path(home) / "Library" / "Application Support";
     }
 #else // Linux / Unix
     if (const char* xdg = std::getenv("XDG_DATA_HOME")) {
-        return std::filesystem::path(xdg);
+        ret = std::filesystem::path(xdg);
     } else if (const char* home = std::getenv("HOME")) {
-        return std::filesystem::path(home) / ".config";
+        ret = std::filesystem::path(home) / ".config";
     }
 #endif
-    return {};
+    else {
+        return {};
+    }
+
+    return ret / "VirtualClub";
 }
 
 // ============================================================================
@@ -193,7 +219,7 @@ public:
     LibbiVFS(std::string launcherRoot, decltype(startupConfigs) startupConfigs)
         : launcherRoot(launcherRoot), startupConfigs(startupConfigs) {
         
-        auto modsFile = get_appdata_dir() / "VirtualClub" / "mods.json";
+        auto modsFile = get_appdata_dir() / "mods.json";
         if (std::filesystem::exists(modsFile)) {
             std::ifstream f(modsFile);
             try {
@@ -204,7 +230,7 @@ public:
             f.close();
         }
 
-        auto settingsFile = get_appdata_dir() / "VirtualClub" / "settings.json";
+        auto settingsFile = get_appdata_dir() / "settings.json";
         if (std::filesystem::exists(settingsFile)) {
             std::ifstream f(settingsFile);
             try {
@@ -737,7 +763,7 @@ void spawn_process(
     const std::string& command,
     const std::vector<std::string>& argv,
     const std::vector<std::string>& extra_env,
-    std::function<void()> on_created,
+    std::function<void(pid_t pid)> on_created,
     std::function<void(int exit_code)> on_exit
 )
 {
@@ -783,7 +809,7 @@ void spawn_process(
         }
 
         if (CreateProcessA(NULL, cmd.data(), NULL, NULL, FALSE, 0, env_block.data(), NULL, &si, &pi)) {
-            if (on_created) on_created();
+            if (on_created) on_created(pi.dwProcessId);
             // Block thread until child exits
             WaitForSingleObject(pi.hProcess, INFINITE);
 
@@ -852,7 +878,7 @@ void spawn_process(
         int status = posix_spawn(&pid, command.c_str(), NULL, NULL, argv_vec.data(), env_vec.data());
 
         if (status == 0) {
-            if (on_created) on_created();
+            if (on_created) on_created(pid);
             int wait_status = 0;
             // Block thread until process terminates
             if (waitpid(pid, &wait_status, 0) != -1) {
@@ -887,13 +913,9 @@ void start_game(SessionLaunchConfigs configs) {
     }
     #else 
     //forgive me
-        std::string platformKey = 
-        #if defined(_WIN32)
-            "windows"
-        #elif defined(__linux__)
-            "linux"
-        #endif
-        "-"
+        std::string platformKey =
+            MVC_WIN("windows") MVC_LINUX("linux")
+            "-"
         #if defined(__x86_64__) || defined(_M_X64)
             "x86_64"
         #elif defined(__i386__) || defined(_M_IX86)
@@ -901,13 +923,7 @@ void start_game(SessionLaunchConfigs configs) {
         #endif
         ;
 
-        std::string exeName = 
-        #if defined(_WIN32)
-                "pythonw.exe"
-        #else
-                "pythonw"  
-        #endif
-        ;
+        std::string exeName = "pythonw" MVC_WIN(".exe");
 
         {
             auto py3Path = mountPath / "lib" / ("py3-" + platformKey) / exeName;
@@ -987,13 +1003,18 @@ void start_game(SessionLaunchConfigs configs) {
     }
     argv.push_back(bootstrapperPath);
 
-    auto lockFilePath = fs::path(configs.mountDir) / ".vclubmgr" / ".lock";
+    auto lockFilePath = get_appdata_dir() / "locks" / (configs.modId+".lock");
+    auto mountDir = configs.mountDir;
 
     spawn_process(
         pythonwPath->string(), argv, extra_env, 
-        [lockFilePath]() {
+        [lockFilePath, mountDir](pid_t pid) {
             fs::create_directories(lockFilePath.parent_path());
             std::ofstream lockFile(lockFilePath);
+            // write the pid of the vfs manager and the mounted path (just in case)
+            lockFile << MVC_UNIX(getpid()) MVC_WIN(GetCurrentProcessId()) << std::endl;
+            //lockFile << pid << std::endl;
+            lockFile << mountDir << std::endl;
             lockFile.close();
         },
         [configs, lockFilePath](int exit_code) {
