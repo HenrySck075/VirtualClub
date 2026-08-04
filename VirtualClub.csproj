@@ -26,5 +26,6 @@
     <Content Include="vclubmgr" CopyToOutputDirectory="PreserveNewest" Condition="!$(TargetFramework.Contains('windows'))" /> <!-- unix -->
     <Content Include="vclubmgr.exe" CopyToOutputDirectory="PreserveNewest" Condition="$(TargetFramework.Contains('windows'))" /> <!-- windows -->
     <Content Include="app-icon.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="logoplacehold.jpg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

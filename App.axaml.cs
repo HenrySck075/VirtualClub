@@ -37,7 +37,5 @@ public partial class App : Application
         };
 
         //var faTheme = AvaloniaLocator.CurrentMutable.GetService<FluentAvaloniaTheme>();
-
-        SessionManager.RestoreSessionsList();
     }
 }

@@ -3,6 +3,7 @@
              xmlns:local="using:VirtualClub.Views"
              xmlns:ui="using:FluentAvalonia.UI.Controls"
              x:Class="VirtualClub.Views.LibraryPage"
+             x:CompileBindings="True"
              x:DataType="local:LibraryPageViewModel">
 
     <ScrollViewer Padding="36,24">
@@ -10,7 +11,6 @@
             <!-- Header Bar -->
             <Grid ColumnDefinitions="*,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
                 <TextBlock Text="Mod Library" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <TextBox Grid.Column="1" x:Name="SearchBox" PlaceholderText="Search mods..." VerticalAlignment="Center" Width="250" TextChanged="OnSearchTextChanged" />
                 <Button Grid.Column="2" Classes="accent" Click="OnAddModClicked">
                     <ui:FASymbolIcon Symbol="Add" />
                 </Button>
@@ -24,7 +24,7 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate DataType="local:ModCardViewModel">
                         <ui:FASettingsExpander Header="{Binding Name}" Description="{Binding VersionText}"
                                          Margin="0,0,12,12" Width="280" Height="80" 
                                          IsClickEnabled="True"

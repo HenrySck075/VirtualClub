@@ -12,6 +12,30 @@ using VirtualClub.Core;
 
 public sealed class ModIndexer
 {
+    private static readonly Dictionary<string, Bitmap> _iconCache = new();
+    public static Bitmap GetIcon(string filename) 
+    {
+        if (_iconCache.TryGetValue(filename, out Bitmap cachedIcon))
+        {
+            return cachedIcon;
+        }
+
+        string iconsDir = Path.Combine(App.AppDataService.AppDataFolder, "icons");
+        string iconPath = Path.Combine(iconsDir, filename);
+
+        Bitmap bitmap;
+        if (File.Exists(iconPath))
+        {
+            bitmap = new Bitmap(iconPath);
+        }
+        else
+        {
+            // Return a default icon if the specified icon file doesn't exist
+            bitmap = new Bitmap(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logoplacehold.jpg"));
+        }
+        _iconCache[filename] = bitmap;
+        return bitmap;
+    }
     public static void DeleteMod(string modId)
     {
         var appDataService = App.AppDataService;

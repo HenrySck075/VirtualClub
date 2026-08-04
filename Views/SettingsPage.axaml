@@ -5,7 +5,8 @@
              xmlns:ui="using:FluentAvalonia.UI.Controls"
              xmlns:local="using:VirtualClub.Views"
              mc:Ignorable="d" d:DesignWidth="600" d:DesignHeight="500"
-             x:Class="VirtualClub.Views.SettingsView">
+             x:CompileBindings="True"
+             x:Class="VirtualClub.Views.SettingsPage">
 
     <ScrollViewer Margin="20">
         <StackPanel Spacing="8" HorizontalAlignment="Left">
@@ -17,7 +18,7 @@
 
             <!-- Settings card with a button to specify base game install directory -->
             <ui:FASettingsExpander Header="Base Directory"
-                                Description="{Binding BaseDirectory, RelativeSource={RelativeSource AncestorType=local:SettingsView}, StringFormat='Specify the base game install directory. (Currently {0})'}"
+                                Description="{Binding BaseDirectory, RelativeSource={RelativeSource AncestorType=local:SettingsPage}, StringFormat='Specify the base game install directory. (Currently {0})'}"
                                 IconSource="Folder"
                                 >
                 <ui:FASettingsExpander.Footer>

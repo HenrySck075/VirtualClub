@@ -8,6 +8,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using FluentAvalonia.UI.Windowing;
+using VirtualClub.Core;
 
 namespace VirtualClub;
 
@@ -35,7 +36,9 @@ public class MainAppSplashContent : UserControl
     {
         Content = new Image
         {
-            Source = new Bitmap(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app-icon.png")).CreateScaledBitmap(new PixelSize(100,100)),
+            Width = 128,
+            Height = 128,
+            Source = new Bitmap(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app-icon.png")),
             Stretch = Stretch.Uniform,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
@@ -59,7 +62,7 @@ internal class MainAppSplashScreen : IFAApplicationSplashScreen
     public Task RunTasks(CancellationToken cancellationToken)
     {
         // will arbitrarily wait for 0.5s for now, do fs operations have async versions?
-        return Task.Delay(500, cancellationToken);
+        return SessionManager.RestoreSessionsList().WithMinimumDelay(500, cancellationToken);
     }
 
     private MainWindow _owner;

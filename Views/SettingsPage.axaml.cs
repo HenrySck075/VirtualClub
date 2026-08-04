@@ -6,20 +6,19 @@ using System.Diagnostics;
 
 namespace VirtualClub.Views
 {
-    public partial class SettingsView : UserControl
+    public partial class SettingsPage : UserControl
     {
         public static readonly StyledProperty<string> BaseDirectoryProperty =
-        AvaloniaProperty.Register<SettingsView, string>(nameof(BaseDirectory));
+        AvaloniaProperty.Register<SettingsPage, string>(nameof(BaseDirectory));
         public string BaseDirectory
         {
             get => App.AppDataService.Settings.BaseGameInstallationPath;
             set => App.AppDataService.Settings.BaseGameInstallationPath = value;
         } 
 
-        public SettingsView()
+        public SettingsPage()
         {
             InitializeComponent();
-
         }
 
         private void OnThemeSelectionChanged(object? sender, SelectionChangedEventArgs e)

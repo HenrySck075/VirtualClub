@@ -59,22 +59,12 @@ public partial class LibraryPage : UserControl
 
     public LibraryPage()
     {
-        InitializeComponent();
         var balls = new LibraryPageViewModel();
         DataContext = balls;
 
         balls.LoadMods();
+        InitializeComponent();
     }
-
-
-    private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
-    {
-        if (DataContext is LibraryPageViewModel viewModel)
-        {
-            viewModel.FilterMods(SearchBox.Text?.Trim().ToLowerInvariant());
-        }
-    }
-
 
     private async void OnAddModClicked(object? sender, RoutedEventArgs e)
     {
@@ -104,7 +94,6 @@ public partial class LibraryPage : UserControl
 
         var t = new FASlideNavigationTransitionInfo();
         t.Effect = FASlideNavigationTransitionEffect.FromRight;
-
         // Navigate to the ModInterfacePage with the selected mod's ID
         MainView.instance?.ContentFrame.Navigate(typeof(ModInterfacePage), mod.Id, t);
     }

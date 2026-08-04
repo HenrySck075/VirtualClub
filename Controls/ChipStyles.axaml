@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="using:VirtualClub.Controls">
+
+    <ControlTheme x:Key="{x:Type controls:Chip}" TargetType="controls:Chip">
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="#E0E0E0" CornerRadius="16" Padding="12,6" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{TemplateBinding Content}" VerticalAlignment="Center" />
+                        <Button Content="✕" Padding="0" Background="Transparent" BorderThickness="0"/>
+                    </StackPanel>
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </ControlTheme>
+</ResourceDictionary>

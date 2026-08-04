@@ -27,6 +27,10 @@ public sealed class ModEntry
     public string BuildId { get; set; } = "DDLC";
     public string Directory { get; set; } = string.Empty;
     public string IconFilename { get; set; } = string.Empty;
+    // unused for now, and manually set by the user since renpy does not expose such variables and nobody asked for them anyway (any credits is in the about section)
+    // for future references, this list should only contains either the (prominent) individual authors and/or the team's name.
+    public List<string> Authors { get; set; } = new List<string>();
+    public List<string> Tags { get; set; } = new List<string>();
 
     public bool EnableDeveloperMode { get; set; } = false;
     public bool ForceRecompile { get; set; } = false;

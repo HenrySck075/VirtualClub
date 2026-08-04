@@ -9,8 +9,10 @@ namespace VirtualClub.Core;
 
 public class SessionManager
 {
+    // for all these dicts, the key is the mod id
     private static readonly Dictionary<string, Process> _sessions = new Dictionary<string, Process>();
     private static readonly Dictionary<string, Task> _sessionTasks = new Dictionary<string, Task>();
+    private static readonly Dictionary<string, string> _mountedDirectories = new Dictionary<string, string>();
 
     private static void _addSession(string modId, Process process)
     {
@@ -20,11 +22,12 @@ public class SessionManager
         b.ContinueWith(t =>
         {
             _sessions.Remove(modId);
+            _mountedDirectories.Remove(modId);
         });
     }
 
     // used on startup
-    public static async void RestoreSessionsList()
+    public static async Task RestoreSessionsList()
     {
         var mods = App.AppDataService.Index.Mods;
 
@@ -32,13 +35,14 @@ public class SessionManager
 
         foreach (var key in mods.Keys)
         {
+            // each lock files always contains 2 lines
             var lockFilePath = Path.Combine(locksPath, $"{key}.lock");
             if (File.Exists(lockFilePath))
             {
                 try
                 {
                     var lines = await File.ReadAllLinesAsync(lockFilePath);
-                    if (lines.Length >= 2 && int.TryParse(lines[1], out int pid))
+                    if (lines.Length >= 2 && int.TryParse(lines[0], out int pid))
                     {
                         try
                         {
@@ -46,6 +50,18 @@ public class SessionManager
                             if (!process.HasExited)
                             {
                                 process.EnableRaisingEvents = true;
+                                // the second line is the mounted directory path.
+                                // in a perfectly normal case this would be a valid and read/writeable path so we dont need to do any checks
+                                // but if it wasnt, uh, idk, blame somebody for the corrupt .lock files
+                                if (lines.Length < 2)
+                                {
+                                    throw new Exception($"Lock file for mod ID {key} is corrupt.");
+                                }
+                                if (!Directory.Exists(lines[1]))
+                                {
+                                    throw new Exception($"Mounted directory for mod ID {key} does not exist.");
+                                }
+                                _mountedDirectories[key] = lines[1];
                                 _addSession(key, process);
                             }
                         }
