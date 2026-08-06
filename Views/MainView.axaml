@@ -54,7 +54,7 @@
             </ui:FANavigationView.FooterMenuItems>
         
             <!-- Content Frame for Page Navigation -->
-            <Border Background="{DynamicResource SolidBackgroundFillColorBaseBrush}" Padding="12">
+            <Border Background="{DynamicResource SurfaceBackgroundFillColorSecondaryBrush}" Padding="12">
                 <ui:FAFrame x:Name="ContentFrame" DataContext="{x:Null}" />
             </Border>
         </ui:FANavigationView>

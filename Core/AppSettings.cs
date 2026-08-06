@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -81,13 +82,14 @@ public sealed class ModEntry
     }
 }
 
+
 public sealed class ModIndex
 {
-    public Dictionary<string, ModEntry> Mods { get; set; } = new Dictionary<string, ModEntry>();
+    public ObservableDictionary<string, ModEntry> Mods { get; set; } = new ObservableDictionary<string, ModEntry>();
     public List<string> LastOpenedMods { get; set; } = new List<string>();
 }
 
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = false)]
 [JsonSerializable(typeof(AppSettings))]
 [JsonSerializable(typeof(ModEntry))]
 [JsonSerializable(typeof(ModIndex))]
@@ -99,7 +101,7 @@ public class AppDataService
     private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
+        WriteIndented = false,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 

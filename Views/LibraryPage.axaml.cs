@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using FluentAvalonia.UI.Controls;
@@ -14,7 +16,57 @@ public record ModCardViewModel(string Id, string Name, string VersionText, Uri I
 public sealed class LibraryPageViewModel
 {
     public ObservableCollection<ModCardViewModel> AllMods { get; } = new();
-    public ObservableCollection<ModCardViewModel> FilteredMods { get; } = new();
+
+    public LibraryPageViewModel()
+    {
+        LoadMods();
+
+        App.AppDataService.Index.Mods.CollectionChanged += (sender, args) =>
+        {
+            if (args.NewItems != null)
+            {
+                foreach (var newItem in args.NewItems)
+                {
+                    if (newItem is KeyValuePair<string, ModEntry> kvp)
+                    {
+                        _addMod(kvp.Key, kvp.Value);
+                    }
+                }
+            }
+
+            if (args.OldItems != null)
+            {
+                foreach (var oldItem in args.OldItems)
+                {
+                    if (oldItem is KeyValuePair<string, ModEntry> kvp)
+                    {
+                        _removeMod(kvp.Key);
+                    }
+                }
+            }
+
+            //FilterMods();
+        };
+    }
+
+    private void _addMod(string id, ModEntry modEntry)
+    {
+        string name = modEntry.Name;
+        string version = modEntry.Version;
+        string iconFilename = modEntry.IconFilename;
+        Uri iconPath = new Uri(Path.Combine(EnvironmentManager.GetDataDirectory(), "icons", iconFilename));
+
+        AllMods.Add(new ModCardViewModel(id, name, $"v{version}", iconPath));
+    }
+
+    private void _removeMod(string id)
+    {
+        var modToRemove = AllMods.FirstOrDefault(m => m.Id == id);
+        if (modToRemove != null)
+        {
+            AllMods.Remove(modToRemove);
+        }
+    }
 
 
     public void LoadMods()
@@ -36,21 +88,6 @@ public sealed class LibraryPageViewModel
             AllMods.Add(new ModCardViewModel(id, name, $"v{version}", iconPath));
         }
 
-        FilterMods();
-    }
-
-
-    public void FilterMods(string? query = null)
-    {
-        FilteredMods.Clear();
-
-        foreach (var mod in AllMods)
-        {
-            if (string.IsNullOrEmpty(query) || mod.Name.ToLowerInvariant().Contains(query))
-            {
-                FilteredMods.Add(mod);
-            }
-        }
     }
 }
 
@@ -62,7 +99,6 @@ public partial class LibraryPage : UserControl
         var balls = new LibraryPageViewModel();
         DataContext = balls;
 
-        balls.LoadMods();
         InitializeComponent();
     }
 
@@ -81,10 +117,6 @@ public partial class LibraryPage : UserControl
         {
             string modDirectory = folders[0].Path.LocalPath;
             await ModIndexer.ProcessAndAddNewModAsync(modDirectory);
-            if (DataContext is LibraryPageViewModel viewModel)
-            {
-                viewModel.LoadMods();
-            }
         }
     }
 

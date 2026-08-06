@@ -60,7 +60,29 @@
 
             <Separator />
 
-            
+            <StackPanel Spacing="8">
+                <TextBlock Text="Tags" FontSize="16" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding Tags}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border CornerRadius="4" Padding="4,2">
+                                <TextBlock Text="{Binding Name}" />
+                                <Border.BorderBrush>
+                                    <SolidColorBrush Color="{Binding Color}" />
+                                </Border.BorderBrush>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <!--the add tag button-->
+                <Button Content="Add tag"  HorizontalAlignment="Left" />
+            </StackPanel>
+            <Separator />
 
             <!-- Playtime -->
             <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,8">

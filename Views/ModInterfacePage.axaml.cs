@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using Avalonia.Controls;
@@ -11,6 +12,7 @@ using VirtualClub.Core;
 
 namespace VirtualClub.Views;
 
+public record TagObject(string Name, string Color); // why 
 public partial class ModInterfacePageModel : ObservableObject
 {
     public string Id { get; init; } = string.Empty;
@@ -22,6 +24,7 @@ public partial class ModInterfacePageModel : ObservableObject
     public partial Bitmap Icon { get; set; }
     [ObservableProperty]
     public partial string Directory { get; set; }
+    public ObservableCollection<TagObject> Tags { get;   } = new ObservableCollection<TagObject>();
     [ObservableProperty]
     public partial string PlaytimeText { get; set; }
     [ObservableProperty]
@@ -103,10 +106,12 @@ public partial class ModInterfacePage : UserControl
 
     public void OnStartClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
+        var balls = DataContext as ModInterfacePageModel;
         SessionManager.LaunchAsync((DataContext as ModInterfacePageModel)?.Id ?? string.Empty);
-        SessionManager.OnSessionExitCallback((DataContext as ModInterfacePageModel)?.Id ?? string.Empty, () =>
+        balls?.IsSessionRunning = true;
+        SessionManager.OnSessionExitCallback(balls?.Id ?? string.Empty, () =>
         {
-            (DataContext as ModInterfacePageModel)?.IsSessionRunning = false;
+            balls?.IsSessionRunning = false;
         });
     }
 
@@ -120,9 +125,20 @@ public partial class ModInterfacePage : UserControl
         // Open the virtual folder logic here
     }
 
-    public void OnUninstallClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    public async void OnUninstallClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        ModIndexer.DeleteMod((DataContext as ModInterfacePageModel)?.Id ?? string.Empty);
+        var dialog = new FAContentDialog
+        {
+            Title = "Are you sure wanted to delete this mod?",
+            Content = "Deleting from the launcher does not mean the linked mod folder itself is deleted, however ALL other session-related data like saves will be inaccessible.",
+            PrimaryButtonText = "Delete",
+            CloseButtonText = "Cancel",
+        };
+
+        if (await dialog.ShowAsync() == FAContentDialogResult.Primary) {
+            ModIndexer.DeleteMod((DataContext as ModInterfacePageModel)?.Id ?? string.Empty);
+            MainView.instance?.ContentFrame.GoBack();
+        }
     }
 
     // edit flyout
@@ -167,7 +183,7 @@ public partial class ModInterfacePage : UserControl
             {
                 new Avalonia.Platform.Storage.FilePickerFileType("Image Files")
                 {
-                    Patterns = new List<string> { "*.png", "*.jpg", "*.jpeg", "*.bmp", "*.gif" }
+                    Patterns = new List<string> { "*.png", "*.jpg", "*.jpeg", "*.bmp" }
                 }
             }
         }).ContinueWith(task =>

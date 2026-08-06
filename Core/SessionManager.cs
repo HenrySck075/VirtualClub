@@ -11,19 +11,41 @@ public class SessionManager
 {
     // for all these dicts, the key is the mod id
     private static readonly Dictionary<string, Process> _sessions = new Dictionary<string, Process>();
-    private static readonly Dictionary<string, Task> _sessionTasks = new Dictionary<string, Task>();
     private static readonly Dictionary<string, string> _mountedDirectories = new Dictionary<string, string>();
 
     private static void _addSession(string modId, Process process)
     {
         _sessions[modId] = process;
-        var b = process.WaitForExitAsync();
-        _sessionTasks[modId] = b;
-        b.ContinueWith(t =>
+        process.EnableRaisingEvents = true;
+        void Cleanup()
         {
+            Debug.WriteLine($"Session for mod {modId} has exited.");
+            process.Dispose();
             _sessions.Remove(modId);
             _mountedDirectories.Remove(modId);
-        });
+        };
+
+        if (process.HasExited)
+        {
+            Cleanup();
+            return;
+        }
+        process.Exited += (sender, args) => Cleanup();
+    }
+
+    private static void _addLastOpenedMods(string modId)
+    {
+        var lastOpenedMods = App.AppDataService.Index.LastOpenedMods;
+        if (lastOpenedMods.Contains(modId))
+        {
+            lastOpenedMods.Remove(modId);
+        }
+        lastOpenedMods.Insert(0, modId);
+        // keep only the 10 most recent mods
+        if (lastOpenedMods.Count > 10)
+        {
+            lastOpenedMods.RemoveRange(10, lastOpenedMods.Count - 10);
+        }
     }
 
     // used on startup
@@ -95,31 +117,28 @@ public class SessionManager
             throw new FileNotFoundException($"Could not find vclubmgr binary at {vclubmgrPath}. Check if you have installed the program correctly and try again.");
         
         // usage: vclubmgr [--start] [--save_id=<save_id>] [--launcher_root=<launcher_root>] <mod_id>
-        var args = new List<string>
-        {
-            "--start",
-            !string.IsNullOrEmpty(selectedSaveId) ? $"--save_id={selectedSaveId}" : "",
-            $"--launcher_root=\"{AppContext.BaseDirectory}\"",
-            modId
-        };
-
         var startInfo = new ProcessStartInfo
         {
             FileName = vclubmgrPath,
-            Arguments = string.Join(" ", args),
-            UseShellExecute = true,
+            UseShellExecute = false,
             RedirectStandardOutput = false,
             RedirectStandardError = false,
             RedirectStandardInput = false,
             CreateNoWindow = true,
         };
-
-        using (var process = new Process { StartInfo = startInfo })
+        startInfo.ArgumentList.Add("--start");
+        if (!string.IsNullOrEmpty(selectedSaveId))
         {
-            process.Start();
-
-            _addSession(modId, process);
+            startInfo.ArgumentList.Add($"--save_id={selectedSaveId}");
         }
+        startInfo.ArgumentList.Add($"--launcher_root={AppContext.BaseDirectory}");
+        startInfo.ArgumentList.Add(modId);
+
+        var process = new Process { StartInfo = startInfo };
+        process.Start();
+
+        _addSession(modId, process);
+        _addLastOpenedMods(modId);
     }
 
     public static bool IsSessionRunning(string modId)
@@ -133,9 +152,14 @@ public class SessionManager
 
     public static void OnSessionExitCallback(string modId, Action callback)
     {
-        if (_sessionTasks.TryGetValue(modId, out var task))
+        if (_sessions.TryGetValue(modId, out var process))
         {
-            task.ContinueWith(t => callback());
+            if (process.HasExited)
+            {
+                callback();
+                return;
+            }
+            process.Exited += (sender, args) => callback();
         }
     }
 

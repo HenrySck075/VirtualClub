@@ -17,7 +17,7 @@
             </Grid>
 
             <!-- Grid of Mod Cards -->
-            <ItemsControl x:Name="ModCardsItemsControl" ItemsSource="{Binding FilteredMods}">
+            <ItemsControl x:Name="ModCardsItemsControl" ItemsSource="{Binding AllMods}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left" />
