@@ -72,9 +72,11 @@
                         <DataTemplate>
                             <Border CornerRadius="4" Padding="4,2">
                                 <TextBlock Text="{Binding Name}" />
+                                <!--
                                 <Border.BorderBrush>
                                     <SolidColorBrush Color="{Binding Color}" />
                                 </Border.BorderBrush>
+                                -->
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

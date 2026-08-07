@@ -1003,29 +1003,12 @@ void start_game(SessionLaunchConfigs configs) {
     }
     argv.push_back(bootstrapperPath);
 
-    auto lockFilePath = get_appdata_dir() / "locks" / (configs.modId+".lock");
-    auto mountDir = configs.mountDir;
-
     spawn_process(
         pythonwPath->string(), argv, extra_env, 
-        [lockFilePath, mountDir](pid_t pid) {
-            fs::create_directories(lockFilePath.parent_path());
-            std::ofstream lockFile(lockFilePath);
-            // write the pid of the vfs manager and the mounted path (just in case)
-            lockFile << MVC_UNIX(getpid()) MVC_WIN(GetCurrentProcessId()) << std::endl;
-            //lockFile << pid << std::endl;
-            lockFile << mountDir << std::endl;
-            lockFile.close();
-        },
-        [configs, lockFilePath](int exit_code) {
+        [](pid_t pid) {},
+        [configs](int exit_code) {
             std::cout << "Game exited with code: " << exit_code << std::endl;
             if (exit_code == 0) fuse_exit(configs.fh);
-
-            try {
-                fs::remove(lockFilePath);
-            } catch (const std::exception& e) {
-                std::cerr << "Failed to remove lock file: " << e.what() << std::endl;
-            }
         }
     );
 }
@@ -1122,7 +1105,24 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    auto lockFilePath = get_appdata_dir() / "locks" / (modId+".lock");
+    fs::create_directories(lockFilePath.parent_path());
+    std::ofstream lockFile(lockFilePath);
+    // write the pid of the vfs manager and the mounted path (just in case)
+    lockFile << MVC_UNIX(getpid()) MVC_WIN(GetCurrentProcessId()) << std::endl;
+    //lockFile << pid << std::endl;
+    lockFile << mountpoint << std::endl;
+    lockFile << (doStartGame ? "1" : "0") << std::endl;
+    lockFile.close();
+
     fuse_loop_mt(fh, 0);
+
+
+    try {
+        fs::remove(lockFilePath);
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to remove lock file: " << e.what() << std::endl;
+    }
 
     fuse_remove_signal_handlers(fuse_get_session(fh));
 

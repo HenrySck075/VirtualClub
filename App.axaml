@@ -3,24 +3,101 @@
              x:Class="VirtualClub.App"
              xmlns:sty="using:FluentAvalonia.Styling">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+   
+   <!-- Accent color for the SplitButton -->
+
+   <Application.Resources>
+      <ResourceDictionary>
+         <StaticResource x:Key="AccentSplitButtonBackground" ResourceKey="AccentFillColorDefaultBrush" />
+         <StaticResource x:Key="AccentSplitButtonBackgroundPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
+         <StaticResource x:Key="AccentSplitButtonBackgroundPressed" ResourceKey="AccentFillColorTertiaryBrush" />
+         <StaticResource x:Key="AccentSplitButtonBackgroundDisabled" ResourceKey="AccentFillColorDisabledBrush" />
+         <StaticResource x:Key="AccentSplitButtonForeground" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
+         <StaticResource x:Key="AccentSplitButtonForegroundPointerOver" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
+         <StaticResource x:Key="AccentSplitButtonForegroundPressed" ResourceKey="TextOnAccentFillColorSecondaryBrush" />
+         <StaticResource x:Key="AccentSplitButtonForegroundDisabled" ResourceKey="TextOnAccentFillColorDisabled" />
+         <StaticResource x:Key="AccentSplitButtonBorderBrush" ResourceKey="AccentControlElevationBorderBrush" />
+         <StaticResource x:Key="AccentSplitButtonBorderBrushPointerOver" ResourceKey="AccentControlElevationBorderBrush" />
+         <StaticResource x:Key="AccentSplitButtonBorderBrushPressed" ResourceKey="ControlFillColorTransparentBrush" />
+         <StaticResource x:Key="AccentSplitButtonBorderBrushDisabled" ResourceKey="ControlFillColorTransparentBrush" />
+      </ResourceDictionary>
+   </Application.Resources>
 
    <Application.Styles>
       <sty:FluentAvaloniaTheme CustomAccentColor="#70A8D7" />
-      <Style Selector="SplitButton.accent">
-         <Style.Resources>
-            <StaticResource x:Key="SplitButtonBackground" ResourceKey="AccentFillColorDefaultBrush" />
-            <StaticResource x:Key="SplitButtonBackgroundPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
-            <StaticResource x:Key="SplitButtonBackgroundPressed" ResourceKey="AccentFillColorTertiaryBrush" />
-            <StaticResource x:Key="SplitButtonBackgroundDisabled" ResourceKey="AccentFillColorDisabledBrush" />
-            <StaticResource x:Key="SplitButtonForeground" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-            <StaticResource x:Key="SplitButtonForegroundPointerOver" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-            <StaticResource x:Key="SplitButtonForegroundPressed" ResourceKey="TextOnAccentFillColorSecondaryBrush" />
-            <StaticResource x:Key="SplitButtonForegroundDisabled" ResourceKey="TextOnAccentFillColorDisabled" />
-            <StaticResource x:Key="SplitButtonBorderBrush" ResourceKey="AccentControlElevationBorderBrush" />
-            <StaticResource x:Key="SplitButtonBorderBrushPointerOver" ResourceKey="AccentControlElevationBorderBrush" />
-            <StaticResource x:Key="SplitButtonBorderBrushPressed" ResourceKey="ControlFillColorTransparentBrush" />
-            <StaticResource x:Key="SplitButtonBorderBrushDisabled" ResourceKey="ControlFillColorTransparentBrush" />
-         </Style.Resources>
+
+      <Style Selector="SplitButton.accent /template/ Button#PART_SecondaryButton, SplitButton.accent /template/ Button#PART_PrimaryButton">
+         <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackground}" />
+         <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrush}" />
+         <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForeground}" />
+      </Style>
+      <Style Selector="SplitButton.accent /template/ Button">
+         <Style Selector="^#PART_PrimaryButton, ^#PART_SecondaryButton">
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+               <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundPointerOver}" />
+               <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushPointerOver}" />
+               <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundPointerOver}" />
+            </Style>
+
+            <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+               <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundPressed}" />
+               <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushPressed}" />
+               <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundPointerOver}" />
+            </Style>
+
+            <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+               <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundDisabled}" />
+               <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushDisabled}" />
+               <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundDisabled}" />
+            </Style>
+
+            <Style Selector="^[Tag=flyout-open] /template/ ContentPresenter#PART_ContentPresenter">
+               <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundPressed}" />
+               <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushPressed}" />
+               <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundPressed}" />
+            </Style>
+   
+            <Style Selector="^[Tag=checked]">
+               <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+                     <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundChecked}" />
+                     <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushChecked}" />
+                     <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundChecked}" />
+               </Style>
+               
+               <Style Selector="^:pointerover">
+                     <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+                        <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundCheckedPointerOver}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushCheckedPointerOver}" />
+                        <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundCheckedPointerOver}" />
+                     </Style>
+               </Style>
+   
+               <Style Selector="^:pressed">
+                     <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+                        <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundCheckedPressed}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushCheckedPressed}" />
+                        <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundCheckedPressed}" />
+                     </Style>
+               </Style>
+   
+               <Style Selector="^:disabled">
+                     <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+                        <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundCheckedDisabled}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushCheckedDisabled}" />
+                        <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundCheckedDisabled}" />
+                     </Style>
+               </Style>
+            </Style>
+            <Style Selector="^[Tag=checked-flyout-open] /template/ ContentPresenter">
+               <Style Selector="^ /template/ ContentPresenter#PART_ContentPresenter">
+                     <Setter Property="Background" Value="{DynamicResource AccentSplitButtonBackgroundCheckedPressed}" />
+                     <Setter Property="BorderBrush" Value="{DynamicResource AccentSplitButtonBorderBrushCheckedPressed}" />
+                     <Setter Property="Foreground" Value="{DynamicResource AccentSplitButtonForegroundCheckedPressed}" />
+               </Style>
+            </Style>
+         </Style>
+
+
       </Style>
    </Application.Styles>
 </Application>

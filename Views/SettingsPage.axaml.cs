@@ -41,6 +41,8 @@ namespace VirtualClub.Views
                         break;
                 }
 
+                App.AppDataService.Save();
+
                 Application.Current.RequestedThemeVariant = App.AppDataService.Settings.Theme switch
                 {
                     Core.Theme.Light => Avalonia.Styling.ThemeVariant.Light,

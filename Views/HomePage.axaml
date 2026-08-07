@@ -1,11 +1,25 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:FluentAvalonia.UI.Controls"
              x:Class="VirtualClub.Views.HomePage"
              x:CompileBindings="True">
     <ScrollViewer Padding="36,24">
         <StackPanel Spacing="24" MaxWidth="800" HorizontalAlignment="Left">
             <TextBlock Text="Welcome to VirtualClub!" FontSize="24" FontWeight="Bold" />
             <TextBlock Text="This is the home page of the VirtualClub application. Use the navigation menu to explore different sections." TextWrapping="Wrap" />
+            <SplitButton Classes="accent">
+                <SplitButton.Content>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <ui:FASymbolIcon Symbol="Play" />
+                        <TextBlock Text="Start" />
+                    </StackPanel>
+                </SplitButton.Content>
+                <SplitButton.Flyout>
+                    <MenuFlyout>
+                        <MenuItem Header="Start from save"/>
+                    </MenuFlyout>
+                </SplitButton.Flyout>
+            </SplitButton>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
