@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using FluentAvalonia.UI.Controls;
 using FluentAvalonia.UI.Navigation;
 using VirtualClub.Core;
@@ -86,7 +87,7 @@ public partial class ModInterfacePage : UserControl
                     Icon = new Bitmap(Path.Combine(EnvironmentManager.GetDataDirectory(), "icons", modEntry.IconFilename)),
                     Directory = modEntry.Directory,
                     PlaytimeText = playtimeText,
-                    Tags = new ObservableCollection<TagObject>(modEntry.Tags.ConvertAll((s)=>new TagObject(s))),
+                    Tags = new ObservableCollection<TagObject>(modEntry.Tags.ConvertAll((s) => new TagObject(s))),
                     ActivePlaytimeText = activePlaytimeText,
                     IsSessionRunning = SessionManager.IsSessionRunning(id),
                     IsDevMode = modEntry.EnableDeveloperMode,
@@ -110,9 +111,11 @@ public partial class ModInterfacePage : UserControl
     public async void OnStartClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var balls = DataContext as ModInterfacePageModel;
-        try {
-            await SessionManager.LaunchAsync((DataContext as ModInterfacePageModel)?.Id ?? string.Empty);
-        } catch (Exception)
+        try
+        {
+            await SessionManager.LaunchAsync(balls?.Id ?? string.Empty);
+        }
+        catch (Exception)
         {
             return;
         }
@@ -124,9 +127,28 @@ public partial class ModInterfacePage : UserControl
         });
     }
 
-    public void OnStartFromSaveClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    public async void OnStartFromSaveClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        var dialog = plsjustletmedeclare.ShowSaveSelectDialog((DataContext as ModInterfacePageModel)!.Id);
+        var balls = DataContext as ModInterfacePageModel;
+        var saveID = await plsjustletmedeclare.ShowSaveSelectDialog(balls!.Id);
+
+        if (!string.IsNullOrEmpty(saveID))
+        {
+            try
+            {
+                await SessionManager.LaunchAsync(balls?.Id ?? string.Empty, selectedSaveId: saveID);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            balls?.IsSessionRunning = true;
+            SessionManager.OnSessionExitCallback(balls?.Id ?? string.Empty, () =>
+            {
+                balls?.IsSessionRunning = false;
+            });
+        }
     }
 
     public void OnOpenVirtualFolderClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -144,14 +166,15 @@ public partial class ModInterfacePage : UserControl
             CloseButtonText = "Cancel",
         };
 
-        if (await dialog.ShowAsync() == FAContentDialogResult.Primary) {
+        if (await dialog.ShowAsync() == FAContentDialogResult.Primary)
+        {
             ModIndexer.DeleteMod((DataContext as ModInterfacePageModel)?.Id ?? string.Empty);
             MainView.instance?.ContentFrame.GoBack();
         }
     }
 
     // edit flyout
-    public void OnChangeDirectoryClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    public void OnChangeDirectoryClicked()
     {
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return;
@@ -177,7 +200,7 @@ public partial class ModInterfacePage : UserControl
 
     // to skip doing the expensive icon changing work if the user didn't actually change the icon, we use this flag to track if the icon was changed
     private bool _isIconChanged = false;
-    public void OnChangeIconClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    public void OnChangeIconClicked()
     {
         // do the same thing as OnChangeDirectoryClicked but for the icon file, and we dont replace the mod entry's IconFilename value
 
@@ -212,7 +235,7 @@ public partial class ModInterfacePage : UserControl
         });
     }
 
-    public void OnSaveMetaEditClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    public void OnSaveMetaEditClicked(object? sender, FAContentDialogButtonClickEventArgs e)
     {
         if (DataContext is ModInterfacePageModel model)
         {
@@ -268,131 +291,87 @@ public partial class ModInterfacePage : UserControl
             }
         }
     }
+
+    /*
+     <ContentDialog>
+        <StackPanel Spacing="8" Margin="8" MinWidth="300">
+            <TextBlock Text="Name"></TextBlock>
+            <TextBox Text="{Binding Name, Mode=TwoWay}" />
+            <TextBlock Text="Version"></TextBlock>
+            <TextBox Text="{Binding Version, Mode=TwoWay}" />
+            <TextBlock Text="Directory"></TextBlock>
+            <Button Content="Change directory" Click="OnChangeDirectoryClicked" />
+            <TextBlock Text="Icon"></TextBlock>
+            <Image Width="64" Height="64" Source="{Binding Icon}" HorizontalAlignment="Center"/>
+            <Button Content="Change icon" Click="OnChangeIconClicked" />
+
+            <Button Content="Save" Click="OnSaveMetaEditClicked" HorizontalAlignment="Right" />
+        </StackPanel>
+    </ContentDialog>
+    */
+
+    private void CreateEditDialog()
+    {
+        var dialog = new FAContentDialog
+        {
+            Title = "Edit Mod Metadata",
+            CloseButtonText = "Close",
+            PrimaryButtonText = "Save",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Margin = new Avalonia.Thickness(8),
+                MinWidth = 300,
+                Children =
+                {
+                    new TextBlock { Text = "Name" },
+                    new TextBox { [!TextBox.TextProperty] = new Avalonia.Data.ReflectionBinding("Name") {Mode=Avalonia.Data.BindingMode.TwoWay} },
+                    new TextBlock { Text = "Version" },
+                    new TextBox { [!TextBox.TextProperty] = new Avalonia.Data.ReflectionBinding("Version") {Mode=Avalonia.Data.BindingMode.TwoWay} },
+                    new TextBlock { Text = "Directory" },
+                    new Button { Content = "Change directory", Command = new RelayCommand(OnChangeDirectoryClicked) },
+                    new TextBlock { Text = "Icon" },
+                    new Image { Width = 64, Height = 64, [!Image.SourceProperty] = new Avalonia.Data.Binding("Icon"), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center },
+                    new Button { Content = "Change icon", Command = new RelayCommand(OnChangeIconClicked) },
+                }
+            }
+        };
+        dialog.PrimaryButtonClick += OnSaveMetaEditClicked;
+
+        dialog.ShowAsync();
+    }
+
+    private void OnEditClicked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        CreateEditDialog();
+    }
 }
 
 
 /// =============================
 /// =============================
 
-/*
-python impl of this class
-
-class SaveSelectWindow(FluentWidget):
-    def __init__(self, modInterface: ModInterface, parent=None):
-        super().__init__(parent)
-        self.modInterface = modInterface
-        self.setBackgroundColor(QColorConstants.Transparent)
-        self.setWindowTitle("Select a save file")
-        self.setMinimumSize(700, 500)
-        self.setWindowIcon(QIcon(getWindowIconPathOf(modInterface.modId)))
-        self.save_dir = modInterface.get_save_dir()
-        # TODO: while it has always been -LT1.save for the versions that i checked, its better to scan the engine files for the actual answer
-        # on the rare case the savegame_suffix ever be dynamically changed, well screw us ig
-        self.save_files = [f for f in os.listdir(self.save_dir) if f.endswith("-LT1.save")]
-        self.initUI()
-
-    def createCard(self, save_file):
-        # open the save file as zip. yeah its a zip in disguise
-        save_path = os.path.join(self.save_dir, save_file)
-        z = zipfile.ZipFile(save_path, 'r')
-
-        width = height = 200
-
-        card = SimpleCardWidget(self)
-        card.setFixedSize(width, height)
-        layout = QStackedLayout(card, stackingMode=QStackedLayout.StackingMode.StackAll)
-
-        # Background: the thumbnal
-        # read screenshot.png for thumbnail
-        screenshot_data = z.read('screenshot.png')
-        image = QImage.fromData(screenshot_data)
-        image = image.scaled(QSize(width,height), Qt.AspectRatioMode.KeepAspectRatioByExpanding,Qt.TransformationMode.SmoothTransformation)
-        # 2. Calculate coordinates to pull out the center block
-        x = (image.width() - width) // 2
-        y = (image.height() - height) // 2
-        
-        # 3. Crop to exact target size
-        image = image.copy(x, y, width, height)
-        screenshot_widget = ImageLabel(image)
-        screenshot_widget.setFixedSize(width, height)
-        r:int = card.getBorderRadius()
-        screenshot_widget.setBorderRadius(r,r,r,r)
-        layout.addWidget(screenshot_widget)
-
-        # text
-        # with a gradient
-        content = QWidget(styleSheet=f"background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(0, 0, 0, 0), stop:1 rgba(0, 0, 0, 200)); border-radius: {r}px;")
-        content_layout = QVBoxLayout(content)
-        content_layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-        content_layout.setContentsMargins(8, 8, 8, 8)
-        # name
-        j = json.load(z.open("json"))
-        save_name = j["_save_name"] or save_file.removesuffix("-LT1.save")
-        name_label = StrongBodyLabel(save_name)
-        name_label.setTextColor(QColorConstants.White)
-        content_layout.addWidget(name_label)
-
-        # date in dd/mm/yyyy
-        date = time.strftime("%d/%m/%Y", time.localtime(os.path.getmtime(save_path)))
-        date_label = CaptionLabel(date)
-        date_label.setTextColor(QColorConstants.White)
-        content_layout.addWidget(date_label)
-        layout.addWidget(content)
-        layout.setCurrentWidget(content)
-
-
-        card.setClickEnabled(True)
-        def card_callback():
-            self.modInterface.launchMod(extraEnvs={"MVC_SAVE_ID": save_file.removesuffix("-LT1.save")})
-            self.close()
-        card.clicked.connect(card_callback)
-
-        return card
-    
-    
-    def initUI(self):
-        layout = QVBoxLayout(self) # type: ignore # QLayout: Attempting to add QLayout "" to SaveSelectWindow "", which already has a layout
-        layout.setContentsMargins(0, self.titleBar.height(), 0, 0)
- 
-        self.save_list_widget = ScrollArea()
-        self.save_list_widget.setObjectName("ba")
-        self.save_list_widget.setStyleSheet("QScrollArea#ba { background-color: transparent; border: none; }")
-        self.save_list_widget.setWidgetResizable(True)
-        save_list_content = QWidget(styleSheet="background-color: transparent;")
-        save_list_layout = FlowLayout(save_list_content)
-        #save_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-        for save_file in self.save_files:
-            if save_file.startswith("auto-"): continue
-            save_button = self.createCard(save_file)
-            #save_button.clicked.connect(lambda checked, sf=save_file: self.load_save(sf))
-            save_list_layout.addWidget(save_button)
-
-        self.save_list_widget.setWidget(save_list_content)
-        layout.addWidget(self.save_list_widget)
-
-    def load_save(self, save_file):
-        print(f"Loading save file: {save_file}")
-        # Implement the logic to load the selected save file
-
-*/
-
-/// THERE IS NO CLASS NAMED SAVESELECTDIALOG
-internal sealed class plsjustletmedeclare {
-    public static async Task ShowSaveSelectDialog(string modId)
+internal sealed class plsjustletmedeclare
+{
+    public static async Task<string?> ShowSaveSelectDialog(string modId)
     {
         var entry = App.AppDataService.Index.Mods.GetValueOrDefault(modId);
         if (entry == null)
         {
             Debug.WriteLine($"Mod with ID {modId} not found.");
-            return;
+            return null;
         }
         var saveDir = entry.SaveDirectory;
+
+        FAContentDialog dialog;
+
+        string? ret = null;
 
         object CreateCard(string saveFile)
         {
             // Open the save file as a zip. It's a zip in disguise.
             var savePath = Path.Combine(saveDir, saveFile);
+            Debug.WriteLine(savePath);
             using var archive = System.IO.Compression.ZipFile.OpenRead(savePath);
 
             // Read screenshot.png for thumbnail
@@ -403,7 +382,10 @@ internal sealed class plsjustletmedeclare {
                 return new TextBlock { Text = saveFile }; // Fallback to just showing the filename
             }
 
-            using var stream = screenshotEntry.Open();
+            using var ss = screenshotEntry.Open();
+            using var stream = new MemoryStream();
+            ss.CopyTo(stream);
+            stream.Seek(0, SeekOrigin.Begin);
             var bitmap = new Bitmap(stream);
 
             // Create a card with the thumbnail and save file info
@@ -413,7 +395,7 @@ internal sealed class plsjustletmedeclare {
                 {
                     Children =
                     {
-                        new Image { Source = bitmap, Width = 200, Height = 200 },
+                        new Image { Source = bitmap, Width = 355, Height = 200 },
                         new TextBlock { Text = saveFile }
                     }
                 }
@@ -422,19 +404,14 @@ internal sealed class plsjustletmedeclare {
             card.Click += (s, e) =>
             {
                 Debug.WriteLine($"Loading save file: {saveFile}");
-                // Implement the logic to load the selected save file
-                // For example, you might call SessionManager.LaunchAsync with the appropriate parameters
+                ret = saveFile;
+                dialog.Hide();
             };
 
             return card;
         }
-        var stack = new StackPanel {};
-#pragma warning disable CS8620
-        stack.Children.AddRange(Directory.GetFiles(saveDir, "*-LT1.save")
-                .Where(f => !Path.GetFileName(f).StartsWith("auto-"))
-                .Select(f => CreateCard(Path.GetFileName(f)) as Control));
-#pragma warning restore CS8620
-        var dialog = new FAContentDialog
+        var stack = new StackPanel { };
+        dialog = new FAContentDialog
         {
             Title = "Select a save file",
             Content = new ScrollViewer
@@ -443,6 +420,13 @@ internal sealed class plsjustletmedeclare {
             },
             CloseButtonText = "Cancel",
         };
+#pragma warning disable CS8620
+        stack.Children.AddRange(Directory.GetFiles(saveDir, "*-LT1.save")
+                .Where(f => !Path.GetFileName(f).StartsWith("auto-") && !Path.GetFileName(f).StartsWith("quick-"))
+                .Select(f => CreateCard(Path.GetFileName(f)) as Control));
+#pragma warning restore CS8620
         await dialog.ShowAsync();
+
+        return ret;
     }
 }

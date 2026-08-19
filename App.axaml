@@ -8,18 +8,24 @@
 
    <Application.Resources>
       <ResourceDictionary>
-         <StaticResource x:Key="AccentSplitButtonBackground" ResourceKey="AccentFillColorDefaultBrush" />
-         <StaticResource x:Key="AccentSplitButtonBackgroundPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
-         <StaticResource x:Key="AccentSplitButtonBackgroundPressed" ResourceKey="AccentFillColorTertiaryBrush" />
-         <StaticResource x:Key="AccentSplitButtonBackgroundDisabled" ResourceKey="AccentFillColorDisabledBrush" />
-         <StaticResource x:Key="AccentSplitButtonForeground" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-         <StaticResource x:Key="AccentSplitButtonForegroundPointerOver" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
-         <StaticResource x:Key="AccentSplitButtonForegroundPressed" ResourceKey="TextOnAccentFillColorSecondaryBrush" />
-         <StaticResource x:Key="AccentSplitButtonForegroundDisabled" ResourceKey="TextOnAccentFillColorDisabled" />
-         <StaticResource x:Key="AccentSplitButtonBorderBrush" ResourceKey="AccentControlElevationBorderBrush" />
-         <StaticResource x:Key="AccentSplitButtonBorderBrushPointerOver" ResourceKey="AccentControlElevationBorderBrush" />
-         <StaticResource x:Key="AccentSplitButtonBorderBrushPressed" ResourceKey="ControlFillColorTransparentBrush" />
-         <StaticResource x:Key="AccentSplitButtonBorderBrushDisabled" ResourceKey="ControlFillColorTransparentBrush" />
+         
+         <!-- playing around -->
+         <ResourceDictionary.ThemeDictionaries>
+            <ResourceDictionary x:Key="Default">
+               <StaticResource x:Key="AccentSplitButtonBackground" ResourceKey="AccentFillColorDefaultBrush" />
+               <StaticResource x:Key="AccentSplitButtonBackgroundPointerOver" ResourceKey="AccentFillColorSecondaryBrush" />
+               <StaticResource x:Key="AccentSplitButtonBackgroundPressed" ResourceKey="AccentFillColorTertiaryBrush" />
+               <StaticResource x:Key="AccentSplitButtonBackgroundDisabled" ResourceKey="AccentFillColorDisabledBrush" />
+               <StaticResource x:Key="AccentSplitButtonForeground" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
+               <StaticResource x:Key="AccentSplitButtonForegroundPointerOver" ResourceKey="TextOnAccentFillColorPrimaryBrush" />
+               <StaticResource x:Key="AccentSplitButtonForegroundPressed" ResourceKey="TextOnAccentFillColorSecondaryBrush" />
+               <StaticResource x:Key="AccentSplitButtonForegroundDisabled" ResourceKey="TextOnAccentFillColorDisabled" />
+               <StaticResource x:Key="AccentSplitButtonBorderBrush" ResourceKey="AccentControlElevationBorderBrush" />
+               <StaticResource x:Key="AccentSplitButtonBorderBrushPointerOver" ResourceKey="AccentControlElevationBorderBrush" />
+               <StaticResource x:Key="AccentSplitButtonBorderBrushPressed" ResourceKey="ControlFillColorTransparentBrush" />
+               <StaticResource x:Key="AccentSplitButtonBorderBrushDisabled" ResourceKey="ControlFillColorTransparentBrush" />
+            </ResourceDictionary>
+         </ResourceDictionary.ThemeDictionaries>
       </ResourceDictionary>
    </Application.Resources>
 

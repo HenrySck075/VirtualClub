@@ -29,30 +29,11 @@
                                 </MenuFlyout>
                             </SplitButton.Flyout>
                         </SplitButton>
-                        <Button IsEnabled="{Binding IsSessionNotRunning}">
-                            <Button.Content>
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <ui:FASymbolIcon Symbol="Edit" />
-                                    <TextBlock Text="Edit" />
-                                </StackPanel>
-                            </Button.Content>
-                            <Button.Flyout>
-                                <Flyout>
-                                    <StackPanel Spacing="8" Margin="8" MinWidth="300">
-                                        <TextBlock Text="Name"></TextBlock>
-                                        <TextBox Text="{Binding Name, Mode=TwoWay}" />
-                                        <TextBlock Text="Version"></TextBlock>
-                                        <TextBox Text="{Binding Version, Mode=TwoWay}" />
-                                        <TextBlock Text="Directory"></TextBlock>
-                                        <Button Content="Change directory" Click="OnChangeDirectoryClicked" />
-                                        <TextBlock Text="Icon"></TextBlock>
-                                        <Image Width="64" Height="64" Source="{Binding Icon}" HorizontalAlignment="Center"/>
-                                        <Button Content="Change icon" Click="OnChangeIconClicked" />
-
-                                        <Button Content="Save" Click="OnSaveMetaEditClicked" HorizontalAlignment="Right" />
-                                    </StackPanel>
-                                </Flyout>
-                            </Button.Flyout>
+                        <Button IsEnabled="{Binding IsSessionNotRunning}" Click="OnEditClicked">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <ui:FASymbolIcon Symbol="Edit" />
+                                <TextBlock Text="Edit" />
+                            </StackPanel>
                         </Button>
                     </StackPanel>
                 </StackPanel>
@@ -128,7 +109,7 @@
                             Description="Delete mod deployment indices and meta configs." 
                             IconSource="Delete">
                 <ui:FASettingsExpander.Footer>
-                    <Button Content="Uninstall" Classes="accent" Click="OnUninstallClicked" IsEnabled="{Binding IsSessionNotRunning}" />
+                    <Button Content="Uninstall" Click="OnUninstallClicked" IsEnabled="{Binding IsSessionNotRunning}" />
                 </ui:FASettingsExpander.Footer>
             </ui:FASettingsExpander>
         </StackPanel>

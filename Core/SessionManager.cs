@@ -17,9 +17,11 @@ public class SessionManager
     {
         _sessions[modId] = (startedGame, process);
         process.EnableRaisingEvents = true;
+        void cb(object? sender, EventArgs args) => Cleanup();
         void Cleanup()
         {
             Debug.WriteLine($"Session for mod {modId} has exited.");
+            process.Exited -= cb;
             process.Dispose();
             _sessions.Remove(modId);
             _mountedDirectories.Remove(modId);
@@ -30,7 +32,7 @@ public class SessionManager
             Cleanup();
             return;
         }
-        process.Exited += (sender, args) => Cleanup();
+        process.Exited += cb;
     }
 
     private static void _addLastOpenedMods(string modId)
@@ -86,6 +88,10 @@ public class SessionManager
                                 _mountedDirectories[key] = lines[1];
                                 var startedGame = !(lines[2] == "0");
                                 _addSession(key, startedGame, process);
+                            } else
+                            {
+                                process.Dispose();
+                                File.Delete(lockFilePath);
                             }
                         }
                         catch (ArgumentException)
@@ -209,7 +215,11 @@ public class SessionManager
                 callback();
                 return;
             }
-            process.Exited += (sender, args) => callback();
+            void cb(object? sender, EventArgs args) {
+                callback();
+                process.Exited -= cb;
+            }
+            process.Exited += cb;
         }
     }
 

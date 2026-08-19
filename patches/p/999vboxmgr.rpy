@@ -1,20 +1,15 @@
-init -2026 python early:
-    def setDeveloperMode():
-        import os
-        if os.getenv("MVC_DEVELOPER", None) is not None:
-            config.developer = True
+init -9999 python:
+    import store
+    import os
 
-    setDeveloperMode()
+    class AlwaysTrue:
+        def __get__(self, obj, objtype=None):
+            return True
+        def __set__(self, obj, value):
+            pass  # Ignore any attempts by the game to set it to False
 
-init python:
-    setDeveloperMode()
-
-# we're just forcing atp
-init 2 python:
-    setDeveloperMode()
-
-init 999 python:
-    setDeveloperMode()
+    if os.getenv("MVC_DEVELOPER", None) is not None:
+        type(store.config).developer = AlwaysTrue()
 
 
 # initialize VERY LATE to make sure it wont be overridden by the original
@@ -86,13 +81,21 @@ init -67 python early:
 
 
 init 999 python:
-    def _autoload_check():
-        import os
-        maybeSaveID = os.environ.pop("MVC_SAVE_ID", None)
-        if maybeSaveID:
-            import renpy
-            renpy.loadsave.load(maybeSaveID)
-        config.periodic_callbacks.remove(_autoload_check)
+    skipper = 0
+    import os
+    maybeSaveID = os.environ.pop("MVC_SAVE_ID", None)
+    if maybeSaveID:
+        def _autoload_check():
+            if skipper > 3:
+                import renpy
+                if hasattr(maybeSaveID, "removesuffix"):
+                    maybeSaveID = maybeSaveID.removesuffix(renpy.savegame_suffix)
+                else:
+                    # For Python versions < 3.9, use rstrip instead
+                    maybeSaveID = maybeSaveID.rstrip(renpy.savegame_suffix)
+                raise Exception(f"Autoloading save: {maybeSaveID}") # literally the only way to see the logs
+                renpy.loadsave.load(maybeSaveID)
+                config.periodic_callbacks.remove(_autoload_check)
+            skipper+=1
 
-    # conveniently start_callbacks exists since v6.99.11 so base ddlc will still let this through
-    config.periodic_callbacks.append(_autoload_check)
+        config.periodic_callbacks.append(_autoload_check)
