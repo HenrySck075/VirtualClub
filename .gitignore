@@ -1,0 +1,129 @@
+# ==========================================
+# CMake Build Artifacts & Generators
+# ==========================================
+# Out-of-source build directories
+build/
+build-*/
+[Bb]uild/
+[Bb]in/
+[Ll]ib/
+
+# CMake cache and temporary files
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+CMakeLists.txt.user
+CMakeLists.txt.old
+cmake_install.cmake
+cmake_uninstall.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+install_manifest.txt
+compile_commands.json
+ctest.cmake
+
+# Testing & Coverage
+Testing/
+DartConfiguration.tcl
+*.gcov
+*.gcda
+*.gcno
+*.a.out
+
+# ==========================================
+# Compiled Libraries, Executables & Artifacts
+# ==========================================
+# Prerequisites/Compiled Objects
+*.o
+*.obj
+*.o.d
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Executables
+*.exe
+*.out
+*.app
+*.elf
+
+# Debug / PDB files
+*.pdb
+*.idb
+*.ilk
+*.exp
+
+# ==========================================
+# Common C/C++ Package Managers
+# ==========================================
+# Conan
+conanbuildinfo.cmake
+conanbuildinfo.txt
+conan.lock
+.conan/
+
+# Vcpkg
+vcpkg_installed/
+.vcpkg-root
+
+# CPM
+CPM_modules/
+
+# ==========================================
+# IDE & Editor Specific Files
+# ==========================================
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.suo
+*.user
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# CLion / JetBrains
+.idea/
+cmake-build-*/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+
+# Eclipse
+.project
+.cproject
+.settings/
+
+# QtCreator
+*.user
+*.user.*
+
+# ==========================================
+# OS & System Junk
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ==========================================
+# LSP files
+# ==========================================
+.cache/
