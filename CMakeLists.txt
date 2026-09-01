@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(VirtualClub VERSION 1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -12,6 +12,7 @@ set(CMAKE_AUTORCC ON)
 
 # Find Qt6 components
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(pybind11 REQUIRED CONFIG)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 qt_add_executable(${PROJECT_NAME}
@@ -20,7 +21,7 @@ qt_add_executable(${PROJECT_NAME}
 )
 
 # Link Qt6 libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets pybind11::embed)
 
 # On finish compilation, if the build mode is debug, symlink build/assets to assets
 # if on release, copy the folder

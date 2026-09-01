@@ -14,8 +14,9 @@
 #include "MainWindow.hpp"
 #include "screens/Home.hpp"
 #include "screens/Mods.hpp"
+#include "screens/Settings.hpp"
 #include "ui/Sidebar.hpp"
-#include "utils/CoverImageWidget.hpp"
+#include "ui/CoverImageWidget.hpp"
 #include "utils/LucideIcons.hpp"
 
 // Helper to parse times like "18", "18.30", "6.15", "6" into QTime
@@ -159,7 +160,7 @@ void MainWindow::initUI() {
   addNavigationItem(LucideIcons::house, "Home", SidebarPosition::Top, new HomeScreen())->setSelected(true);
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, new ModsScreen());
 
-  addNavigationItem(LucideIcons::settings, "Settings", SidebarPosition::Bottom, new QWidget());
+  addNavigationItem(LucideIcons::settings, "Settings", SidebarPosition::Bottom, new SettingsScreen());
 
   connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
 
@@ -167,12 +168,13 @@ void MainWindow::initUI() {
 }
 
 void MainWindow::onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newItem) {
-  qDebug() << "hi";
-  static const float duration = 0.3;
+  static const float duration = 300;
   static const QEasingCurve curve = QEasingCurve::OutQuart;
 
   int oidx = oldItem ? m_sidebar->itemPositionOf(oldItem) : -1;
   int nidx = m_sidebar->itemPositionOf(newItem);
+
+  qDebug() << oidx << nidx;
 
   bool ttbDirection = oidx > nidx; // top-to-bottom if true (oldItem pos > newItem pos), else bottom-to-top
 

@@ -9,8 +9,12 @@ HomeScreen::HomeScreen(QWidget* parent) : QWidget(parent) {
   auto* layout = new QVBoxLayout(this);
   static const int margin = 24;
   layout->setContentsMargins(margin, margin, margin, margin);
-  layout->setSpacing(0);
+  layout->setSpacing(4);
 
+  auto* header = new QLabel("<font color='#FFFFFF'>hallo :3</font>",this);
+  header->setFont(QFont("Quicksand", 30, QFont::Weight::Bold));
+  header->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+  layout->addWidget(header);
   auto* content = new GradientBackground(this);
   layout->addWidget(content);
   auto* contentLayout = new QVBoxLayout(content);

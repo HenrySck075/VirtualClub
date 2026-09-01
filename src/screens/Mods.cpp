@@ -1,15 +1,156 @@
 #include "Mods.hpp"
 #include <QLayout>
 #include <QLabel>
+#include "../ui/GradientBackground.hpp"
+#include "../ui/IconButton.hpp"
+#include "../utils/LucideIcons.hpp"
+
+#include <QWidget>
+#include <QPixmap>
+#include <QString>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <qgridlayout.h>
+
+class DesktopIconWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit DesktopIconWidget(const QPixmap &icon, const QString &label, QWidget *parent = nullptr)
+    : QWidget(parent), m_icon(icon), m_label(label)
+    {
+        // Enable mouse tracking so hover detection works properly
+        setMouseTracking(true);
+        
+        // Windows icons are typically fixed in size inside a grid
+        setFixedSize(80, 90);
+    }
+
+    bool isSelected() const { return m_isSelected; }
+    void setSelected(bool selected) {
+        if (m_isSelected != selected) {
+            m_isSelected = selected;
+            update(); // Trigger repaint
+        }
+    }
+
+signals:
+    void clicked();
+    void doubleClicked();
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        Q_UNUSED(event);
+
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::TextAntialiasing);
+
+        // 1. Draw Hover / Selection Background Box (Windows 10/11 style)
+        if (m_isSelected || m_isHovered) {
+            QColor bgColor;
+            QColor borderColor;
+
+            if (m_isSelected) {
+                // Semi-opaque blue selection background and border
+                bgColor = QColor(0, 120, 215, 60);
+                borderColor = QColor(0, 120, 215, 180);
+            } else {
+                // Lighter semi-opaque white/gray hover background
+                bgColor = QColor(255, 255, 255, 40);
+                borderColor = QColor(255, 255, 255, 80);
+            }
+
+            QPainterPath path;
+            path.addRoundedRect(rect().adjusted(1, 1, -1, -1), 4, 4);
+
+            painter.fillPath(path, bgColor);
+            painter.setPen(QPen(borderColor, 1));
+            painter.drawPath(path);
+        }
+
+        // 2. Draw Icon (Centered in top portion)
+        const int iconSize = 48;
+        int iconX = (width() - iconSize) / 2;
+        int iconY = 6;
+        
+        QPixmap scaledIcon = m_icon.scaled(iconSize, iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        painter.drawPixmap(iconX, iconY, scaledIcon);
+
+        // 3. Draw Label (Centered below icon, multi-line wrapping)
+        QRect labelRect(4, iconY + iconSize + 4, width() - 8, height() - (iconY + iconSize + 6));
+        
+        // Windows desktop labels typically have white text with a soft shadow over dynamic backgrounds
+        painter.setPen(QColor(0, 0, 0, 160)); // Text shadow
+        painter.drawText(labelRect.translated(1, 1), Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap, m_label);
+
+        painter.setPen(Qt::white); // Main text
+        painter.drawText(labelRect, Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap, m_label);
+    }
+    void enterEvent(QEnterEvent *event) override {
+        m_isHovered = true;
+        update();
+        QWidget::enterEvent(event);
+    }
+    void leaveEvent(QEvent *event) override {
+        m_isHovered = false;
+        update();
+        QWidget::leaveEvent(event);
+    }
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            setSelected(!m_isSelected); // Toggle selection state for demonstration
+            emit clicked();
+        }
+        QWidget::mousePressEvent(event);
+    }
+    void mouseDoubleClickEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            emit doubleClicked();
+        }
+        QWidget::mouseDoubleClickEvent(event);
+    }
+    QSize sizeHint() const override {return {80,90};}
+
+private:
+    QPixmap m_icon;
+    QString m_label;
+    bool m_isHovered = false;
+    bool m_isSelected = false;
+};
+
+
+
 
 ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   // Set up the layout for the Mods screen
   auto *layout = new QVBoxLayout(this);
-  layout->setContentsMargins(0, 0, 0, 0);
-  layout->setSpacing(0);
+  static const int margin = 24;
+  layout->setContentsMargins(margin, margin, margin, margin);
+  layout->setSpacing(4);
 
-  // Add a label or any other widgets you want to display on the Mods screen
-  auto *label = new QLabel("Welcome to the Mods Screen!", this);
-  label->setAlignment(Qt::AlignCenter);
-  layout->addWidget(label);
+  auto* header = new QWidget(this);
+  header->setStyleSheet(
+    "background-color: white; "
+  );
+  header->setFixedHeight(40);
+  header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  layout->addWidget(header);
+
+  auto* headerLayout = new QHBoxLayout(header);
+  headerLayout->setContentsMargins(8, 0, 8, 0);
+  headerLayout->setAlignment(Qt::AlignLeft);
+  headerLayout->addWidget(new IconButton(LucideIcons::plus));
+
+  auto* content = new GradientBackground(this);
+  layout->addWidget(content);
+  auto* contentLayout = new QGridLayout(content);
+  static const int contentMargin = 8;
+  contentLayout->setContentsMargins(contentMargin, contentMargin, contentMargin, contentMargin);
+  contentLayout->setSpacing(0);
 }
+
+
+#include "Mods.moc"

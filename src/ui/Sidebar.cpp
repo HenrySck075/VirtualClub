@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <QScrollArea>
 #include <QFrame>
-#include <qboxlayout.h>
 
 void GradientBackground2::paintEvent(QPaintEvent* event) {
     GradientBackground::paintEvent(event);
@@ -145,6 +144,7 @@ Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent) {
   m_topSectionLayout->setSpacing(0);
   m_topSectionLayout->setSizeConstraint(QLayout::SetFixedSize);
 
+  /*
   m_scrollSection = new QScrollArea(this);
   m_scrollSectionLayout = new QVBoxLayout(m_scrollSection);
   m_scrollSection->setWidgetResizable(true);
@@ -154,7 +154,8 @@ Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent) {
   m_scrollSectionLayout->setSpacing(0);
  
   sidebarLayout->addWidget(m_scrollSection);
-
+*/
+  sidebarLayout->addSpacerItem(new QSpacerItem(Sidebar::WIDTH, 20, QSizePolicy::Preferred, QSizePolicy::Expanding));
 
   m_bottomSection = new QWidget(this);
   m_bottomSectionLayout = new QVBoxLayout(m_bottomSection);
@@ -169,11 +170,11 @@ Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent) {
 
 Sidebar::~Sidebar() {
   m_topSectionLayout->deleteLater();
-  m_scrollSectionLayout->deleteLater();
+  //m_scrollSectionLayout->deleteLater();
   m_bottomSectionLayout->deleteLater();
 
   m_topSection->deleteLater();
-  m_scrollSection->deleteLater();
+  //m_scrollSection->deleteLater();
   m_bottomSection->deleteLater();
 
   layout()->deleteLater();
@@ -186,9 +187,9 @@ SidebarItem* Sidebar::addSidebarItem(QIcon icon, std::string name, SidebarPositi
     case SidebarPosition::Top:
         targetLayout = m_topSectionLayout;
         break;
-    case SidebarPosition::Scroll:
-        targetLayout = m_scrollSectionLayout;
-        break;
+    //case SidebarPosition::Scroll:
+        //targetLayout = m_scrollSectionLayout;
+        //break;
     case SidebarPosition::Bottom:
         targetLayout = m_bottomSectionLayout;
         break;
@@ -208,6 +209,32 @@ SidebarItem* Sidebar::addSidebarItem(QIcon icon, std::string name, SidebarPositi
     return item;
   }
   return nullptr;
+}
+int findChildWidgetIndex(QLayout* layout, QWidget* child) {
+    if (!layout) return -1;
+
+    for (int i = 0; i < layout->count(); ++i) {
+        QLayoutItem* item = layout->itemAt(i);
+        if (!item) continue;
+
+        // Check if the item is a QWidget
+        if (QWidget* widget = item->widget()) {
+            if (widget == child) {
+                return i;
+            }
+        }
+        
+        /*
+        // Optional: Recurse into sub-layouts
+        if (QLayout* childLayout = item->layout()) {
+            if (QWidget* found = findChildWidgetBy(childLayout, predicate)) {
+                return found;
+            }
+        }
+        */
+    }
+
+    return -1;
 }
 QWidget* findChildWidgetBy(QLayout* layout, std::function<bool(QWidget*)> predicate) {
     if (!layout) return nullptr;
@@ -248,12 +275,8 @@ void Sidebar::onSidebarItemClicked(SidebarItem* item) {
   };
   SidebarItem* maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_topSectionLayout, _selectedSidebarPredicate));
 
-  if (!maybeSelectedItem) {
-    maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_scrollSectionLayout, _selectedSidebarPredicate));
-  }
-  if (!maybeSelectedItem) {
-    maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_bottomSectionLayout, _selectedSidebarPredicate));
-  }
+  //if (!maybeSelectedItem) maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_scrollSectionLayout, _selectedSidebarPredicate));
+  if (!maybeSelectedItem) maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_bottomSectionLayout, _selectedSidebarPredicate));
   
   if (!maybeSelectedItem) {
     qDebug() << "Cannot find another selected sidebar item.";
@@ -270,19 +293,16 @@ int Sidebar::itemPositionOf(SidebarItem* item) {
   int offset = 0;
 
 #define eugh(layout) \
-  if (index != -1) {\
+  if (index == -1) {\
     do { \
-      auto widget_children = layout->findChildren<QWidget*>(Qt::FindDirectChildrenOnly); \
-      if (widget_children.contains(item)) { \
-        index = widget_children.indexOf(item); \
-        break; \
-      } else { \
-        offset += widget_children.size(); \
+      index = findChildWidgetIndex(layout, item); \
+      if (index == -1) { \
+        offset += layout->count(); \
       } \
     } while (0);\
   }
   eugh(m_topSectionLayout);
-  eugh(m_scrollSectionLayout);
+  //eugh(m_scrollSectionLayout);
   eugh(m_bottomSectionLayout);
 
   return offset+index;

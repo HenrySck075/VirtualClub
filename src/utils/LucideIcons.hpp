@@ -33,7 +33,8 @@ namespace LucideIcons {
   LucideIcons_IMPL(
     house,
     library,
-    settings
+    settings,
+    plus
   )
 };
 

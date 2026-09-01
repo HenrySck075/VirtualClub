@@ -4,5 +4,6 @@
     <file alias="house.svg">resources/icons/house.svg</file>
     <file alias="library.svg">resources/icons/library.svg</file>
     <file alias="settings.svg">resources/icons/settings.svg</file>
+    <file alias="plus.svg">resources/icons/plus.svg</file>
   </qresource>
 </RCC>
