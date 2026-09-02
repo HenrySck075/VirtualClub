@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <QScrollArea>
 #include <QFrame>
+#include <qparallelanimationgroup.h>
 
 void GradientBackground2::paintEvent(QPaintEvent* event) {
     GradientBackground::paintEvent(event);
@@ -39,27 +40,44 @@ SidebarItem::SidebarItem(QIcon icon, std::string label, QWidget *parent) : QWidg
   setFixedHeight(50); // Set a fixed height for each sidebar item
   setFixedWidth(Sidebar::WIDTH);
   // Setup animation (duration: 200 ms)
-  m_fadeAnimation = new QPropertyAnimation(this, "hoverAlpha", this);
-  m_fadeAnimation->setDuration(200);
-  m_fadeAnimation->setEasingCurve(QEasingCurve::InOutQuad);
+  auto fadeAnimation = new QPropertyAnimation(this, "hoverAlpha", this);
+  fadeAnimation->setDuration(225);
+  fadeAnimation->setEasingCurve(QEasingCurve::InOutQuad);
+  fadeAnimation->setStartValue(0);
+  fadeAnimation->setEndValue(255);
+
+  auto slideAnimation = new QPropertyAnimation(this, "slideAnim", this);
+  slideAnimation->setDuration(225);
+  slideAnimation->setStartValue(0.f);
+  slideAnimation->setEndValue(1.f);
+  slideAnimation->setEasingCurve(QEasingCurve::OutQuad);
+
+  auto animgroup = new QParallelAnimationGroup();
+  animgroup->addAnimation(fadeAnimation);
+  animgroup->addAnimation(slideAnimation);
+
+  m_hoverAnimation = animgroup;
 
   m_icon = icon;
   m_label = std::move(label);
 }
 void SidebarItem::enterEvent(QEnterEvent *event) {
     Q_UNUSED(event);
-    m_fadeAnimation->stop();
-    m_fadeAnimation->setStartValue(m_hoverAnimationValue);
-    m_fadeAnimation->setEndValue(255); // Max hover opacity (0-255 scale; 100 is ~40%)
-    m_fadeAnimation->start();
+    m_hovered = true;
+    m_hoverAnimation->stop();
+    m_hoverAnimation->start();
 }
 
 void SidebarItem::leaveEvent(QEvent *event) {
     Q_UNUSED(event);
-    m_fadeAnimation->stop();
+    m_hovered = false;
+    m_hoverAnimation->stop();
+    /*
     m_fadeAnimation->setStartValue(m_hoverAnimationValue);
     m_fadeAnimation->setEndValue(0); // Fade back to fully transparent
     m_fadeAnimation->start();
+    */
+    setHoverAlpha(0);
 }
 
 void SidebarItem::paintEvent(QPaintEvent *event) {
@@ -90,17 +108,12 @@ void SidebarItem::paintEvent(QPaintEvent *event) {
     // icons and the text. color is the interpolation between its default color and white with the value of the hover animation
     QColor iconColor = sm_iconColor;
     QColor textColor = sm_textColor;
-    if (!m_selected) {
-      iconColor.setRedF(iconColor.redF() + (1.0 - iconColor.redF()) * (m_hoverAnimationValue / 255.0));
-      iconColor.setGreenF(iconColor.greenF() + (1.0 - iconColor.greenF()) * (m_hoverAnimationValue / 255.0));
-      iconColor.setBlueF(iconColor.blueF() + (1.0 - iconColor.blueF()) * (m_hoverAnimationValue / 255.0));
-      textColor.setRedF(textColor.redF() + (1.0 - textColor.redF()) * (m_hoverAnimationValue / 255.0));
-      textColor.setGreenF(textColor.greenF() + (1.0 - textColor.greenF()) * (m_hoverAnimationValue / 255.0));
-      textColor.setBlueF(textColor.blueF() + (1.0 - textColor.blueF()) * (m_hoverAnimationValue / 255.0));
-    } else {
+    if (m_selected || m_hovered) {
       iconColor = QColorConstants::White;
       textColor = QColorConstants::White;
     }
+    float xOffset = 10;
+    auto xOffsetA = !m_selected ? xOffset-xOffset*m_slideAnimValue : 0.f;
     // Draw the icon
     if (!m_icon.isNull()) {
         QPixmap pixmap = m_icon.pixmap(24, 24); // Adjust size
@@ -112,19 +125,20 @@ void SidebarItem::paintEvent(QPaintEvent *event) {
         iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
         iconPainter.fillRect(coloredPixmap.rect(), iconColor);
         iconPainter.end();
-        painter.drawPixmap(10, (height() - 24) / 2, coloredPixmap); // Adjust position
+        painter.drawPixmap(xOffsetA+10, (height() - 24) / 2, coloredPixmap); // Adjust position
     }
 
     // Draw the label
     painter.setPen(textColor);
     painter.setFont(QFont("Quicksand", 12, QFont::Weight::Bold));
-    painter.drawText(50, 0, width() - 50, height(), Qt::AlignVCenter | Qt::AlignLeft, QString::fromStdString(m_label));
+    painter.drawText(xOffsetA+50, 0, width() - 50, height(), Qt::AlignVCenter | Qt::AlignLeft, QString::fromStdString(m_label));
 }
 
 QDebug operator<<(QDebug debug, const SidebarItem *widget) {
   debug.nospace() << "SidebarItem(" << widget->label().c_str() << ")";
   return debug.space();
 }
+
 
 Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent) {
   // Set a fixed width for the sidebar

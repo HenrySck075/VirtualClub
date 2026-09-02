@@ -37,3 +37,4 @@ protected:
   SidebarItem* addNavigationItem(QIcon icon, std::string name, SidebarPosition position, QWidget* widget);
 };
 
+MainWindow *getMainWindow();

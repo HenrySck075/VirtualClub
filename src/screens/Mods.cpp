@@ -3,7 +3,10 @@
 #include <QLabel>
 #include "../ui/GradientBackground.hpp"
 #include "../ui/IconButton.hpp"
+#include "../ui/Dialog.hpp"
 #include "../utils/LucideIcons.hpp"
+#include "../utils/ModIndex.hpp"
+#include "../MainWindow.hpp"
 
 #include <QWidget>
 #include <QPixmap>
@@ -12,6 +15,8 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <qgridlayout.h>
+#include <QFileDialog>
+#include <stdexcept>
 
 class DesktopIconWidget : public QWidget
 {
@@ -142,7 +147,11 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   auto* headerLayout = new QHBoxLayout(header);
   headerLayout->setContentsMargins(8, 0, 8, 0);
   headerLayout->setAlignment(Qt::AlignLeft);
-  headerLayout->addWidget(new IconButton(LucideIcons::plus));
+
+  auto* addModIcon = new IconButton(LucideIcons::plus);
+  addModIcon->setToolTip("Add a new mod");
+  connect(addModIcon, &IconButton::clicked, this, &ModsScreen::onAddModButtonClicked);
+  headerLayout->addWidget(addModIcon);
 
   auto* content = new GradientBackground(this);
   layout->addWidget(content);
@@ -152,5 +161,20 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   contentLayout->setSpacing(0);
 }
 
+void ModsScreen::onAddModButtonClicked() {
+  auto directory = QFileDialog::getExistingDirectory(nullptr, "Select a mod directory containing a _valid Ren'Py game structure_ to add.");
+  try {
+    throw std::runtime_error("testin");
+    ModsIndex::installMod(directory.toStdString());
+  } catch (std::exception& e) {
+    Dialog::showDialog(
+      getMainWindow(), 
+      "Install Error", 
+      "An error was occured while installing the mod.\n======\n",
+      e.what(),
+      Dialog::DialogType::Confirm
+    );
+  }
+}
 
 #include "Mods.moc"

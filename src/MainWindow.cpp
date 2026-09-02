@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <qapplication.h>
 #include <qtypes.h>
 #include "MainWindow.hpp"
 #include "screens/Home.hpp"
@@ -168,7 +169,7 @@ void MainWindow::initUI() {
 }
 
 void MainWindow::onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newItem) {
-  static const float duration = 300;
+  static const float duration = 400;
   static const QEasingCurve curve = QEasingCurve::OutQuart;
 
   int oidx = oldItem ? m_sidebar->itemPositionOf(oldItem) : -1;
@@ -237,5 +238,12 @@ void MainWindow::paintEvent(QPaintEvent *event) {
   // width() automatically reflects the current window width
   painter.drawRect(0, rectY, width(), rectHeight);
 };
-
+MainWindow *getMainWindow() {
+  for (QWidget *widget : QApplication::topLevelWidgets()) {
+    if (auto *mainWin = qobject_cast<MainWindow *>(widget)) {
+      return mainWin;
+    }
+  }
+  return nullptr;
+}
 #include "MainWindow.moc"

@@ -5,6 +5,7 @@
 #include <QScrollArea>
 #include <QLayout>
 #include <QPropertyAnimation>
+#include <qparallelanimationgroup.h>
 
 
 class GradientBackground2 : public GradientBackground {
@@ -19,12 +20,14 @@ protected:
 class SidebarItem : public QWidget {
   Q_OBJECT 
   Q_PROPERTY(int hoverAlpha READ hoverAlpha WRITE setHoverAlpha)
+  Q_PROPERTY(float slideAnim READ slideAnim WRITE setSlideAnim)
 signals:
   void clicked();
   void selectedChanged();
 private:
   int m_hoverAnimationValue = 0; // Ranges from 0 (invisible) to 255 (full opacity)
-  QPropertyAnimation *m_fadeAnimation = nullptr;
+  float m_slideAnimValue = 0;
+  QParallelAnimationGroup *m_hoverAnimation = nullptr;
 
   QIcon m_icon;
   std::string m_label;
@@ -35,10 +38,18 @@ private:
   const QColor sm_hoverColorR = QColor(227,162,195);
 
   bool m_selected = false;
+  bool m_hovered = false;
   int hoverAlpha() const { return m_hoverAnimationValue; }
   void setHoverAlpha(int alpha) {
     if (m_hoverAnimationValue != alpha) {
         m_hoverAnimationValue = alpha;
+        update(); // Triggers paintEvent() on every animation frame
+    }
+  }
+  float slideAnim() const { return m_slideAnimValue; }
+  void setSlideAnim(float value) {
+    if (m_slideAnimValue != value) {
+        m_slideAnimValue = value;
         update(); // Triggers paintEvent() on every animation frame
     }
   }

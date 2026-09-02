@@ -6,6 +6,7 @@ class ModsScreen : public QWidget {
   Q_OBJECT
 public:
   explicit ModsScreen(QWidget *parent = nullptr);
+  void onAddModButtonClicked();
 };
 
 #endif
