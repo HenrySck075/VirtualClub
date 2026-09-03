@@ -1,7 +1,6 @@
 #include "Mods.hpp"
 #include <QLayout>
 #include <QLabel>
-#include "../ui/GradientBackground.hpp"
 #include "../ui/IconButton.hpp"
 #include "../ui/Dialog.hpp"
 #include "../utils/LucideIcons.hpp"
@@ -14,9 +13,12 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <cpptrace/from_current_macros.hpp>
 #include <qgridlayout.h>
 #include <QFileDialog>
-#include <stdexcept>
+#ifndef _NDEBUG
+#include <cpptrace/from_current.hpp>
+#endif
 
 class DesktopIconWidget : public QWidget
 {
@@ -135,6 +137,7 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   static const int margin = 24;
   layout->setContentsMargins(margin, margin, margin, margin);
   layout->setSpacing(4);
+  layout->setAlignment(Qt::AlignTop);
 
   auto* header = new QWidget(this);
   header->setStyleSheet(
@@ -153,20 +156,31 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   connect(addModIcon, &IconButton::clicked, this, &ModsScreen::onAddModButtonClicked);
   headerLayout->addWidget(addModIcon);
 
-  auto* content = new GradientBackground(this);
+  auto* content = new QWidget(this);
   layout->addWidget(content);
   auto* contentLayout = new QGridLayout(content);
-  static const int contentMargin = 8;
+  static const int contentMargin = 0;//8;
   contentLayout->setContentsMargins(contentMargin, contentMargin, contentMargin, contentMargin);
-  contentLayout->setSpacing(0);
+  contentLayout->setSpacing(4);
+  contentLayout->setAlignment(Qt::AlignLeft);
+
+  for (auto& mod : ModsIndex::getMods()) {
+    auto iconPath = mod.getIconPath();
+    QPixmap iconPixmap(iconPath.c_str());
+    contentLayout->addWidget(new DesktopIconWidget(iconPixmap, QString::fromStdString(mod.name), content));
+  }
 }
 
 void ModsScreen::onAddModButtonClicked() {
   auto directory = QFileDialog::getExistingDirectory(nullptr, "Select a mod directory containing a _valid Ren'Py game structure_ to add.");
-  try {
-    throw std::runtime_error("testin");
-    ModsIndex::installMod(directory.toStdString());
-  } catch (std::exception& e) {
+  if (directory == "") return;
+  CPPTRACE_TRY {
+    ModsIndex::installMod(directory.toStdString()); 
+  } CPPTRACE_CATCH (std::exception& e) {
+#ifndef _NDEBUG
+    qDebug() << "Exception:" << e.what();
+    cpptrace::from_current_exception().to_string();
+#endif
     Dialog::showDialog(
       getMainWindow(), 
       "Install Error", 

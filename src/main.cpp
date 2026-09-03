@@ -1,10 +1,13 @@
 #include <QApplication>
 #include <QFontDatabase>
 #include "MainWindow.hpp"
+#include "utils/ModIndex.hpp"
 #include "utils/RenpyArchive.hpp"
 #include <filesystem>
 #include <QResource>
 #include <pybind11/embed.h>
+#include <qfiledialog.h>
+#include <qsettings.h>
 
 namespace fs = std::filesystem;
 namespace py = pybind11;
@@ -20,7 +23,15 @@ int main(int argc, char *argv[]) {
                             / "assets" / "Quicksand.ttf").string()));
 
     ModsIndex::loadArchiveReaderModules();
+    ModsIndex::loadModsIndex();
     //LucideIcons::initializeIcons();
+
+    QSettings settings;
+    if (!settings.contains("baseGameInstallPath")) {
+      auto directory = QFileDialog::getExistingDirectory(nullptr, "Select a base game directory.");
+      settings.setValue("baseGameInstallPath", directory);
+    }
+
     MainWindow window;
     window.show();
 

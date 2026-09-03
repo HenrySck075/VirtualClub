@@ -122,7 +122,7 @@ private:
 };
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
-  setWindowTitle("The REAL Oracle VM VirtualBox by the yacht maker Oracle");
+  setWindowTitle("VirtualClub Ren'Py Mod Manager");
   resize(1020, 600); // Set default starting size (Width, Height)
 
   m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);

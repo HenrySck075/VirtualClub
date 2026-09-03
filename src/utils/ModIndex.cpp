@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <QStandardPaths>
 #include "RenpyArchive.hpp"
+#include "macros.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
@@ -64,6 +65,10 @@ std::string generate_uuid_v4() {
 namespace ModsIndex {
   std::vector<Mod> modsList;
 
+  std::vector<Mod>& getMods() {
+    return modsList;
+  }
+
   void loadModsIndex() {
     modsList.clear();
     QSettings settings;
@@ -103,13 +108,15 @@ namespace ModsIndex {
       settings.setArrayIndex(i);
       const Mod& mod = modsList[i];
       settings.setValue("id", QString::fromStdString(mod.id));
+    }
+    settings.endArray();
+    for (auto& mod : modsList) {
       settings.setValue(mod.id+"/name", QString::fromStdString(mod.name));
       settings.setValue(mod.id+"/version", QString::fromStdString(mod.version));
       settings.setValue(mod.id+"/buildId", QString::fromStdString(mod.buildId));
       settings.setValue(mod.id+"/path", QString::fromStdString(mod.modPath));
       settings.setValue(mod.id+"/enableDeveloper", mod.enableDeveloper);
     }
-    settings.endArray();
   }
 
   void writeIcons(std::string id, unsigned char* buffer, int len) {
@@ -153,13 +160,20 @@ namespace ModsIndex {
     writeIcons(id, buffer.data(), fileSize);
   }
 
+  std::string Mod::getIconPath() const {
+    static auto iconsDir = std::filesystem::path(
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
+    ) / "icons";
+    return (iconsDir / (id + ".png")).string();
+  };
+
   void installMod(std::filesystem::path path) {
     static QSettings settings;
     auto modGameDir = path / "game";
     auto baseGameDir = std::filesystem::path(settings.stringValue("baseGameInstallPath")) / "game";
     std::unordered_map<std::string, py::object> indexes; 
 
-    for (auto& dir : {modGameDir, baseGameDir}) {
+    for (auto& dir : {baseGameDir, modGameDir}) {
       for (auto& p : std::filesystem::recursive_directory_iterator(dir)) {
         if (p.is_regular_file() && p.path().extension() == ".rpa") {
           auto filename = p.path().string();
@@ -177,8 +191,8 @@ namespace ModsIndex {
       } else {
         for (auto& [key,value] : indexes) {
           auto index = value;
-          if (py::hasattr(index, filepath.c_str())) {
-            auto fileData = ModsIndex::rpaReaderModule().attr("extract_single_file")(key, filepath, index)();
+          if (index.contains(filepath.c_str())) {
+            auto fileData = ModsIndex::rpaReaderModule().attr("extract_single_file")(key, filepath, index);
             return fileData;
           }
         }
@@ -194,10 +208,34 @@ namespace ModsIndex {
 
     auto statements = ModsIndex::rpycReaderModule().attr("get_rpyc_statements")(ModsIndex::rpycReaderModule().attr("peek_rpyc")(optionsRpyc)).cast<py::list>();
 
+    /*
     std::unordered_map<std::string, std::vector<std::string>> requestedDefines {
       {"config", { "name", "window_icon", "version", "save_directory" }},
       {"build",  {"name"}}
     };
+    */
+
+    // this code is responsible for banning msvc from being used to build the app.
+#define PYDICT_INIT(...) ({\
+      py::dict ret;\
+      __VA_ARGS__\
+      ret;\
+    })
+#define PYDICT_ARG(key,value) ret[key] = value;
+#define PYLIST_INIT__() PYLIST_INIT_
+#define PYLIST_INIT_(i, ...) \
+    ret2.append(i);\
+    __VA_OPT__(DEFER1(PYLIST_INIT__)()(__VA_ARGS__))
+#define PYLIST_INIT(...) ({\
+      py::list ret2;\
+      EVAL(PYLIST_INIT_(__VA_ARGS__))\
+      ret2;\
+    })
+
+    py::dict requestedDefines = PYDICT_INIT(
+      PYDICT_ARG("config", PYLIST_INIT("name", "window_icon", "version", "save_directory"))
+      PYDICT_ARG("build", PYLIST_INIT("name"))
+    );
 
     auto defines = ModsIndex::rpycReaderModule().attr("lookup_defines")(statements, requestedDefines).cast<py::dict>();
 
@@ -230,5 +268,7 @@ namespace ModsIndex {
       false
     };
     modsList.push_back(mod);
+
+    saveModsIndex();
   }
 }

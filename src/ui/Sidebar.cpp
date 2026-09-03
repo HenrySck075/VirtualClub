@@ -113,7 +113,7 @@ void SidebarItem::paintEvent(QPaintEvent *event) {
       textColor = QColorConstants::White;
     }
     float xOffset = 10;
-    auto xOffsetA = !m_selected ? xOffset-xOffset*m_slideAnimValue : 0.f;
+    auto xOffsetA = m_hovered && !m_selected ? xOffset-xOffset*m_slideAnimValue : 0.f;
     // Draw the icon
     if (!m_icon.isNull()) {
         QPixmap pixmap = m_icon.pixmap(24, 24); // Adjust size

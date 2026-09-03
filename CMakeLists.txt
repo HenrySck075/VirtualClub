@@ -20,6 +20,29 @@ qt_add_executable(${PROJECT_NAME}
     resources.qrc
 )
 
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    include(FetchContent)
+    FetchContent_Declare(
+      cpptrace
+      GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
+      GIT_TAG        v1.0.4 # <HASH or TAG>
+    )
+    FetchContent_MakeAvailable(cpptrace)
+
+# Needed for shared library builds on windows:  copy cpptrace.dll to the same directory as the
+# executable for your_target
+    if(WIN32)
+      add_custom_command(
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:cpptrace::cpptrace>
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>
+      )
+    endif()
+    target_link_libraries(${PROJECT_NAME} PRIVATE cpptrace::cpptrace)
+endif()
+
 # Link Qt6 libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets pybind11::embed)
 

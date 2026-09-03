@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 namespace ModsIndex {
   struct Mod {
     std::string id;
@@ -13,9 +14,13 @@ namespace ModsIndex {
     std::string modPath;
 
     bool enableDeveloper;
+
+
+    std::string getIconPath() const;
   };
   void loadModsIndex();
 
+  std::vector<Mod>& getMods();
 
   void installMod(std::filesystem::path path);
 }

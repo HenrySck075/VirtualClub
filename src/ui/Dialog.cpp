@@ -110,6 +110,7 @@ Dialog::Dialog(const QString& title,
         detailLabel->setFont(QFont("Quicksand", 11, QFont::Bold));
         detailLabel->setStyleSheet("color: rgb(137, 35, 137); background: transparent;");
         detailLabel->setAlignment(Qt::AlignCenter);
+        detailLabel->setWordWrap(true);
         contentLayout->addWidget(detailLabel);
     }
 
