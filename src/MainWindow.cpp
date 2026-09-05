@@ -19,6 +19,7 @@
 #include "ui/Sidebar.hpp"
 #include "ui/CoverImageWidget.hpp"
 #include "utils/LucideIcons.hpp"
+#include "utils/anime.hpp"
 
 // Helper to parse times like "18", "18.30", "6.15", "6" into QTime
 QTime parseFlexibleTime(const std::string& str) {
@@ -169,44 +170,15 @@ void MainWindow::initUI() {
 }
 
 void MainWindow::onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newItem) {
-  static const float duration = 400;
-  static const QEasingCurve curve = QEasingCurve::OutQuart;
-
   int oidx = oldItem ? m_sidebar->itemPositionOf(oldItem) : -1;
   int nidx = m_sidebar->itemPositionOf(newItem);
-
-  qDebug() << oidx << nidx;
 
   bool ttbDirection = oidx > nidx; // top-to-bottom if true (oldItem pos > newItem pos), else bottom-to-top
 
   auto thisWidget = m_navigationMap[newItem];
   m_stackedWidget->setCurrentWidget(thisWidget);
 
-  // code adapted from https://github.com/Qt-Widgets/SlidingStackedWidget-1/blob/master/SlidingStackedWidget/slidingstackedwidget.cpp
-
-  int offsety = 30;
-  if (ttbDirection) offsety = -offsety;
-  thisWidget->move(0,offsety);
-
-  auto* moveAnim = new QPropertyAnimation(thisWidget, "pos");
-  moveAnim->setDuration(duration);
-  moveAnim->setEasingCurve(curve);
-  moveAnim->setStartValue(QPoint(0,offsety));
-  moveAnim->setEndValue(QPoint(0,0));
-
-  auto* fadeAnimE = new QGraphicsOpacityEffect();
-  thisWidget->setGraphicsEffect(fadeAnimE);
-  auto* fadeAnim = new QPropertyAnimation(fadeAnimE, "opacity");
-  fadeAnim->setDuration(duration/3*2);
-  fadeAnim->setEasingCurve(curve);
-  fadeAnim->setStartValue(0);
-  fadeAnim->setEndValue(1);
-  connect(fadeAnim, &QPropertyAnimation::finished, [=](){fadeAnimE->deleteLater();});
-
-  auto* animgroup = new QParallelAnimationGroup;
-  animgroup->addAnimation(moveAnim);
-  animgroup->addAnimation(fadeAnim);
-  animgroup->start(QAbstractAnimation::DeleteWhenStopped);
+  anime::slideFade(thisWidget, ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up); 
 }
 
 SidebarItem* MainWindow::addNavigationItem(QIcon icon, std::string name, SidebarPosition position, QWidget* widget) {

@@ -4,7 +4,6 @@
 #include "../ui/IconButton.hpp"
 #include "../ui/Dialog.hpp"
 #include "../utils/LucideIcons.hpp"
-#include "../utils/ModIndex.hpp"
 #include "../MainWindow.hpp"
 
 #include <QWidget>
@@ -14,7 +13,6 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <cpptrace/from_current_macros.hpp>
-#include <qgridlayout.h>
 #include <QFileDialog>
 #ifndef _NDEBUG
 #include <cpptrace/from_current.hpp>
@@ -108,7 +106,9 @@ protected:
     }
     void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) {
-            setSelected(!m_isSelected); // Toggle selection state for demonstration
+            if (event->modifiers().testFlag(Qt::ShiftModifier)) {
+              setSelected(!m_isSelected); // Toggle selection state for demonstration
+            }
             emit clicked();
         }
         QWidget::mousePressEvent(event);
@@ -156,26 +156,30 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   connect(addModIcon, &IconButton::clicked, this, &ModsScreen::onAddModButtonClicked);
   headerLayout->addWidget(addModIcon);
 
-  auto* content = new QWidget(this);
-  layout->addWidget(content);
-  auto* contentLayout = new QGridLayout(content);
+  m_content = new QWidget(this);
+  layout->addWidget(m_content);
+  m_contentLayout = new QGridLayout(m_content);
   static const int contentMargin = 0;//8;
-  contentLayout->setContentsMargins(contentMargin, contentMargin, contentMargin, contentMargin);
-  contentLayout->setSpacing(4);
-  contentLayout->setAlignment(Qt::AlignLeft);
+  m_contentLayout->setContentsMargins(contentMargin, contentMargin, contentMargin, contentMargin);
+  m_contentLayout->setSpacing(4);
+  m_contentLayout->setAlignment(Qt::AlignLeft);
 
   for (auto& mod : ModsIndex::getMods()) {
-    auto iconPath = mod.getIconPath();
-    QPixmap iconPixmap(iconPath.c_str());
-    contentLayout->addWidget(new DesktopIconWidget(iconPixmap, QString::fromStdString(mod.name), content));
+    addModItem(mod);
   }
+}
+
+void ModsScreen::addModItem(ModsIndex::Mod& mod) {
+  auto iconPath = mod.getIconPath();
+  QPixmap iconPixmap(iconPath.c_str());
+  m_contentLayout->addWidget(new DesktopIconWidget(iconPixmap, QString::fromStdString(mod.name), m_content));
 }
 
 void ModsScreen::onAddModButtonClicked() {
   auto directory = QFileDialog::getExistingDirectory(nullptr, "Select a mod directory containing a _valid Ren'Py game structure_ to add.");
   if (directory == "") return;
   CPPTRACE_TRY {
-    ModsIndex::installMod(directory.toStdString()); 
+    addModItem(ModsIndex::installMod(directory.toStdString())); 
   } CPPTRACE_CATCH (std::exception& e) {
 #ifndef _NDEBUG
     qDebug() << "Exception:" << e.what();

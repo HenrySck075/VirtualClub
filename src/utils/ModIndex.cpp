@@ -167,7 +167,7 @@ namespace ModsIndex {
     return (iconsDir / (id + ".png")).string();
   };
 
-  void installMod(std::filesystem::path path) {
+  Mod& installMod(std::filesystem::path path) {
     static QSettings settings;
     auto modGameDir = path / "game";
     auto baseGameDir = std::filesystem::path(settings.stringValue("baseGameInstallPath")) / "game";
