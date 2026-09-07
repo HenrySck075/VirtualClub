@@ -78,7 +78,7 @@ void IconButton::paintEvent(QPaintEvent *event) {
         gradient.setColorAt(1.0, stopColor);
         
         QPainterPath path;
-        path.addRoundedRect(rect(), radius, radius);
+        path.addRoundedRect(rect(), radius+1, radius+1);
         painter.fillPath(path, gradient);
     }
 

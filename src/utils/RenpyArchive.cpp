@@ -70,7 +70,7 @@ def read_rpa_index(rpa_path):
         return index
 
 def extract_single_file(rpa_path, target_filename, index=None):
-    if not index:
+    if index is None:
         index = read_rpa_index(rpa_path)
         
     if target_filename not in index:

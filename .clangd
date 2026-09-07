@@ -1,4 +1,2 @@
-# remove -mno-direct-extern-access, may need to update the lsp idk
-CompilerFlags:
-  Remove:
-    - -mno-direct-extern-access
+CompileFlags:
+  Remove: [-mno-direct-extern-access]

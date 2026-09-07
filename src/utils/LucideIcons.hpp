@@ -34,7 +34,8 @@ namespace LucideIcons {
     house,
     library,
     settings,
-    plus
+    plus,
+    arrow_left,
   )
 };
 

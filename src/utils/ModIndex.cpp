@@ -1,11 +1,13 @@
 #include "ModIndex.hpp"
 #include <QSettings>
+#include <algorithm>
 #include <filesystem>
 #include <random>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
 #include <QStandardPaths>
+#include <utility>
 #include "RenpyArchive.hpp"
 #include "macros.h"
 
@@ -72,34 +74,25 @@ namespace ModsIndex {
   void loadModsIndex() {
     modsList.clear();
     QSettings settings;
-
-    // first pass: get all the mod ids
-    std::vector<std::string> modIds;
+#define stringValue(...) value(__VA_ARGS__).toString().toStdString()
+#define boolValue(...) value(__VA_ARGS__).toBool()
 
     int size = settings.beginReadArray("mods");
     for (int i = 0; i < size; ++i) {
       settings.setArrayIndex(i);
-      QString modId = settings.value("id").toString();
-      modIds.push_back(modId.toStdString());  
-    } 
-    settings.endArray();
+      auto modId = settings.stringValue("id");
 
-    modsList.reserve(modIds.size());
-    // second pass: get the metadata
-    // yeah yeah ik i can just put these in the mods array but its for easy editability
-#define stringValue(...) value(__VA_ARGS__).toString().toStdString()
-#define boolValue(...) value(__VA_ARGS__).toBool()
-    for (auto modId : modIds) {
       Mod mod {
         modId,
-        settings.stringValue(modId+"/name"),
-        settings.stringValue(modId+"/version"),
-        settings.stringValue(modId+"/buildId"),
-        settings.stringValue(modId+"/path"),
-        settings.boolValue(modId+"/enableDeveloper")
+        settings.stringValue("name"),
+        settings.stringValue("version"),
+        settings.stringValue("buildId"),
+        settings.stringValue("path"),
+        settings.boolValue("enableDeveloper")
       };
       modsList.push_back(mod);
     }
+    settings.endArray();
   }
   void saveModsIndex() {
     QSettings settings;
@@ -108,15 +101,13 @@ namespace ModsIndex {
       settings.setArrayIndex(i);
       const Mod& mod = modsList[i];
       settings.setValue("id", QString::fromStdString(mod.id));
+      settings.setValue("name", QString::fromStdString(mod.name));
+      settings.setValue("version", QString::fromStdString(mod.version));
+      settings.setValue("buildId", QString::fromStdString(mod.buildId));
+      settings.setValue("path", QString::fromStdString(mod.modPath));
+      settings.setValue("enableDeveloper", mod.enableDeveloper);
     }
     settings.endArray();
-    for (auto& mod : modsList) {
-      settings.setValue(mod.id+"/name", QString::fromStdString(mod.name));
-      settings.setValue(mod.id+"/version", QString::fromStdString(mod.version));
-      settings.setValue(mod.id+"/buildId", QString::fromStdString(mod.buildId));
-      settings.setValue(mod.id+"/path", QString::fromStdString(mod.modPath));
-      settings.setValue(mod.id+"/enableDeveloper", mod.enableDeveloper);
-    }
   }
 
   void writeIcons(std::string id, unsigned char* buffer, int len) {
@@ -167,32 +158,44 @@ namespace ModsIndex {
     return (iconsDir / (id + ".png")).string();
   };
 
-  Mod& installMod(std::filesystem::path path) {
+  Mod installMod(std::filesystem::path path) {
     static QSettings settings;
     auto modGameDir = path / "game";
     auto baseGameDir = std::filesystem::path(settings.stringValue("baseGameInstallPath")) / "game";
-    std::unordered_map<std::string, py::object> indexes; 
+    std::unordered_map<std::string, std::pair<std::string, py::object>> indexes; 
+    std::vector<std::string> indexesInsertionOrder; // these 2 are replicating a map with insertion order preservation
 
-    for (auto& dir : {baseGameDir, modGameDir}) {
+    for (auto& dir : {modGameDir, baseGameDir}) {
       for (auto& p : std::filesystem::recursive_directory_iterator(dir)) {
         if (p.is_regular_file() && p.path().extension() == ".rpa") {
-          auto filename = p.path().string();
-          auto index = ModsIndex::rpaReaderModule().attr("read_rpa_index")(filename);
-          indexes[filename] = index;
+          auto filepath = p.path().string();
+          auto filename = p.path().filename().string();
+          if (std::ranges::find(indexesInsertionOrder, filename) != indexesInsertionOrder.end()) {
+            continue; // skip if already processed
+          }
+          auto index = ModsIndex::rpaReaderModule().attr("read_rpa_index")(filepath);
+          indexes[filename] = std::make_pair(filepath, index);
+          indexesInsertionOrder.push_back(filename);
         }
       }
     };
 
+    qDebug() << "Loaded indexes: " << indexesInsertionOrder;
+
     // returns a py::bytes or a none equivalent idr what its called
-    auto readGameFile = [&modGameDir, &indexes](std::string filepath) -> py::object {
+    auto readGameFile = [&modGameDir, &indexes, &indexesInsertionOrder](std::string filepath) -> py::object {
       auto modFilePath = modGameDir / filepath;
+      qDebug() << modFilePath.string();
       if (std::filesystem::exists(modFilePath)) {
+        qDebug() << filepath << "exists as loose file";
         return read_file_to_bytes(modFilePath.string());
       } else {
-        for (auto& [key,value] : indexes) {
-          auto index = value;
+        for (auto& key : indexesInsertionOrder) {
+          auto value = indexes[key];
+          auto index = value.second;
           if (index.contains(filepath.c_str())) {
-            auto fileData = ModsIndex::rpaReaderModule().attr("extract_single_file")(key, filepath, index);
+            qDebug() << filepath << "exists as archived file in" << value.first;
+            auto fileData = ModsIndex::rpaReaderModule().attr("extract_single_file")(value.first, filepath, index);
             return fileData;
           }
         }
@@ -270,5 +273,7 @@ namespace ModsIndex {
     modsList.push_back(mod);
 
     saveModsIndex();
+    
+    return mod;
   }
 }

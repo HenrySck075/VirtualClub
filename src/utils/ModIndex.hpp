@@ -22,7 +22,7 @@ namespace ModsIndex {
 
   std::vector<Mod>& getMods();
 
-  Mod& installMod(std::filesystem::path path);
+  Mod installMod(std::filesystem::path path);
 
   const Mod& getModByID(std::string id);
 }

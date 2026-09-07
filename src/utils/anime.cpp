@@ -3,9 +3,13 @@
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
 #include <QParallelAnimationGroup>
+#include <QSettings>
 
 namespace anime {
   void slideFade(QWidget* widget, SlideDirection direction) {
+    static QSettings settings;
+    if (settings.value("reducedMotion", false).toBool()) return;
+
     static const float duration = 400;
     static const QEasingCurve curve = QEasingCurve::OutQuart;
 
@@ -16,11 +20,11 @@ namespace anime {
     int offsetx, offsety;
     switch (direction) {
       case SlideDirection::Left:
-        offsetx = -offset;
+        offsetx = offset;
         offsety = 0;
         break;
       case SlideDirection::Right:
-        offsetx = offset;
+        offsetx = -offset;
         offsety = 0;
         break;
       case SlideDirection::Up:

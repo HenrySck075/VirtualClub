@@ -124,6 +124,7 @@ private:
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
   setWindowTitle("VirtualClub Ren'Py Mod Manager");
+  setMinimumSize(QSize(600,400));
   resize(1020, 600); // Set default starting size (Width, Height)
 
   m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
