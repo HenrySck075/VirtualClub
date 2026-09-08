@@ -162,39 +162,33 @@ namespace ModsIndex {
     static QSettings settings;
     auto modGameDir = path / "game";
     auto baseGameDir = std::filesystem::path(settings.stringValue("baseGameInstallPath")) / "game";
-    std::unordered_map<std::string, std::pair<std::string, py::object>> indexes; 
-    std::vector<std::string> indexesInsertionOrder; // these 2 are replicating a map with insertion order preservation
+    std::map<std::string, std::pair<std::string, py::object>, std::greater<std::string>> indexes; 
 
     for (auto& dir : {modGameDir, baseGameDir}) {
       for (auto& p : std::filesystem::recursive_directory_iterator(dir)) {
         if (p.is_regular_file() && p.path().extension() == ".rpa") {
           auto filepath = p.path().string();
           auto filename = p.path().filename().string();
-          if (std::ranges::find(indexesInsertionOrder, filename) != indexesInsertionOrder.end()) {
+          if (indexes.contains(filename)) {
             continue; // skip if already processed
           }
           auto index = ModsIndex::rpaReaderModule().attr("read_rpa_index")(filepath);
           indexes[filename] = std::make_pair(filepath, index);
-          indexesInsertionOrder.push_back(filename);
         }
       }
     };
 
-    qDebug() << "Loaded indexes: " << indexesInsertionOrder;
-
     // returns a py::bytes or a none equivalent idr what its called
-    auto readGameFile = [&modGameDir, &indexes, &indexesInsertionOrder](std::string filepath) -> py::object {
+    auto readGameFile = [&modGameDir, &indexes](std::string filepath) -> py::object {
       auto modFilePath = modGameDir / filepath;
-      qDebug() << modFilePath.string();
       if (std::filesystem::exists(modFilePath)) {
-        qDebug() << filepath << "exists as loose file";
+        qDebug() << QString::fromStdString(filepath) << "exists as loose file";
         return read_file_to_bytes(modFilePath.string());
       } else {
-        for (auto& key : indexesInsertionOrder) {
-          auto value = indexes[key];
+        for (auto& [key, value] : indexes) {
           auto index = value.second;
           if (index.contains(filepath.c_str())) {
-            qDebug() << filepath << "exists as archived file in" << value.first;
+            qDebug() << QString::fromStdString(filepath) << "exists as archived file in" << QString::fromStdString(value.first);
             auto fileData = ModsIndex::rpaReaderModule().attr("extract_single_file")(value.first, filepath, index);
             return fileData;
           }

@@ -13,3 +13,8 @@
 #define EVAL4(...)    EVAL2(EVAL2(__VA_ARGS__))
 #define EVAL2(...)    EVAL1(EVAL1(__VA_ARGS__))
 #define EVAL1(...)    __VA_ARGS__
+
+#if defined(NDEBUG) || defined(_NDEBUG)
+#else
+#define MVC_DEBUG
+#endif

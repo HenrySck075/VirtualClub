@@ -3,6 +3,7 @@
 #include <QScrollArea>
 #include <QEvent>
 #include <QCoreApplication>
+#include <QApplication>
 #include <QTime>
 #include <QGraphicsOpacityEffect>
 #include <QParallelAnimationGroup>
@@ -10,8 +11,6 @@
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
-#include <qapplication.h>
-#include <qtypes.h>
 #include "MainWindow.hpp"
 #include "screens/Home.hpp"
 #include "screens/Mods.hpp"

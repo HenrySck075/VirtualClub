@@ -18,7 +18,7 @@
 #include <QPainterPath>
 #include <cpptrace/from_current_macros.hpp>
 #include <QFileDialog>
-#ifndef _NDEBUG
+#ifdef MVC_DEBUG
 #include <cpptrace/from_current.hpp>
 #endif
 
@@ -234,7 +234,7 @@ void ModsScreen::onAddModButtonClicked() {
     auto m = ModsIndex::installMod(directory.toStdString());
     addModItem(m); 
   } CPPTRACE_CATCH (std::exception& e) {
-#ifndef _NDEBUG
+#ifdef MVC_DEBUG
     qDebug() << "Exception:" << e.what();
     cpptrace::from_current_exception().to_string();
 #endif

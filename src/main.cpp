@@ -29,7 +29,8 @@ int main(int argc, char *argv[]) {
     QSettings settings;
     if (!settings.contains("baseGameInstallPath")) {
       auto directory = QFileDialog::getExistingDirectory(nullptr, "Select a base game directory.");
-      settings.setValue("baseGameInstallPath", directory);
+      if (directory != "")
+        settings.setValue("baseGameInstallPath", directory);
     }
 
     MainWindow window;
