@@ -1,7 +1,9 @@
 #include "IconButton.hpp"
 #include <QMouseEvent>
 #include <QPainter>
-#include <qpainterpath.h>
+#include <QPainterPath>
+#include <QPushButton>
+#include <QToolTip>
 
 void IconButton::setHoverAlpha(int alpha) {
   if (m_hoverAnimationValue != alpha) {
@@ -114,4 +116,21 @@ void IconButton::paintEvent(QPaintEvent *event) {
     painter.drawRoundedRect(rect().adjusted(1, 1, -1, -1), radius, radius); // Adjust for pen width
 }
 
+bool IconButton::event(QEvent *event) {
+  if (event->type() == QEvent::ToolTip) {
+    auto *helpEvent = static_cast<QHelpEvent *>(event);
 
+    if (!toolTip().isEmpty()) {
+      // Initialize style option as if this were a QPushButton
+      QStyleOptionButton opt;
+      opt.initFrom(this);
+
+      // Show the tooltip at the mouse position
+      QToolTip::showText(helpEvent->globalPos(), toolTip(), this);
+
+      // Return true to indicate the tooltip event was handled
+      return true;
+    }
+  }
+  return QWidget::event(event);
+}

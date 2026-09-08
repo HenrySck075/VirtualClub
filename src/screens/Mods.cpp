@@ -178,6 +178,12 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   connect(addModIcon, &IconButton::clicked, this, &ModsScreen::onAddModButtonClicked);
   headerLayout->addWidget(addModIcon);
 
+  headerLayout->addStretch();
+
+  m_modsCountLabel = new QLabel();
+  m_modsCountLabel->setFont(QFont("Quicksand", 10, QFont::Bold));
+  updateModsCountLabel();
+  headerLayout->addWidget(m_modsCountLabel);
   
   m_listContent = new QWidget();
   modsListPageLayout->addWidget(m_listContent);
@@ -200,6 +206,9 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   });
 
 }
+void ModsScreen::updateModsCountLabel() {
+  m_modsCountLabel->setText(QString("Mods: %1").arg(ModsIndex::getMods().size()));
+};
 
 void ModsScreen::addModItem(ModsIndex::Mod& mod) {
   auto iconPath = mod.getIconPath();

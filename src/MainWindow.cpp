@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <iostream>
 #include "MainWindow.hpp"
+#include "consts.hpp"
 #include "screens/Home.hpp"
 #include "screens/Mods.hpp"
 #include "screens/Settings.hpp"
@@ -128,6 +129,12 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
   m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
   initUI();
+
+  setStyleSheet(QString(R"(
+QLabel (
+  color: rgb(%1, %2, %3)
+)
+)"));
 }
 
 void MainWindow::initUI() {

@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QPropertyAnimation>
+#include "../consts.hpp"
 
 class IconButton : public QWidget {
   Q_OBJECT 
@@ -16,10 +17,10 @@ private:
 
   QIcon m_icon;
 
-  const QColor sm_borderColor = QColor(137,35,137); 
-  const QColor sm_iconColor = QColor(233,25,133);
-  const QColor sm_hoverColorL = QColor(197,166,196);
-  const QColor sm_hoverColorR = QColor(227,162,195);
+  const QColor sm_borderColor = c_primaryColor; 
+  const QColor sm_iconColor = c_secondaryColor;
+  const QColor sm_hoverColorL = c_primaryLightColor;
+  const QColor sm_hoverColorR = c_secondaryLightColor;
 
   bool m_selected = false;
   bool m_selectable = false;
@@ -36,6 +37,8 @@ public:
   void enterEvent(QEnterEvent *event) override;
   void leaveEvent(QEvent *event) override;
   void paintEvent(QPaintEvent *event) override; 
+protected:
+  bool event(QEvent *event) override;
 };
 
 
