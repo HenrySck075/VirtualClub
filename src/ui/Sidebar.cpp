@@ -13,7 +13,7 @@ void GradientBackground2::paintEvent(QPaintEvent* event) {
     
     QPainter painter(this);
     // the "polka dots", as it was called apparently
-    painter.setBrush(QColor("#e6d7cf"));
+    painter.setBrush(QColor("#ecd7d6"));
     painter.setPen(Qt::NoPen);
 
     int dotSize = 7; // Size of the dots
@@ -21,7 +21,7 @@ void GradientBackground2::paintEvent(QPaintEvent* event) {
     qreal m = static_cast<qreal>(height())/5*2;
     for (int y = 0; y < m; y += dotSize * 2) {
         painter.setOpacity(1-std::max(static_cast<qreal>(y)/(m),0.0)); // just in case there wasnt a implicit bounds in setOpacity or whatever
-        for (int x = dotSize/2 + ((line % 2 == 0) ? dotSize : 0); x < width(); x += dotSize * 2) {
+        for (int x = dotSize/2 + ((line % 2 == 0) ? dotSize : 0); x < width(); x += dotSize * 2.5) {
             painter.drawEllipse(x, y, dotSize, dotSize);
         }
         line++;
@@ -31,13 +31,14 @@ void GradientBackground2::paintEvent(QPaintEvent* event) {
 void SidebarItem::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         setSelected(true);
+        m_optionClickSfx.play();
         emit clicked(); // Emit your signal when left-clicked
     }
     
     // Pass the event to the base class if needed
     QWidget::mousePressEvent(event);
-}
-SidebarItem::SidebarItem(QIcon icon, std::string label, QWidget *parent) : QWidget(parent) {
+} 
+SidebarItem::SidebarItem(QIcon icon, std::string label, QWidget *parent) : QWidget(parent), m_optionClickSfx(this) {
   setFixedHeight(50); // Set a fixed height for each sidebar item
   setFixedWidth(Sidebar::WIDTH);
   // Setup animation (duration: 200 ms)
@@ -61,6 +62,16 @@ SidebarItem::SidebarItem(QIcon icon, std::string label, QWidget *parent) : QWidg
 
   m_icon = icon;
   m_label = std::move(label);
+
+  m_optionClickSfx.setSource(QUrl("qrc:/audio/sidebar_click.wav"));
+  m_optionClickSfx.setMuted(false);
+
+  connect(&m_optionClickSfx, &QSoundEffect::statusChanged, [this]() {
+      qDebug() << "Sound Status:" << m_optionClickSfx.status();
+  });
+  connect(&m_optionClickSfx, &QSoundEffect::loadedChanged, [this]() {
+      qDebug() << "Is loaded:" << m_optionClickSfx.isLoaded();
+  });
 }
 void SidebarItem::enterEvent(QEnterEvent *event) {
     Q_UNUSED(event);
@@ -180,7 +191,6 @@ Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent) {
   m_bottomSectionLayout->setContentsMargins(0, 0, 0, 0); // Spacing inside the layout itself
   m_bottomSectionLayout->setSpacing(0);
   m_bottomSectionLayout->setSizeConstraint(QLayout::SetFixedSize);
-
 }
 
 Sidebar::~Sidebar() {

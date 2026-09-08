@@ -15,6 +15,7 @@
 #define EVAL1(...)    __VA_ARGS__
 
 #if defined(NDEBUG) || defined(_NDEBUG)
+#undef MVC_DEBUG
 #else
 #define MVC_DEBUG
 #endif

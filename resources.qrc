@@ -7,4 +7,17 @@
     <file alias="plus.svg">resources/icons/plus.svg</file>
     <file alias="arrow_left.svg">resources/icons/arrow_left.svg</file>
   </qresource>
+  <qresource>
+    <file alias="Quicksand-Bold.ttf">resources/Quicksand-Bold.ttf</file>
+    <file alias="Quicksand-Light.ttf">resources/Quicksand-Light.ttf</file>
+    <file alias="Quicksand-Medium.ttf">resources/Quicksand-Medium.ttf</file>
+    <file alias="Quicksand-Regular.ttf">resources/Quicksand-Regular.ttf</file>
+    <file alias="Quicksand-SemiBold.ttf">resources/Quicksand-SemiBold.ttf</file>
+  </qresource>
+  <qresource prefix="/audio">
+    <file alias="sidebar_click.wav">resources/audio/i4.wav</file>
+    <file alias="dialog_open.wav">resources/audio/i3.wav</file>
+    <file alias="dialog_danger_open.wav">resources/audio/i1.wav</file>
+    <file alias="navigation.wav">resources/audio/n1.wav</file>
+  </qresource>
 </RCC>

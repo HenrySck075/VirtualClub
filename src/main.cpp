@@ -3,13 +3,13 @@
 #include "MainWindow.hpp"
 #include "utils/ModIndex.hpp"
 #include "utils/RenpyArchive.hpp"
-#include <filesystem>
 #include <QResource>
+#include <QMediaDevices>
+#include <QAudioDevice>
 #include <pybind11/embed.h>
 #include <qfiledialog.h>
 #include <qsettings.h>
 
-namespace fs = std::filesystem;
 namespace py = pybind11;
 
 int main(int argc, char *argv[]) {
@@ -19,12 +19,20 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setOrganizationName("henrysck075");
     Q_INIT_RESOURCE(resources);
 
-    QFontDatabase::addApplicationFont(QString::fromStdString((fs::path(QCoreApplication::applicationDirPath().toStdString()) 
-                            / "assets" / "Quicksand.ttf").string()));
+    QFontDatabase::addApplicationFont(":/Quicksand-Bold.ttf");
+    QFontDatabase::addApplicationFont(":/Quicksand-Light.ttf");
+    QFontDatabase::addApplicationFont(":/Quicksand-Medium.ttf");
+    QFontDatabase::addApplicationFont(":/Quicksand-Regular.ttf");
+    QFontDatabase::addApplicationFont(":/Quicksand-SemiBold.ttf");
 
     ModsIndex::loadArchiveReaderModules();
     ModsIndex::loadModsIndex();
     //LucideIcons::initializeIcons();
+    //
+    QAudioDevice defaultDevice = QMediaDevices::defaultAudioOutput();
+    qDebug() << "Default Output Device:" << defaultDevice.description();
+
+    initGlobalSfx();
 
     QSettings settings;
     if (!settings.contains("baseGameInstallPath")) {

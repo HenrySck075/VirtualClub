@@ -2,11 +2,13 @@
 #include <QFont>
 #include <QApplication>
 
+#include "../utils/EventFilters.hpp"
+
 // ==========================================
 // Button Implementation
 // ==========================================
 Button::Button(const QString& text, QWidget* parent)
-    : QPushButton(text, parent) 
+    : QPushButton(text, parent)
 {
     // Configure default font
     QFont font("Quicksand", 11, QFont::Bold);
@@ -53,6 +55,9 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
         setGeometry(parent->rect());
     }
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
+
+    ChildResizerFilter* filter = new ChildResizerFilter(this, parent);
+    parent->installEventFilter(filter);
 }
 
 void OverlayWidget::paintEvent(QPaintEvent*) {
@@ -68,8 +73,9 @@ Dialog::Dialog(const QString& title,
                            const QString& message, 
                            const QString& detailText, 
                            DialogType type, 
+                           bool danger,
                            QWidget* parent)
-    : QDialog(parent, Qt::FramelessWindowHint | Qt::Widget) 
+    : QDialog(parent, Qt::FramelessWindowHint | Qt::Widget) , m_openSfx(this)
 {
     setAttribute(Qt::WA_TranslucentBackground, false);
     setFixedSize(450, 260);
@@ -138,6 +144,8 @@ Dialog::Dialog(const QString& title,
 
     contentLayout->addLayout(buttonLayout);
     mainLayout->addLayout(contentLayout);
+
+    m_openSfx.setSource(QUrl(danger ? "qrc:/audio/dialog_danger_open.wav" : "qrc:/audio/dialog_open.wav"));
 }
 
 void Dialog::paintEvent(QPaintEvent* /*event*/) {
@@ -166,21 +174,26 @@ void Dialog::paintEvent(QPaintEvent* /*event*/) {
     painter.drawRect(0, rectY, width(), rectHeight);
 }
 
+void Dialog::showEvent(QShowEvent* event) {
+  m_openSfx.play();
+  QDialog::showEvent(event);
+}
+
 // Static function handling tinted background logic automatically
 bool Dialog::showDialog(QWidget* parent, 
                               const QString& title, 
                               const QString& message, 
                               const QString& detailText, 
-                              DialogType type) 
+                              DialogType type,
+                              bool danger) 
 {
     OverlayWidget* overlay = nullptr;
     if (parent) {
         overlay = new OverlayWidget(parent);
-        overlay->resize(parent->size());
         overlay->show();
     }
 
-    Dialog dlg(title, message, detailText, type, parent);
+    Dialog dlg(title, message, detailText, type, danger, parent);
     if (parent) {
         // Center dialog over parent window
         dlg.move(parent->geometry().center() - dlg.rect().center());

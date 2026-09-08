@@ -9,6 +9,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QLinearGradient>
+#include <QSoundEffect>
 
 //  Button Class
 class Button : public QPushButton {
@@ -34,6 +35,7 @@ public:
                          const QString& message, 
                          const QString& detailText = QString(),
                          DialogType type = YesNo, 
+                         bool danger = false, // this currently only changes the audio sfx
                          QWidget* parent = nullptr);
 
     // Call this static helper to launch the dialog over a target parent window
@@ -41,16 +43,20 @@ public:
                            const QString& title, 
                            const QString& message, 
                            const QString& detailText = QString(), 
-                           DialogType type = YesNo);
+                           DialogType type = YesNo,
+                           bool danger = false);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void showEvent(QShowEvent* event) override;
 
 private:
     static constexpr int BOTTOM_BAR_HEIGHT = 20;
     static constexpr int TITLE_BAR_HEIGHT = 30;
     
     QColor m_purpleColor{137, 35, 137};
+
+    QSoundEffect m_openSfx;
 };
 
 // Overlay widget for tinting the background when the dialog is open

@@ -31,11 +31,11 @@ public:
 
 namespace LucideIcons {
   LucideIcons_IMPL(
+    arrow_left,
     house,
     library,
-    settings,
     plus,
-    arrow_left,
+    settings,
   )
 };
 

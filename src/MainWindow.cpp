@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <iostream>
 #include "MainWindow.hpp"
+#include "consts.hpp"
 #include "screens/Home.hpp"
 #include "screens/Mods.hpp"
 #include "screens/Settings.hpp"
@@ -19,6 +20,7 @@
 #include "ui/CoverImageWidget.hpp"
 #include "utils/LucideIcons.hpp"
 #include "utils/anime.hpp"
+#include "utils/EventFilters.hpp"
 
 // Helper to parse times like "18", "18.30", "6.15", "6" into QTime
 QTime parseFlexibleTime(const std::string& str) {
@@ -99,27 +101,14 @@ QImage getCurrentImage(const std::string& pack) {
     return QImage(); // Return null/empty QImage if no matching interval matches
 }
 
-class ChildResizerFilter : public QObject {
-    Q_OBJECT
-public:
-    ChildResizerFilter(QWidget *child, QObject *parent = nullptr)
-        : QObject(parent), m_child(child) {}
 
-protected:
-    bool eventFilter(QObject *watched, QEvent *event) override {
-        if (event->type() == QEvent::Resize) {
-            auto *parentWidget = qobject_cast<QWidget*>(watched);
-            if (parentWidget && m_child) {
-                // Keep child sized to match parent
-                m_child->resize(parentWidget->size());
-            }
-        }
-        return QObject::eventFilter(watched, event);
-    }
-
-private:
-    QWidget *m_child;
-};
+QString turkye(const QColor& color) {
+  return QString("rgb(%1,%2,%3)")
+    .arg(color.red())
+    .arg(color.green())
+    .arg(color.blue())
+  ;
+}
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
   setWindowTitle("VirtualClub Ren'Py Mod Manager");
@@ -128,6 +117,22 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
   m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
   initUI();
+
+  setStyleSheet(QString(R"(
+QLabel {
+  font-family: Quicksand, Segoe UI;
+}
+QLabel[accent] {
+  color: %1;
+}
+
+QLineEdit {
+  border: 0px;
+  border-bottom: 2px solid %2;
+  font-family: Quicksand, Segoe UI;
+  padding: 4px;
+}
+)").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
 }
 
 void MainWindow::initUI() {
@@ -218,4 +223,3 @@ MainWindow *getMainWindow() {
   }
   return nullptr;
 }
-#include "MainWindow.moc"

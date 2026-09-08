@@ -1,7 +1,9 @@
 #include "IconButton.hpp"
 #include <QMouseEvent>
 #include <QPainter>
-#include <qpainterpath.h>
+#include <QPainterPath>
+#include <QToolTip>
+#include <QStyleOptionButton>
 
 void IconButton::setHoverAlpha(int alpha) {
   if (m_hoverAnimationValue != alpha) {
@@ -31,7 +33,8 @@ IconButton::IconButton(QIcon icon, QWidget *parent) : QWidget(parent) {
   setFixedSize({40,30}); // Set a fixed height for each sidebar item
   // Setup animation (duration: 200 ms)
   m_fadeAnimation = new QPropertyAnimation(this, "hoverAlpha", this);
-  m_fadeAnimation->setDuration(200);
+  //m_fadeAnimation->setDuration(200);
+  m_fadeAnimation->setDuration(0);
   m_fadeAnimation->setEasingCurve(QEasingCurve::InOutQuad);
 
   m_icon = icon;
@@ -62,24 +65,9 @@ void IconButton::paintEvent(QPaintEvent *event) {
 
     // Only paint the background when visible
     if (m_selected || m_hoverAnimationValue > 0) {
-        // Horizontal gradient from left to right across the widget's rect
-        QLinearGradient gradient(rect().topLeft(), rect().topRight());
-
-        // Target color (e.g., White fading out) modulated by m_hoverAlpha
-
-        QColor startColor = sm_hoverColorL; // also icon color 
-        QColor stopColor = sm_hoverColorR; // also text color
-        if (!m_selected) {
-          startColor.setAlpha(m_hoverAnimationValue);
-          stopColor.setAlpha(m_hoverAnimationValue);
-        }
-
-        gradient.setColorAt(0.0, startColor);
-        gradient.setColorAt(1.0, stopColor);
-        
         QPainterPath path;
         path.addRoundedRect(rect(), radius+1, radius+1);
-        painter.fillPath(path, gradient);
+        painter.fillPath(path, QBrush(sm_iconHoverColor));
     }
 
     // icons and the text. color is the interpolation between its default color and white with the value of the hover animation
@@ -107,11 +95,29 @@ void IconButton::paintEvent(QPaintEvent *event) {
     }
 
     // Draw a rounded border
-    QPen pen(sm_borderColor);
+    QPen pen(m_hoverAnimationValue > 0 ? sm_iconHoverColor : sm_borderColor);
     pen.setWidth(2);
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
     painter.drawRoundedRect(rect().adjusted(1, 1, -1, -1), radius, radius); // Adjust for pen width
 }
 
+bool IconButton::event(QEvent *event) {
+  if (event->type() == QEvent::ToolTip) {
+    qDebug() << "m";
+    auto *helpEvent = static_cast<QHelpEvent *>(event);
 
+    if (!toolTip().isEmpty()) {
+      // Initialize style option as if this were a QPushButton
+      QStyleOptionButton opt;
+      opt.initFrom(this);
+
+      // Show the tooltip at the mouse position
+      QToolTip::showText(helpEvent->globalPos(), toolTip(), this);
+
+      // Return true to indicate the tooltip event was handled
+      return true;
+    }
+  }
+  return QWidget::event(event);
+}

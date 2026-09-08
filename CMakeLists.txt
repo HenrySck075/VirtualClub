@@ -11,10 +11,10 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 # Find Qt6 components
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
 find_package(pybind11 REQUIRED CONFIG)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp")
+file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.hpp")
 qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     resources.qrc
@@ -44,7 +44,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
 endif()
 
 # Link Qt6 libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets pybind11::embed)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia pybind11::embed)
 
 # On finish compilation, if the build mode is debug, symlink build/assets to assets
 # if on release, copy the folder

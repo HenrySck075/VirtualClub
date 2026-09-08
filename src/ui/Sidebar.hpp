@@ -5,7 +5,9 @@
 #include <QScrollArea>
 #include <QLayout>
 #include <QPropertyAnimation>
-#include <qparallelanimationgroup.h>
+#include <QParallelAnimationGroup>
+#include <QSoundEffect>
+#include "../consts.hpp"
 
 
 class GradientBackground2 : public GradientBackground {
@@ -32,10 +34,10 @@ private:
   QIcon m_icon;
   std::string m_label;
 
-  const QColor sm_textColor = QColor(137,35,137); 
-  const QColor sm_iconColor = QColor(233,25,133);
-  const QColor sm_hoverColorL = QColor(197,166,196);
-  const QColor sm_hoverColorR = QColor(227,162,195);
+  const QColor sm_textColor = c_primaryColor; 
+  const QColor sm_iconColor = c_secondaryColor;
+  const QColor sm_hoverColorL = c_primaryLightColor;
+  const QColor sm_hoverColorR = c_secondaryLightColor;
 
   bool m_selected = false;
   bool m_hovered = false;
@@ -54,6 +56,8 @@ private:
     }
   }
   void mousePressEvent(QMouseEvent *event) override; 
+
+  QSoundEffect m_optionClickSfx;
 public:
   // should this be a qbutton then?
   // nah i dont think so

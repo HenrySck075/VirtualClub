@@ -8,6 +8,7 @@
 #include "../MainWindow.hpp"
 
 #include "../utils/utils.hpp"
+#include "../utils/macros.h"
 #include "ModInfo.hpp"
 
 #include <QWidget>
@@ -16,10 +17,10 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <cpptrace/from_current_macros.hpp>
 #include <QFileDialog>
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current.hpp>
+#include <cpptrace/from_current_macros.hpp>
 #endif
 
 class DesktopIconWidget : public QWidget
@@ -178,6 +179,12 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   connect(addModIcon, &IconButton::clicked, this, &ModsScreen::onAddModButtonClicked);
   headerLayout->addWidget(addModIcon);
 
+  headerLayout->addStretch();
+
+  m_modsCountLabel = new QLabel();
+  m_modsCountLabel->setFont(QFont("Quicksand", 10));
+  updateModsCountLabel();
+  headerLayout->addWidget(m_modsCountLabel);
   
   m_listContent = new QWidget();
   modsListPageLayout->addWidget(m_listContent);
@@ -195,11 +202,15 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   m_modInfoPage = new ModInfoScreen();
   m_contentWrapper->addWidget(m_modInfoPage);
   connect(m_modInfoPage, &ModInfoScreen::backButtonClicked, [this](){
+    c_navigationSfx->play();
     m_contentWrapper->setCurrentWidget(m_modsListPage);
     anime::slideFade(m_modsListPage, anime::SlideDirection::Right);
   });
 
 }
+void ModsScreen::updateModsCountLabel() {
+  m_modsCountLabel->setText(QString("Mods: %1").arg(ModsIndex::getMods().size()));
+};
 
 void ModsScreen::addModItem(ModsIndex::Mod& mod) {
   auto iconPath = mod.getIconPath();
@@ -207,11 +218,13 @@ void ModsScreen::addModItem(ModsIndex::Mod& mod) {
   auto icon = new DesktopIconWidget(iconPixmap, QString::fromStdString(mod.name), m_listContent);
   m_contentLayout->addWidget(icon);
   connect(icon, &DesktopIconWidget::deselectOtherIconsEvent, this, &ModsScreen::deselectOtherItems);
-  connect(icon, &DesktopIconWidget::doubleClicked, this, &ModsScreen::openModInfo);
+  connect(icon, &DesktopIconWidget::doubleClicked, this, [&mod,this](){openModInfo(mod);});
 }
 
-void ModsScreen::openModInfo() {
+void ModsScreen::openModInfo(ModsIndex::Mod& mod) {
+  c_navigationSfx->play();
   m_contentWrapper->setCurrentWidget(m_modInfoPage);
+  m_modInfoPage->setDisplayingMod(mod);
   anime::slideFade(m_modInfoPage, anime::SlideDirection::Left);
 }
 
