@@ -122,6 +122,14 @@ private:
     QWidget *m_child;
 };
 
+QString turkye(QColor& color) {
+  return QString("rgb(%1,%2,%3)")
+    .arg(color.red())
+    .arg(color.green())
+    .arg(color.blue())
+  ;
+}
+
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
   setWindowTitle("VirtualClub Ren'Py Mod Manager");
   setMinimumSize(QSize(600,400));
@@ -132,9 +140,9 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
   setStyleSheet(QString(R"(
 QLabel (
-  color: rgb(%1, %2, %3)
+  color: %1 
 )
-)"));
+)").arg(turkye(c_primaryColor)));
 }
 
 void MainWindow::initUI() {
