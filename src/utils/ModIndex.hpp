@@ -14,7 +14,7 @@ namespace ModsIndex {
     std::string modPath;
 
     bool enableDeveloper;
-
+    bool forceRecompile;
 
     std::string getIconPath() const;
   };

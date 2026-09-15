@@ -7,6 +7,7 @@
 #include <QTime>
 #include <QGraphicsOpacityEffect>
 #include <QParallelAnimationGroup>
+#include <QMenu>
 
 #include <algorithm>
 #include <filesystem>
@@ -16,11 +17,11 @@
 #include "screens/Home.hpp"
 #include "screens/Mods.hpp"
 #include "screens/Settings.hpp"
+#include "ui/Dialog.hpp"
 #include "ui/Sidebar.hpp"
 #include "ui/CoverImageWidget.hpp"
 #include "utils/LucideIcons.hpp"
 #include "utils/anime.hpp"
-#include "utils/EventFilters.hpp"
 
 // Helper to parse times like "18", "18.30", "6.15", "6" into QTime
 QTime parseFlexibleTime(const std::string& str) {
@@ -117,6 +118,7 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
   m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
   initUI();
+  setupTrayIcon();
 
   setStyleSheet(QString(R"(
 QLabel {
@@ -168,6 +170,9 @@ void MainWindow::initUI() {
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, new ModsScreen());
 
   addNavigationItem(LucideIcons::settings, "Settings", SidebarPosition::Bottom, new SettingsScreen());
+  addActionItem(LucideIcons::users, "Switch user", SidebarPosition::Bottom, [this](){
+    Dialog::showContentDialog(this, "Switch user", new QWidget(), {300, 500});
+  });
 
   connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
 
@@ -181,6 +186,7 @@ void MainWindow::onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newIte
   bool ttbDirection = oidx > nidx; // top-to-bottom if true (oldItem pos > newItem pos), else bottom-to-top
 
   auto thisWidget = m_navigationMap[newItem];
+  if (!thisWidget) return;
   m_stackedWidget->setCurrentWidget(thisWidget);
 
   anime::slideFade(thisWidget, ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up); 
@@ -192,6 +198,15 @@ SidebarItem* MainWindow::addNavigationItem(QIcon icon, std::string name, Sidebar
   m_navigationMap[item] = widget;
   m_stackedWidget->addWidget(widget);
   widget->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
+
+  return item;
+};
+
+SidebarItem* MainWindow::addActionItem(QIcon icon, std::string name, SidebarPosition position, std::function<void()> onClicked) {
+  auto item = m_sidebar->addSidebarItem(icon, name, position, false, false);
+
+  m_actionMap.push_back(item);
+  connect(item, &SidebarItem::clicked, this, onClicked);
 
   return item;
 };
@@ -215,6 +230,39 @@ void MainWindow::paintEvent(QPaintEvent *event) {
   // width() automatically reflects the current window width
   painter.drawRect(0, rectY, width(), rectHeight);
 };
+
+void MainWindow::setupTrayIcon() {
+    m_trayIcon = new QSystemTrayIcon(QIcon(":/app-icon.png"), this);
+    auto *trayMenu = new QMenu(this);
+
+    // Option to bring window back to focus
+    QAction *showAction = trayMenu->addAction("Show Window");
+    QObject::connect(showAction, &QAction::triggered, this, [this]() {
+        this->show();
+        this->activateWindow();
+    });
+
+    // Option to truly exit the application
+    QAction *quitAction = trayMenu->addAction("Quit");
+    QObject::connect(quitAction, &QAction::triggered, qApp, &QCoreApplication::quit);
+
+    m_trayIcon->setContextMenu(trayMenu);
+    m_trayIcon->show();
+}
+void MainWindow::closeEvent(QCloseEvent *event) {
+    // Check if the user is attempting to close via the window manager (or custom state)
+    if (!QApplication::quitOnLastWindowClosed()) {
+      event->ignore(); // Cancel the close request
+      this->hide();    // Send window to background
+    } else {
+      m_trayIcon->hide();
+      event->accept(); // Allow real shutdown if requested elsewhere
+    }
+}
+
+
+
+
 MainWindow *getMainWindow() {
   for (QWidget *widget : QApplication::topLevelWidgets()) {
     if (auto *mainWin = qobject_cast<MainWindow *>(widget)) {

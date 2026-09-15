@@ -6,9 +6,18 @@
 #include <QResource>
 #include <QMediaDevices>
 #include <QAudioDevice>
+#include <QFileDialog>
+
+#include "utils/ProfileSettings.hpp"
+#include "utils/utils.hpp"
+#include "utils/macros.h"
+
 #include <pybind11/embed.h>
-#include <qfiledialog.h>
-#include <qsettings.h>
+
+#ifdef MVC_DEBUG
+#include <cpptrace/from_current_macros.hpp>
+#include <cpptrace/from_current.hpp>
+#endif
 
 namespace py = pybind11;
 
@@ -34,17 +43,27 @@ int main(int argc, char *argv[]) {
 
     initGlobalSfx();
 
-    QSettings settings;
-    if (!settings.contains("baseGameInstallPath")) {
-      auto directory = QFileDialog::getExistingDirectory(nullptr, "Select a base game directory.");
-      if (directory != "")
-        settings.setValue("baseGameInstallPath", directory);
+    auto settings = ProfileSettings::get(); 
+    if (!settings->contains("baseGameInstallPath")) {
+      askForBasePathChange();
     }
 
+    settings->save();
+
     MainWindow window;
+    window.setWindowIcon(QIcon(":/app-icon.png"));
     window.show();
 
+#ifdef MVC_DEBUG
+    CPPTRACE_TRY {
+#endif
     return app.exec();
+#ifdef MVC_DEBUG
+    } CPPTRACE_CATCH (std::exception& e) {
+      qDebug() << "Exception:" << e.what();
+      cpptrace::from_current_exception().print();
+    }
+#endif
 }
 
 

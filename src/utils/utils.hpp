@@ -9,3 +9,5 @@ inline void copyIcon(const QIcon* source, QIcon* dest) {
   QIcon temp(*source);
   dest->swap(temp);
 }
+
+bool askForBasePathChange();

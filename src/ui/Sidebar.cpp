@@ -30,15 +30,14 @@ void GradientBackground2::paintEvent(QPaintEvent* event) {
 
 void SidebarItem::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
-        setSelected(true);
-        m_optionClickSfx.play();
+        if (m_switchable) setSelected(true);
         emit clicked(); // Emit your signal when left-clicked
     }
     
     // Pass the event to the base class if needed
     QWidget::mousePressEvent(event);
 } 
-SidebarItem::SidebarItem(QIcon icon, std::string label, QWidget *parent) : QWidget(parent), m_optionClickSfx(this) {
+SidebarItem::SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent) : QWidget(parent), m_switchable(switchable) {
   setFixedHeight(50); // Set a fixed height for each sidebar item
   setFixedWidth(Sidebar::WIDTH);
   // Setup animation (duration: 200 ms)
@@ -62,16 +61,6 @@ SidebarItem::SidebarItem(QIcon icon, std::string label, QWidget *parent) : QWidg
 
   m_icon = icon;
   m_label = std::move(label);
-
-  m_optionClickSfx.setSource(QUrl("qrc:/audio/sidebar_click.wav"));
-  m_optionClickSfx.setMuted(false);
-
-  connect(&m_optionClickSfx, &QSoundEffect::statusChanged, [this]() {
-      qDebug() << "Sound Status:" << m_optionClickSfx.status();
-  });
-  connect(&m_optionClickSfx, &QSoundEffect::loadedChanged, [this]() {
-      qDebug() << "Is loaded:" << m_optionClickSfx.isLoaded();
-  });
 }
 void SidebarItem::enterEvent(QEnterEvent *event) {
     Q_UNUSED(event);
@@ -142,7 +131,7 @@ void SidebarItem::paintEvent(QPaintEvent *event) {
 
     // Draw the label
     painter.setPen(textColor);
-    painter.setFont(QFont("Quicksand", 12, QFont::Weight::Bold));
+    painter.setFont(QFont("Quicksand", 12, QFont::Weight::DemiBold));
     painter.drawText(xOffsetA+50, 0, width() - 50, height(), Qt::AlignVCenter | Qt::AlignLeft, QString::fromStdString(m_label));
 }
 
@@ -152,7 +141,7 @@ QDebug operator<<(QDebug debug, const SidebarItem *widget) {
 }
 
 
-Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent) {
+Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent), m_optionClickSfx(this) {
   // Set a fixed width for the sidebar
   setFixedWidth(Sidebar::WIDTH);
 
@@ -191,6 +180,11 @@ Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent) {
   m_bottomSectionLayout->setContentsMargins(0, 0, 0, 0); // Spacing inside the layout itself
   m_bottomSectionLayout->setSpacing(0);
   m_bottomSectionLayout->setSizeConstraint(QLayout::SetFixedSize);
+
+  m_optionClickSfx.setSource(QUrl("qrc:/audio/sidebar_click.wav"));
+  m_optionClickSfx.setMuted(false);
+
+
 }
 
 Sidebar::~Sidebar() {
@@ -205,7 +199,7 @@ Sidebar::~Sidebar() {
   layout()->deleteLater();
 }
 
-SidebarItem* Sidebar::addSidebarItem(QIcon icon, std::string name, SidebarPosition position, bool selected) {
+SidebarItem* Sidebar::addSidebarItem(QIcon icon, std::string name, SidebarPosition position, bool selected, bool doSwitch) {
   QLayout* targetLayout = nullptr;
 
   switch (position) {
@@ -226,7 +220,7 @@ SidebarItem* Sidebar::addSidebarItem(QIcon icon, std::string name, SidebarPositi
   auto layoutedWidget = targetLayout->parentWidget();
 
   if (targetLayout) {
-    auto* item = new SidebarItem(icon, name, layoutedWidget);
+    auto* item = new SidebarItem(icon, name, doSwitch, layoutedWidget);
     targetLayout->addWidget(item);
     connect(item, &SidebarItem::selectedChanged, this, std::bind(&Sidebar::onSidebarItemClicked, this, item));
     item->setSelected(selected);
@@ -238,25 +232,29 @@ SidebarItem* Sidebar::addSidebarItem(QIcon icon, std::string name, SidebarPositi
 
 
 void Sidebar::onSidebarItemClicked(SidebarItem* item) {
-  if (!item->selected()) return;
-  auto _selectedSidebarPredicate = [item](QWidget* widget) {
-    auto* i = dynamic_cast<SidebarItem*>(widget);
-    if (!i) return false;
+  if (item->switchable()) {
+    if (!item->selected()) return;
+    auto _selectedSidebarPredicate = [item](QWidget* widget) {
+      auto* i = dynamic_cast<SidebarItem*>(widget);
+      if (!i) return false;
 
-    // comparing pointers????
-    return i != item && i->selected();
-  };
-  SidebarItem* maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_topSectionLayout, _selectedSidebarPredicate));
+      // comparing pointers????
+      return i != item && i->selected();
+    };
+    SidebarItem* maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_topSectionLayout, _selectedSidebarPredicate));
 
-  //if (!maybeSelectedItem) maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_scrollSectionLayout, _selectedSidebarPredicate));
-  if (!maybeSelectedItem) maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_bottomSectionLayout, _selectedSidebarPredicate));
-  
-  if (!maybeSelectedItem) {
-    qDebug() << "Cannot find another selected sidebar item.";
-  } else {
-    maybeSelectedItem->setSelected(false);
+    //if (!maybeSelectedItem) maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_scrollSectionLayout, _selectedSidebarPredicate));
+    if (!maybeSelectedItem) maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_bottomSectionLayout, _selectedSidebarPredicate));
+    
+    if (!maybeSelectedItem) {
+      qDebug() << "Cannot find another selected sidebar item.";
+    } else {
+      maybeSelectedItem->setSelected(false);
+    }
+    selectedItemChanged(maybeSelectedItem, item);
   }
-  selectedItemChanged(maybeSelectedItem, item);
+
+  m_optionClickSfx.play();
 }
 
 int Sidebar::itemPositionOf(SidebarItem* item) {

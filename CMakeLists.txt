@@ -19,10 +19,11 @@ qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     resources.qrc
 )
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+include(FetchContent)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    include(FetchContent)
     FetchContent_Declare(
       cpptrace
       GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
@@ -43,8 +44,49 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
     target_link_libraries(${PROJECT_NAME} PRIVATE cpptrace::cpptrace)
 endif()
 
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG yaml-cpp-0.9.0 # Can be a tag (yaml-cpp-x.x.x), a commit hash, or a branch name (master)
+)
+FetchContent_MakeAvailable(yaml-cpp)
+
+target_link_libraries(${PROJECT_NAME} PUBLIC yaml-cpp::yaml-cpp) # The library or executable that require yaml-cpp library
 # Link Qt6 libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia pybind11::embed)
+
+# For the VFS
+
+if(WIN32)
+    # WinFsp configuration
+    if(DEFINED ENV{WINFSP_DIR})
+        set(WINFSP_DIR "$ENV{WINFSP_DIR}")
+    else()
+        set(WINFSP_DIR "C:/Program Files (x86)/WinFsp")
+    endif()
+
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(WINFSP_LIB "${WINFSP_DIR}/lib/winfsp-x64.lib")
+    else()
+        set(WINFSP_LIB "${WINFSP_DIR}/lib/winfsp-x86.lib")
+    endif()
+
+    set(FUSE_LIBRARIES ${WINFSP_LIB})
+    set(FUSE_INCLUDE_DIRS "${WINFSP_DIR}/inc")
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(FUSE3 REQUIRED fuse3)
+    set(FUSE_LIBRARIES ${FUSE3_LIBRARIES})
+    set(FUSE_INCLUDE_DIRS ${FUSE3_INCLUDE_DIRS})
+endif()
+
+
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE ${FUSE_LIBRARIES} nlohmann_json::nlohmann_json)
+target_include_directories(${PROJECT_NAME} PRIVATE ${FUSE_INCLUDE_DIRS})
+
 
 # On finish compilation, if the build mode is debug, symlink build/assets to assets
 # if on release, copy the folder

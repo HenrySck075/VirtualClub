@@ -57,8 +57,9 @@ private:
   }
   void mousePressEvent(QMouseEvent *event) override; 
 
-  QSoundEffect m_optionClickSfx;
+  bool m_switchable = true; // for Sidebar
 public:
+  bool switchable() {return m_switchable;}
   // should this be a qbutton then?
   // nah i dont think so
   bool selected() const {return m_selected;}
@@ -70,7 +71,7 @@ public:
     }
   }
   std::string label() const {return m_label;}
-  explicit SidebarItem(QIcon icon, std::string label, QWidget *parent = nullptr);
+  explicit SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent = nullptr);
   void enterEvent(QEnterEvent *event) override;
   void leaveEvent(QEvent *event) override;
   void paintEvent(QPaintEvent *event) override; 
@@ -98,10 +99,12 @@ public:
     explicit Sidebar(QWidget *parent = nullptr);
     ~Sidebar();
 
-    SidebarItem* addSidebarItem(QIcon icon, std::string name, SidebarPosition position, bool selected = false);
+    SidebarItem* addSidebarItem(QIcon icon, std::string name, SidebarPosition position, bool selected = false, bool doSwitch = true);
     int itemPositionOf(SidebarItem* item);
 private:
     void onSidebarItemClicked(SidebarItem* item);  
+    
+  QSoundEffect m_optionClickSfx;
 }; 
 
 QDebug operator<<(QDebug debug, const SidebarItem *widget);

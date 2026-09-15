@@ -2,6 +2,7 @@
 #define LucideIcons_H
 
 #include <QIcon>
+#include <qpixmap.h>
 #include "macros.h"
 // workaround for the uhh
 class LazyIcon {
@@ -17,6 +18,12 @@ public:
         }
         return *m_icon;
     }
+
+    // some forwarding functions from QIcon because it wasn't as implicit as they thought.
+    const QPixmap pixmap(const QSize &size = QSize(), QIcon::Mode mode = QIcon::Normal, QIcon::State state = QIcon::Off) const {
+        return static_cast<const QIcon&>(*this).pixmap(size, mode, state);
+    }
+
 };
 #pragma region scary macros
 
@@ -36,6 +43,8 @@ namespace LucideIcons {
     library,
     plus,
     settings,
+    users,
+    x,
   )
 };
 

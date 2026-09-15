@@ -6,6 +6,8 @@
     <file alias="settings.svg">resources/icons/settings.svg</file>
     <file alias="plus.svg">resources/icons/plus.svg</file>
     <file alias="arrow_left.svg">resources/icons/arrow_left.svg</file>
+    <file alias="users.svg">resources/icons/users.svg</file>
+    <file alias="x.svg">resources/icons/x.svg</file>
   </qresource>
   <qresource>
     <file alias="Quicksand-Bold.ttf">resources/Quicksand-Bold.ttf</file>
@@ -13,6 +15,7 @@
     <file alias="Quicksand-Medium.ttf">resources/Quicksand-Medium.ttf</file>
     <file alias="Quicksand-Regular.ttf">resources/Quicksand-Regular.ttf</file>
     <file alias="Quicksand-SemiBold.ttf">resources/Quicksand-SemiBold.ttf</file>
+    <file alias="app-icon.png">resources/app-icon.png</file>
   </qresource>
   <qresource prefix="/audio">
     <file alias="sidebar_click.wav">resources/audio/i4.wav</file>

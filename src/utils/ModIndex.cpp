@@ -1,6 +1,5 @@
 #include "ModIndex.hpp"
-#include <QSettings>
-#include <algorithm>
+#include "utils/ProfileSettings.hpp"
 #include <filesystem>
 #include <random>
 #include <sstream>
@@ -73,41 +72,42 @@ namespace ModsIndex {
 
   void loadModsIndex() {
     modsList.clear();
-    QSettings settings;
-#define stringValue(...) value(__VA_ARGS__).toString().toStdString()
-#define boolValue(...) value(__VA_ARGS__).toBool()
+    auto settings = ProfileSettings::get();
 
-    int size = settings.beginReadArray("mods");
-    for (int i = 0; i < size; ++i) {
-      settings.setArrayIndex(i);
-      auto modId = settings.stringValue("id");
+    auto mods = settings->value("mods").toMap();
 
+    for (const auto& modVariant : mods.asKeyValueRange()) {
+      auto modMap = modVariant.second.toMap();
       Mod mod {
-        modId,
-        settings.stringValue("name"),
-        settings.stringValue("version"),
-        settings.stringValue("buildId"),
-        settings.stringValue("path"),
-        settings.boolValue("enableDeveloper")
+        modVariant.first.toStdString(),
+        modMap["name"].toString().toStdString(),
+        modMap["version"].toString().toStdString(),
+        modMap["buildId"].toString().toStdString(),
+        modMap["path"].toString().toStdString(),
+        modMap["enableDeveloper"].toBool(),
+        modMap["forceRecompile"].toBool()
       };
       modsList.push_back(mod);
     }
-    settings.endArray();
   }
+
   void saveModsIndex() {
-    QSettings settings;
-    settings.beginWriteArray("mods", modsList.size());
-    for (int i = 0; i < modsList.size(); ++i) {
-      settings.setArrayIndex(i);
-      const Mod& mod = modsList[i];
-      settings.setValue("id", QString::fromStdString(mod.id));
-      settings.setValue("name", QString::fromStdString(mod.name));
-      settings.setValue("version", QString::fromStdString(mod.version));
-      settings.setValue("buildId", QString::fromStdString(mod.buildId));
-      settings.setValue("path", QString::fromStdString(mod.modPath));
-      settings.setValue("enableDeveloper", mod.enableDeveloper);
+    auto settings = ProfileSettings::get();
+    
+    QMap<QString, QVariant> mods;
+    for (const auto& mod : modsList) {
+      QVariantMap modMap;
+      
+      modMap["name"] = QString::fromStdString(mod.name);
+      modMap["version"] = QString::fromStdString(mod.version);
+      modMap["buildId"] = QString::fromStdString(mod.buildId);
+      modMap["path"] = QString::fromStdString(mod.modPath);
+      modMap["enableDeveloper"] = mod.enableDeveloper;
+      modMap["forceRecompile"] = mod.forceRecompile;
+      mods[QString::fromStdString(mod.id)] = modMap;
     }
-    settings.endArray();
+
+    settings->setValue("mods", mods);
   }
 
   void writeIcons(std::string id, unsigned char* buffer, int len) {
@@ -159,9 +159,9 @@ namespace ModsIndex {
   };
 
   Mod installMod(std::filesystem::path path) {
-    static QSettings settings;
+    auto settings = ProfileSettings::get();
     auto modGameDir = path / "game";
-    auto baseGameDir = std::filesystem::path(settings.stringValue("baseGameInstallPath")) / "game";
+    auto baseGameDir = std::filesystem::path(settings->value("baseGameInstallPath").toString().toStdString()) / "game";
     std::map<std::string, std::pair<std::string, py::object>, std::greater<std::string>> indexes; 
 
     for (auto& dir : {modGameDir, baseGameDir}) {

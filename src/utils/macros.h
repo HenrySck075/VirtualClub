@@ -19,3 +19,24 @@
 #else
 #define MVC_DEBUG
 #endif
+
+#if defined(_WIN32) || defined(_WIN64)
+#define MVC_WIN(...) __VA_ARGS__
+#define MVC_MAC(...)
+#define MVC_LINUX(...)
+#define MVC_UNIX(...)
+#elif defined(__APPLE__)
+#define MVC_WIN(...) 
+#define MVC_MAC(...) __VA_ARGS__
+#define MVC_LINUX(...)
+#define MVC_UNIX(...) __VA_ARGS__
+#elif defined(__linux__)
+#define MVC_WIN(...) 
+#define MVC_MAC(...)
+#define MVC_LINUX(...) __VA_ARGS__
+#define MVC_UNIX(...) __VA_ARGS__
+#else
+#error "what"
+#endif
+
+

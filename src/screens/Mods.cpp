@@ -163,8 +163,9 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   m_contentWrapper->addWidget(m_modsListPage);
 
   auto* header = new QWidget(m_modsListPage);
+  header->setObjectName("header");
   header->setStyleSheet(
-    "background-color: white; "
+    "QWidget#header {background-color: white;}"
   );
   header->setFixedHeight(40);
   header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -251,7 +252,7 @@ void ModsScreen::onAddModButtonClicked() {
     qDebug() << "Exception:" << e.what();
     cpptrace::from_current_exception().to_string();
 #endif
-    Dialog::showDialog(
+    Dialog::showActionDialog(
       getMainWindow(), 
       "Install Error", 
       "An error was occured while installing the mod.",

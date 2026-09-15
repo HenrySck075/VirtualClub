@@ -1,4 +1,6 @@
 #include "utils.hpp"
+#include "utils/ProfileSettings.hpp"
+#include <QFileDialog>
 int findChildWidgetIndex(QLayout* layout, QWidget* child) {
     if (!layout) return -1;
 
@@ -50,4 +52,15 @@ QWidget* findChildWidgetBy(QLayout* layout, std::function<bool(QWidget*)> predic
     }
 
     return nullptr;
+}
+
+bool askForBasePathChange() {
+  auto settings = ProfileSettings::get();
+  auto directory = QFileDialog::getExistingDirectory(
+      nullptr, "Select a base game directory.");
+  if (directory != "") {
+    settings->setValue("baseGameInstallPath", directory);
+    return true;
+  }
+  return false;
 }
