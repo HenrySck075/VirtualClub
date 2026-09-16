@@ -3,11 +3,14 @@
 #include <fcntl.h>
 #include <functional>
 #include <QDebug>
+#include <QDir>
+#include <QFileInfo>
 #include <string>
 #include <vector>
 #include <filesystem>
 #include <thread>
 #include <memory>
+#include "macros.h"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -24,16 +27,16 @@
 extern char** environ;
 #endif
 
-#include "macros.h"
 #include <QApplication>
 
+#ifdef MVC_VFS_AVAILABLE
 static std::unordered_map<std::string, std::unique_ptr<VFSInstance>> m_mountedMods;
 
 void SessionManager::mount(ModsIndex::Mod& mod) {
   if (m_mountedMods.contains(mod.id)) return;
 
   auto& instance = m_mountedMods[mod.id] = std::make_unique<VFSInstance>(
-    QCoreApplication::applicationFilePath(),
+    QFileInfo(QCoreApplication::applicationFilePath()).absoluteDir().path(),
     mod
   );
 
@@ -42,6 +45,12 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
   QApplication::setQuitOnLastWindowClosed(false);
 };
 
+bool SessionManager::isMounted(std::string modId) {
+  return m_mountedMods.contains(modId);
+}
+QString SessionManager::mountPathOf(std::string modId) {
+  return m_mountedMods[modId]->mountPath();
+}
 
 namespace fs = std::filesystem;
 
@@ -314,3 +323,11 @@ void SessionManager::unmount(std::string modId) {
     QApplication::setQuitOnLastWindowClosed(true);
   }
 };
+
+#else
+void SessionManager::mount(ModsIndex::Mod&) {}
+void SessionManager::launch(ModsIndex::Mod&, std::function<void()>, const QString&) {} 
+void SessionManager::unmount(ModsIndex::Mod&) {}
+void SessionManager::unmount(std::string) {}
+#endif
+

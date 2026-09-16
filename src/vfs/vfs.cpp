@@ -1,23 +1,25 @@
-#include <mutex>
-#include <ostream>
-#include "vfs.hpp"
-#include "utils/ModIndex.hpp"
-#include "utils/ProfileSettings.hpp"
+#include "utils/macros.h"
+#ifdef MVC_VFS_AVAILABLE
 #define FUSE_USE_VERSION 31
 #include <fuse3/fuse.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <mutex>
+#include <ostream>
+#include "utils/ProfileSettings.hpp"
 #include <shared_mutex>
 #include <functional>
 #include <string>
-#include <vector>
 #include <unordered_set>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <cerrno>
 #include <thread>
 #include <memory>
+#endif
+#include "vfs.hpp"
+#include "utils/ModIndex.hpp"
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <cerrno>
 #include <cstring>
 
 #include <QStandardPaths>
@@ -26,26 +28,9 @@
 
 #include <nlohmann/json.hpp>
 
-// inline platform-specific macros to make the code look more readable
-#if defined(_WIN32) || defined(_WIN64)
-#define MVC_WIN(...) __VA_ARGS__
-#define MVC_MAC(...)
-#define MVC_LINUX(...)
-#define MVC_UNIX(...)
-#elif defined(__APPLE__)
-#define MVC_WIN(...) 
-#define MVC_MAC(...) __VA_ARGS__
-#define MVC_LINUX(...)
-#define MVC_UNIX(...) __VA_ARGS__
-#elif defined(__linux__)
-#define MVC_WIN(...) 
-#define MVC_MAC(...)
-#define MVC_LINUX(...) __VA_ARGS__
-#define MVC_UNIX(...) __VA_ARGS__
-#else
-#error "what"
-#endif
+#ifdef MVC_VFS_AVAILABLE
 
+// inline platform-specific macros to make the code look more readable
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -221,18 +206,20 @@ public:
     void enableYapping() { verboseLog = true; }
 
     std::string get_path_2(const std::string &path, bool write = false) const {
-        std::string stripped = strip_leading_slash(path);
+        std::string stripped = strip_leading_slash(normalize_path(path));
         fs::path toModFolder = modFolder / stripped;
         fs::path toBaseFolder = baseFolder / stripped;
 
-        if (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0) {
-            auto patchesPath = launcherRoot / "patches" / path.substr((path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? 6 : 5);
-            if (fs::exists(patchesPath) || (write && fs::exists(patchesPath.parent_path()))) {
-                return patchesPath.string();
-            }
+        if (path.rfind("/game/patches", 0) == 0) {
+          auto patchesPath = launcherRoot / "assets" / "patches" / path.substr(path.rfind("/game/patches/", 0) == 0 ? 14 : 13);
+          if (fs::exists(patchesPath) || (write && fs::exists(patchesPath.parent_path()))) {
+              return patchesPath.string();
+          }
+        } else if (path == "/game/patches") {
+          return launcherRoot / "assets" / "patches";
         }
 
-        if (path.rfind("/lib", 0) == 0 || path.rfind("\\lib", 0) == 0) {
+        if (path.rfind("/lib", 0) == 0) {
             return (!containsRenpyEngine) ? toBaseFolder.string() : toModFolder.string();
         }
 
@@ -242,7 +229,7 @@ public:
 
     std::string get_path(const std::string &path, bool write = false) const {
         auto ret = get_path_2(path, write);
-        if (verboseLog) std::cout << "Requested " << path << " | Resolved to " << ret << std::endl;
+        qDebug() << "Requested" << path << "| Resolved to" << ret;
         return ret;
     }
 
@@ -291,17 +278,20 @@ public:
             if (fs::is_directory(dir)) {
                 found = true;
                 for (const auto &entry : fs::directory_iterator(dir)) {
-                    std::string name = entry.path().filename().string();
-                    if (name != ".vclubmgr" && !is_whiteouted(path + "/" + name)) {
+                    auto name = entry.path().filename();
+                    if (name != ".vclubmgr" && !is_whiteouted(path / name)) {
                         dirents.insert(name);
                     }
                 }
             }
         };
 
-        if (path.rfind("/game", 0) == 0 || path.rfind("\\game", 0) == 0) {
-            fs::path patchesSubdir = (launcherRoot / "patches") / path.substr((path.rfind("/game/", 0) == 0 || path.rfind("\\game\\", 0) == 0) ? 6 : 5);
+        if (path.rfind("/game/patches", 0) == 0 || path.rfind("\\game\\patches", 0) == 0) {
+            fs::path patchesSubdir = (launcherRoot / "assets" / "patches") / path.substr((path.rfind("/game/patches/", 0) == 0 || path.rfind("\\game\\patches\\", 0) == 0) ? 14 : 13);
             populate(patchesSubdir);
+        }
+        else if (path == "/game" || path == "\\game") {
+          dirents.insert("patches");
         }
 
         populate(mod_path);
@@ -309,6 +299,7 @@ public:
 
         if (!found) return -ENOENT;
         for (const auto &entry : dirents) filler(entry);
+        qDebug() << dirents;
         return 0;
     }
 
@@ -784,3 +775,17 @@ void VFSInstance::unmount() {
 QString VFSInstance::mountPath() const {
     return d->mountPath();
 }
+#else
+// VFSInstance is noop
+VFSInstance::VFSInstance(const QString&, const ModsIndex::Mod&) {
+    throw std::runtime_error("VFS is not available on this platform.");
+}
+bool VFSInstance::mount() {
+    return false;
+}
+void VFSInstance::unmount() {
+}
+QString VFSInstance::mountPath() const {
+    return QString();
+}
+#endif

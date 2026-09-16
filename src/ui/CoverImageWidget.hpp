@@ -21,11 +21,15 @@ public:
         update();
     }
 
+    void setCentered(bool on) {m_centered = on;}
+    bool centered() {return m_centered;}
+
 protected:
   void paintEvent(QPaintEvent *event) override;
 
 private:
     QPixmap m_pixmap;
+    bool m_centered = true;
 };
 
 #endif

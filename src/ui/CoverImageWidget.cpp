@@ -16,7 +16,7 @@ void CoverImageWidget::paintEvent(QPaintEvent *event) {
                                          Qt::SmoothTransformation);
 
   // 2. Calculate offsets to center-crop the scaled pixmap
-  int x = (scaledPixmap.width() - width()) / 2;
+  int x = (scaledPixmap.width() - width()) / (m_centered ? 2 : 1);
   int y = (scaledPixmap.height() - height()) / 2;
 
   // 3. Draw only the visible target region

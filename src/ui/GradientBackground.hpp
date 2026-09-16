@@ -8,6 +8,7 @@ class GradientBackground : public QWidget {
 public:
     explicit GradientBackground(QWidget *parent = nullptr) : QWidget(parent) {
         setAttribute(Qt::WA_StyledBackground, true);
+        setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     }
 protected:
     void paintEvent(QPaintEvent *event) override; 

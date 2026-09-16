@@ -44,6 +44,7 @@ protected:
   SidebarItem* addActionItem(QIcon icon, std::string name, SidebarPosition position, std::function<void()> onClicked);
 
   void setupTrayIcon();
+  bool confirmQuit();
 };
 
 MainWindow *getMainWindow();

@@ -8,6 +8,9 @@
     <file alias="arrow_left.svg">resources/icons/arrow_left.svg</file>
     <file alias="users.svg">resources/icons/users.svg</file>
     <file alias="x.svg">resources/icons/x.svg</file>
+    <file alias="play.svg">resources/icons/play.svg</file>
+    <file alias="rotate_cw_clock.svg">resources/icons/rotate_cw_clock.svg</file>
+    <file alias="folder_pen.svg">resources/icons/folder_pen.svg</file>
   </qresource>
   <qresource>
     <file alias="Quicksand-Bold.ttf">resources/Quicksand-Bold.ttf</file>

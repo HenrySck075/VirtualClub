@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 1.0 LANGUAGES CXX)
+project(VirtualClub VERSION 0.1.1 LANGUAGES CXX)
 
+add_compile_definitions(
+  MVC_VERSION=${PROJECT_VERSION}
+)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -55,29 +58,46 @@ target_link_libraries(${PROJECT_NAME} PUBLIC yaml-cpp::yaml-cpp) # The library o
 # Link Qt6 libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia pybind11::embed)
 
+set(IS_ANDROID FALSE)
+set(IS_TERMUX FALSE)
+# --- Detect Standard Android NDK ---
+if(ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Android")
+    set(IS_ANDROID TRUE)
+    message(STATUS "Environment: Android NDK")
+endif()
+
+# --- Detect Termux ---
+if(DEFINED ENV{TERMUX_VERSION} OR ENV{PREFIX} MATCHES "com.termux")
+    set(IS_TERMUX TRUE)
+    message(STATUS "Environment: Termux")
+    
+    # Pass macro definition to C++ source
+    add_compile_definitions(TERMUX_ENV)
+endif()
+
 # For the VFS
 
 if(WIN32)
-    # WinFsp configuration
-    if(DEFINED ENV{WINFSP_DIR})
-        set(WINFSP_DIR "$ENV{WINFSP_DIR}")
-    else()
-        set(WINFSP_DIR "C:/Program Files (x86)/WinFsp")
-    endif()
+  # WinFsp configuration
+  if(DEFINED ENV{WINFSP_DIR})
+      set(WINFSP_DIR "$ENV{WINFSP_DIR}")
+  else()
+      set(WINFSP_DIR "C:/Program Files (x86)/WinFsp")
+  endif()
 
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(WINFSP_LIB "${WINFSP_DIR}/lib/winfsp-x64.lib")
-    else()
-        set(WINFSP_LIB "${WINFSP_DIR}/lib/winfsp-x86.lib")
-    endif()
+  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      set(WINFSP_LIB "${WINFSP_DIR}/lib/winfsp-x64.lib")
+  else()
+      set(WINFSP_LIB "${WINFSP_DIR}/lib/winfsp-x86.lib")
+  endif()
 
-    set(FUSE_LIBRARIES ${WINFSP_LIB})
-    set(FUSE_INCLUDE_DIRS "${WINFSP_DIR}/inc")
-else()
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(FUSE3 REQUIRED fuse3)
-    set(FUSE_LIBRARIES ${FUSE3_LIBRARIES})
-    set(FUSE_INCLUDE_DIRS ${FUSE3_INCLUDE_DIRS})
+  set(FUSE_LIBRARIES ${WINFSP_LIB})
+  set(FUSE_INCLUDE_DIRS "${WINFSP_DIR}/inc")
+elseif(NOT IS_ANDROID AND NOT IS_TERMUX)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(FUSE3 REQUIRED fuse3)
+  set(FUSE_LIBRARIES ${FUSE3_LIBRARIES})
+  set(FUSE_INCLUDE_DIRS ${FUSE3_INCLUDE_DIRS})
 endif()
 
 
@@ -85,7 +105,10 @@ FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download
 FetchContent_MakeAvailable(json)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ${FUSE_LIBRARIES} nlohmann_json::nlohmann_json)
-target_include_directories(${PROJECT_NAME} PRIVATE ${FUSE_INCLUDE_DIRS})
+
+if(NOT IS_ANDROID AND NOT IS_TERMUX)
+  target_include_directories(${PROJECT_NAME} PRIVATE ${FUSE_INCLUDE_DIRS})
+endif()
 
 
 # On finish compilation, if the build mode is debug, symlink build/assets to assets

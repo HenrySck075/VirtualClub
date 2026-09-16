@@ -39,4 +39,9 @@
 #error "what"
 #endif
 
+#if defined(__ANDROID__) || defined(TERMUX_ENV)
+#else
+#define MVC_VFS_AVAILABLE
+#endif
+
 

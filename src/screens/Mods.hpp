@@ -26,9 +26,9 @@ public:
   explicit ModsScreen(QWidget *parent = nullptr);
   void onAddModButtonClicked();
 private:
-  void addModItem(ModsIndex::Mod& mod);
+  void addModItem(ModsIndex::Mod mod);
   void deselectOtherItems(DesktopIconWidget* selectedItem);
-  void openModInfo(ModsIndex::Mod& mod);
+  void openModInfo(const ModsIndex::Mod& mod);
 
   void updateModsCountLabel();
 };

@@ -213,16 +213,16 @@ void ModsScreen::updateModsCountLabel() {
   m_modsCountLabel->setText(QString("Mods: %1").arg(ModsIndex::getMods().size()));
 };
 
-void ModsScreen::addModItem(ModsIndex::Mod& mod) {
+void ModsScreen::addModItem(ModsIndex::Mod mod) {
   auto iconPath = mod.getIconPath();
   QPixmap iconPixmap(iconPath.c_str());
   auto icon = new DesktopIconWidget(iconPixmap, QString::fromStdString(mod.name), m_listContent);
   m_contentLayout->addWidget(icon);
   connect(icon, &DesktopIconWidget::deselectOtherIconsEvent, this, &ModsScreen::deselectOtherItems);
-  connect(icon, &DesktopIconWidget::doubleClicked, this, [&mod,this](){openModInfo(mod);});
+  connect(icon, &DesktopIconWidget::doubleClicked, this, [mod,this](){openModInfo(mod);});
 }
 
-void ModsScreen::openModInfo(ModsIndex::Mod& mod) {
+void ModsScreen::openModInfo(const ModsIndex::Mod& mod) {
   c_navigationSfx->play();
   m_contentWrapper->setCurrentWidget(m_modInfoPage);
   m_modInfoPage->setDisplayingMod(mod);

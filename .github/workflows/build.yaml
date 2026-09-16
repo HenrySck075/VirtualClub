@@ -1,0 +1,125 @@
+name: Build and Release Qt6 Application
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    outputs:
+      app_version: ${{ steps.version.outputs.APP_VERSION }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Extract version from CMakeLists.txt (runs on Linux build)
+      - name: Extract Version
+        id: version
+        if: matrix.platform == 'linux'
+        run: |
+          VERSION=$(grep -E 'project\(.*VERSION [0-9.]+' CMakeLists.txt | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "APP_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "APP_VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      # Install Linux-specific build dependencies
+      - name: Install Linux Dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libgl1-mesa-dev \
+            libxkbcommon-dev \
+            libvulkan-dev
+
+      # Setup Ninja build tool
+      - name: Install Ninja
+        uses: xmake-io/github-action-setup-ninja@v1
+
+      # Install Qt 6 using jurplel/install-qt
+      - name: Install Qt 6
+        uses: jurplel/install-qt@v4
+        with:
+          version: '6.11.2'
+          arch: ${{ matrix.platform == 'windows' && 'win64_msvc2019_64' || '' }}
+          cache: true
+
+      # Setup MSVC compiler environment on Windows
+      - name: Setup MSVC (Windows)
+        if: matrix.platform == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Configure CMake
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}"
+
+      # Build application
+      - name: Build Project
+        run: cmake --build build --config Release
+
+      # Package Linux Application into a tarball
+      - name: Package Application (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          mkdir dist
+          cp build/VirtualClub dist/
+          tar -czvf app-linux-x64.tar.gz -C dist .
+
+      # Package Windows Application with windeployqt into a zip
+      - name: Package Application (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist
+          Copy-Item build\Release\VirtualClub.exe -Destination dist\
+          windeployqt --release dist\VirtualClub.exe
+          Compress-Archive -Path dist\* -DestinationPath app-windows-x64.zip
+
+      # Upload artifacts temporarily for the release job
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact-${{ matrix.platform }}
+          path: ${{ matrix.platform == 'windows' && 'app-windows-x64.zip' || 'app-linux-x64.tar.gz' }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create releases
+    
+    steps:
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-artifact-*
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.app_version }}
+          name: Release v${{ needs.build.outputs.app_version }}
+          draft: false
+          prerelease: false
+          files: |
+            app-linux-x64.tar.gz
+            app-windows-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

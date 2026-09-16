@@ -4,17 +4,22 @@
 #include <QSettings>
 #include <mutex>
 
-std::shared_ptr<YamlSettings> ProfileSettings::get(const QString &name) {
+std::shared_ptr<YamlSettings> ProfileSettings::get() {
+  QSettings qs;
+  return getOf(qs.value("currentProfile", "default").toString());
+}
+
+void ProfileSettings::setActiveProfile(const QString& profileId) {
+  QSettings qs;
+  qs.setValue("currentProfile", profileId);
+}
+
+std::shared_ptr<YamlSettings> ProfileSettings::getOf(const QString &name) {
   static std::unordered_map<std::string, std::weak_ptr<YamlSettings>> registry;
   static std::mutex mutex;
-  static QSettings qs;
 
   std::lock_guard<std::mutex> lock(mutex);
   std::string key = name.toStdString();
-
-  if (key.empty()) {
-    key = qs.value("currentProfile", "default").toString().toStdString();
-  }
 
   // Re-use existing instance if active
   if (auto instance = registry[key].lock()) {

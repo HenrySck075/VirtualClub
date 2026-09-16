@@ -18,7 +18,9 @@ public:
     void unmount();
     QString mountPath() const;
 
+#ifdef MVC_VFS_AVAILABLE
 private:
     class Private;
     std::unique_ptr<Private> d;
+#endif
 };

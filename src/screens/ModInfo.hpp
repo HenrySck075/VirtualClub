@@ -12,17 +12,19 @@ class ModInfoScreen : public QWidget {
 public:
   explicit ModInfoScreen(QWidget *parent = nullptr);
 
-  void setDisplayingMod(ModsIndex::Mod& mod);
-  void onPlayButtonClicked();
+  void setDisplayingMod(const ModsIndex::Mod& mod);
 signals:
   void backButtonClicked();
 private:
-  PixmapWidget* m_modIconLabel;
-  QLabel* m_modNameLabel;
-  QLabel* m_modVersionLabel;
-  QLabel* m_modDirLabel;
+  void onPlayButtonClicked();
+  void onOpenModDirClicked();
 
-  Button* m_playButton;
+  PixmapWidget* m_modIconLabel = nullptr;
+  QLabel* m_modNameLabel = nullptr;
+  QLabel* m_modVersionLabel = nullptr;
+
+  Button* m_playButton = nullptr;
+  Button* m_playFromSaveButton = nullptr;
 
   std::optional<ModsIndex::Mod> m_displayingMod;
 };

@@ -20,6 +20,8 @@ class Button : public QPushButton {
 
 public:
     explicit Button(const QString& text, QWidget* parent = nullptr);
+    Button(const QIcon& icon, QWidget* parent = nullptr);
+    Button(const QString& text, const QIcon& icon, QWidget* parent = nullptr);
 
     QColor textColor() const { return m_currentColor; }
     void setTextColor(const QColor& color);

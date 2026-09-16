@@ -152,7 +152,7 @@ namespace ModsIndex {
   }
 
   std::string Mod::getIconPath() const {
-    static auto iconsDir = std::filesystem::path(
+    const auto iconsDir = std::filesystem::path(
       QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
     ) / "icons";
     return (iconsDir / (id + ".png")).string();

@@ -17,6 +17,7 @@
 #include "screens/Home.hpp"
 #include "screens/Mods.hpp"
 #include "screens/Settings.hpp"
+#include "screens/SwitchUserDialog.hpp"
 #include "ui/Dialog.hpp"
 #include "ui/Sidebar.hpp"
 #include "ui/CoverImageWidget.hpp"
@@ -123,8 +124,6 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
   setStyleSheet(QString(R"(
 QLabel {
   font-family: Quicksand, Segoe UI;
-}
-QLabel[accent] {
   color: %1;
 }
 
@@ -170,9 +169,7 @@ void MainWindow::initUI() {
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, new ModsScreen());
 
   addNavigationItem(LucideIcons::settings, "Settings", SidebarPosition::Bottom, new SettingsScreen());
-  addActionItem(LucideIcons::users, "Switch user", SidebarPosition::Bottom, [this](){
-    Dialog::showContentDialog(this, "Switch user", new QWidget(), {300, 500});
-  });
+  addActionItem(LucideIcons::users, "Switch user", SidebarPosition::Bottom, showSwitchUserDialog);
 
   connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
 
@@ -231,6 +228,18 @@ void MainWindow::paintEvent(QPaintEvent *event) {
   painter.drawRect(0, rectY, width(), rectHeight);
 };
 
+bool MainWindow::confirmQuit() {
+  // writing this made me wonder if the vfs solution, while do save disk spaces, was actually a good idea..
+  // -henrysck
+  return Dialog::showActionDialog(
+      this, 
+      "Are you sure you want to exit?", 
+      "There are mods running, and the launcher has to be kept in background for it to work.", 
+      "Closing the launcher will terminate these games. Save the progress if you wish to continue.",
+      Dialog::DialogType::YesNo,
+      true
+  );
+}
 void MainWindow::setupTrayIcon() {
     m_trayIcon = new QSystemTrayIcon(QIcon(":/app-icon.png"), this);
     auto *trayMenu = new QMenu(this);
@@ -244,14 +253,16 @@ void MainWindow::setupTrayIcon() {
 
     // Option to truly exit the application
     QAction *quitAction = trayMenu->addAction("Quit");
-    QObject::connect(quitAction, &QAction::triggered, qApp, &QCoreApplication::quit);
+    QObject::connect(quitAction, &QAction::triggered, qApp, [this](){
+      if (confirmQuit()) QCoreApplication::quit();
+    });
 
     m_trayIcon->setContextMenu(trayMenu);
     m_trayIcon->show();
 }
 void MainWindow::closeEvent(QCloseEvent *event) {
     // Check if the user is attempting to close via the window manager (or custom state)
-    if (!QApplication::quitOnLastWindowClosed()) {
+    if (isVisible() && !QApplication::quitOnLastWindowClosed()) {
       event->ignore(); // Cancel the close request
       this->hide();    // Send window to background
     } else {
