@@ -11,6 +11,10 @@
     <file alias="play.svg">resources/icons/play.svg</file>
     <file alias="rotate_cw_clock.svg">resources/icons/rotate_cw_clock.svg</file>
     <file alias="folder_pen.svg">resources/icons/folder_pen.svg</file>
+    <file alias="folder.svg">resources/icons/folder.svg</file>
+    <file alias="bug.svg">resources/icons/bug.svg</file>
+    <file alias="refresh_cw.svg">resources/icons/refresh_cw.svg</file>
+    <file alias="trash.svg">resources/icons/trash.svg</file>
   </qresource>
   <qresource>
     <file alias="Quicksand-Bold.ttf">resources/Quicksand-Bold.ttf</file>

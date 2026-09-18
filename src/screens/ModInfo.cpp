@@ -4,7 +4,9 @@
 #include "../ui/GradientBackground.hpp"
 #include "../ui/IconButton.hpp"
 #include "../utils/LucideIcons.hpp"
+#include "MainWindow.hpp"
 #include "ui/Dialog.hpp"
+#include "utils/ModIndex.hpp"
 #include "utils/SessionManager.hpp"
 #include <QDesktopServices>
 
@@ -46,7 +48,7 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   m_modVersionLabel->setFont(QFont("Quicksand", 16));
   headerLayout2->addWidget(m_modVersionLabel);
 
-  auto* openModDirButton = new Button("Open mod directory");
+  auto* openModDirButton = new Button("Open mod directory", LucideIcons::folder);
   connect(openModDirButton, &Button::clicked, this, &ModInfoScreen::onOpenModDirClicked);
   headerLayout2->addWidget(openModDirButton, 0, Qt::AlignLeft);
 
@@ -58,11 +60,18 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   contentLayout->setAlignment(Qt::AlignLeft);
 
   m_playButton = new Button("Play", LucideIcons::play);
+  m_playButton->setToolTip("Start the mod");
   connect(m_playButton, &Button::clicked, this, &ModInfoScreen::onPlayButtonClicked);
   contentLayout->addWidget(m_playButton); 
 
   m_playFromSaveButton = new Button("...from save", LucideIcons::rotate_cw_clock);
+  m_playFromSaveButton->setToolTip("Start the mod from save file");
   contentLayout->addWidget(m_playFromSaveButton);
+
+  m_deleteButton = new Button(LucideIcons::trash);
+  m_deleteButton->setToolTip("Uninstall");
+  connect(m_deleteButton, &Button::clicked, this, &ModInfoScreen::onDeleteButtonClicked);
+  contentLayout->addWidget(m_deleteButton);
 
 #ifndef MVC_VFS_AVAILABLE
   m_playButton->setEnabled(false);
@@ -85,10 +94,26 @@ void ModInfoScreen::onPlayButtonClicked() {
   if (m_displayingMod.has_value()) {
     m_playButton->setEnabled(false);
     m_playFromSaveButton->setEnabled(false);
-    SessionManager::launch(m_displayingMod.value(), [this](){
+    ModsIndex::Mod currentMod = m_displayingMod.value();
+    SessionManager::launch(m_displayingMod.value(), [this,currentMod](){
+      if (currentMod != m_displayingMod.value()) return;
       m_playButton->setEnabled(true);  
       m_playFromSaveButton->setEnabled(true);
     });
+  }
+}
+
+void ModInfoScreen::onDeleteButtonClicked() {
+  if (Dialog::showActionDialog(
+    getMainWindow(), 
+    "Uninstall mod?", 
+    "Are you sure want to uninstall the mod?",
+    "This won't delete the mod's files, however it's save states and launcher configs will be removed.",
+    Dialog::YesNo,
+    true
+  )) {
+    ModsIndex::removeMod(m_displayingMod.value());
+    emit modUninstalled(m_displayingMod->id); 
   }
 }
 
@@ -99,4 +124,12 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
 
   m_modNameLabel->setText(mod.name.c_str());
   m_modVersionLabel->setText(QString("Version: %1").arg(mod.version.c_str()));
+
+  if (SessionManager::isMounted(mod.id)) {
+    m_playButton->setEnabled(false);
+    m_playFromSaveButton->setEnabled(false);
+  } else {
+    m_playButton->setEnabled(true);
+    m_playFromSaveButton->setEnabled(true);
+  }
 }

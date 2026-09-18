@@ -5,6 +5,7 @@
 #include "../ui/GradientBackground.hpp"
 #include "../ui/Dialog.hpp"
 #include "../MainWindow.hpp"
+#include "utils/LucideIcons.hpp"
 #include "utils/ProfileSettings.hpp"
 #include "utils/utils.hpp"
 
@@ -25,27 +26,39 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   contentLayout->setHorizontalSizeConstraint(QLayout::SetMaximumSize);
 
   // Add a label or any other widgets you want to display on the Settings screen
-#define addSettingsLabel(prefix, name, desc)  \
-  auto prefix##NameLabel = new QLabel(name, content); \
-  prefix##NameLabel->setFont(QFont("Quicksand", 12, QFont::Bold)); \
-  contentLayout->addWidget(prefix##NameLabel); \
-\
-  auto prefix##DescLabel = new QLabel(desc, content); \
-  prefix##DescLabel->setFont(QFont("Quicksand", 10)); \
-  prefix##DescLabel->setWordWrap(true); \
-  contentLayout->addWidget(prefix##DescLabel); 
+  auto addSettingsLabel = [contentLayout](QString name, QString desc, QWidget* action) {
+    auto layout = new QHBoxLayout();
+    contentLayout->addLayout(layout);
+    layout->setAlignment(Qt::AlignLeft);
+
+    auto metadataLayout = new QVBoxLayout();
+    layout->addLayout(metadataLayout);
+
+    auto nameLabel = new QLabel(name); 
+    nameLabel->setFont(QFont("Quicksand", 12, QFont::Bold)); 
+    metadataLayout->addWidget(nameLabel); 
+
+    auto descLabel = new QLabel(desc); 
+    descLabel->setFont(QFont("Quicksand", 10)); 
+    descLabel->setWordWrap(true); 
+    descLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    metadataLayout->addWidget(descLabel); 
+
+    layout->addWidget(action);
+
+    return std::make_pair(nameLabel, descLabel);
+  };
 
 
   auto settings = ProfileSettings::get();
 
-  addSettingsLabel(pc, "Base game's path", settings->value("baseGameInstallPath").toString());
-  auto* pathChangeButton = new Button("Change", content);
+  auto* pathChangeButton = new Button(LucideIcons::folder_pen, content);
+  auto [pcNameLabel, pcDescLabel] = addSettingsLabel("Base game's path", settings->value("baseGameInstallPath").toString(), pathChangeButton);
   connect(pathChangeButton, &Button::clicked, this, [this, settings, pcDescLabel](){
     askForBasePathChange();
 
     pcDescLabel->setText(settings->value("baseGameInstallPath").toString());
   });
-  contentLayout->addWidget(pathChangeButton);
 
   /*
   auto* testButton1 = new Button("Dialog");

@@ -229,7 +229,7 @@ public:
 
     std::string get_path(const std::string &path, bool write = false) const {
         auto ret = get_path_2(path, write);
-        qDebug() << "Requested" << path << "| Resolved to" << ret;
+        //qDebug() << "Requested" << path << "| Resolved to" << ret;
         return ret;
     }
 
@@ -299,7 +299,7 @@ public:
 
         if (!found) return -ENOENT;
         for (const auto &entry : dirents) filler(entry);
-        qDebug() << dirents;
+        //qDebug() << dirents;
         return 0;
     }
 

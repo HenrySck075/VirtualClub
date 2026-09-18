@@ -329,5 +329,13 @@ void SessionManager::mount(ModsIndex::Mod&) {}
 void SessionManager::launch(ModsIndex::Mod&, std::function<void()>, const QString&) {} 
 void SessionManager::unmount(ModsIndex::Mod&) {}
 void SessionManager::unmount(std::string) {}
+
+bool SessionManager::isMounted(std::string modId) {
+  return false;
+}
+QString SessionManager::mountPathOf(std::string modId) {
+  return "";
+}
+
 #endif
 

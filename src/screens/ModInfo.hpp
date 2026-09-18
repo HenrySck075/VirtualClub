@@ -15,9 +15,11 @@ public:
   void setDisplayingMod(const ModsIndex::Mod& mod);
 signals:
   void backButtonClicked();
+  void modUninstalled(std::string modId);
 private:
   void onPlayButtonClicked();
   void onOpenModDirClicked();
+  void onDeleteButtonClicked();
 
   PixmapWidget* m_modIconLabel = nullptr;
   QLabel* m_modNameLabel = nullptr;
@@ -25,6 +27,7 @@ private:
 
   Button* m_playButton = nullptr;
   Button* m_playFromSaveButton = nullptr;
+  Button* m_deleteButton = nullptr;
 
   std::optional<ModsIndex::Mod> m_displayingMod;
 };
