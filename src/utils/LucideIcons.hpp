@@ -39,11 +39,15 @@ public:
 namespace LucideIcons {
   LucideIcons_IMPL(
     arrow_left,
+    bug,
+    folder,
     folder_pen,
     house,
     library,
     play,
     plus,
+    trash,
+    refresh_cw,
     rotate_cw_clock,
     settings,
     users,

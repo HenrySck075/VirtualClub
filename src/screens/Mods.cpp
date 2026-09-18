@@ -18,6 +18,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QFileDialog>
+#include <qsharedpointer.h>
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current.hpp>
 #include <cpptrace/from_current_macros.hpp>
@@ -202,10 +203,15 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
 
   m_modInfoPage = new ModInfoScreen();
   m_contentWrapper->addWidget(m_modInfoPage);
-  connect(m_modInfoPage, &ModInfoScreen::backButtonClicked, [this](){
+  auto backCb = [this](){
     c_navigationSfx->play();
     m_contentWrapper->setCurrentWidget(m_modsListPage);
     anime::slideFade(m_modsListPage, anime::SlideDirection::Right);
+  };
+  connect(m_modInfoPage, &ModInfoScreen::backButtonClicked, backCb);
+  connect(m_modInfoPage, &ModInfoScreen::modUninstalled, [this, backCb](std::string modId){
+    removeModItem(modId);
+    backCb();
   });
 
 }
@@ -217,9 +223,24 @@ void ModsScreen::addModItem(ModsIndex::Mod mod) {
   auto iconPath = mod.getIconPath();
   QPixmap iconPixmap(iconPath.c_str());
   auto icon = new DesktopIconWidget(iconPixmap, QString::fromStdString(mod.name), m_listContent);
+  icon->setProperty("modId", QString::fromStdString(mod.id));
   m_contentLayout->addWidget(icon);
   connect(icon, &DesktopIconWidget::deselectOtherIconsEvent, this, &ModsScreen::deselectOtherItems);
   connect(icon, &DesktopIconWidget::doubleClicked, this, [mod,this](){openModInfo(mod);});
+}
+
+void ModsScreen::removeModItem(std::string modId) {
+  auto icon = findChildWidgetBy(m_contentLayout, [&modId](QWidget* w){
+    if (auto icon = qobject_cast<DesktopIconWidget*>(w)) {
+      return icon->property("modId").toString().toStdString() == modId;
+    }
+    return false;
+  });
+
+  if (!icon) return;
+  icon->disconnect();
+  m_contentLayout->removeWidget(icon);
+  icon->deleteLater();
 }
 
 void ModsScreen::openModInfo(const ModsIndex::Mod& mod) {

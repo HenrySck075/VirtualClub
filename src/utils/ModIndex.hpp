@@ -17,13 +17,15 @@ namespace ModsIndex {
     bool forceRecompile;
 
     std::string getIconPath() const;
+
+    bool operator==(const Mod& other) const = default;
   };
+
   void loadModsIndex();
 
   std::vector<Mod>& getMods();
-
   Mod installMod(std::filesystem::path path);
-
+  void removeMod(Mod& mod);
   const Mod& getModByID(std::string id);
 }
 

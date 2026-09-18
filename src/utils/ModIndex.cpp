@@ -1,11 +1,13 @@
 #include "ModIndex.hpp"
 #include "utils/ProfileSettings.hpp"
+#include <algorithm>
 #include <filesystem>
 #include <random>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
 #include <QStandardPaths>
+#include <stdexcept>
 #include <utility>
 #include "RenpyArchive.hpp"
 #include "macros.h"
@@ -270,4 +272,19 @@ namespace ModsIndex {
     
     return mod;
   }
+void removeMod(Mod& mod) {
+  auto i = std::find(modsList.begin(), modsList.end(), mod);
+  if (i == modsList.end()) throw std::invalid_argument("Supplied mod of ID " + mod.id + " does not exist.");
+  modsList.erase(i);
+
+  // delete the icons
+  auto iconsDir = std::filesystem::path(
+    QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
+  ) / "icons";
+  std::filesystem::remove(iconsDir / (mod.id + ".png"));
+  std::filesystem::remove(iconsDir / (mod.id + ".scaled.png"));
+
+  saveModsIndex();
 }
+}
+
