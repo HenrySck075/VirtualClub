@@ -48,7 +48,7 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   m_modVersionLabel->setFont(QFont("Quicksand", 16));
   headerLayout2->addWidget(m_modVersionLabel);
 
-  auto* openModDirButton = new Button("Open mod directory");
+  auto* openModDirButton = new Button("Open mod directory", LucideIcons::folder);
   connect(openModDirButton, &Button::clicked, this, &ModInfoScreen::onOpenModDirClicked);
   headerLayout2->addWidget(openModDirButton, 0, Qt::AlignLeft);
 
@@ -126,10 +126,10 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
   m_modVersionLabel->setText(QString("Version: %1").arg(mod.version.c_str()));
 
   if (SessionManager::isMounted(mod.id)) {
-    m_playButton->setEnabled(true);
-    m_playFromSaveButton->setEnabled(true);
-  } else {
     m_playButton->setEnabled(false);
     m_playFromSaveButton->setEnabled(false);
+  } else {
+    m_playButton->setEnabled(true);
+    m_playFromSaveButton->setEnabled(true);
   }
 }
