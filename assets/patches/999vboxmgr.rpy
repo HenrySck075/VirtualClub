@@ -87,6 +87,7 @@ init 999 python:
 init -67 python early:
     mod_uuid = os.getenv("MVC_MOD_ID") # variable provided by the launcher
     config.save_directory = mod_uuid
+    config.savedir = mod_uuid
 
 
 init 999 python:

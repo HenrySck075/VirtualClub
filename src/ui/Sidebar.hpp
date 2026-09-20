@@ -58,6 +58,7 @@ private:
   void mousePressEvent(QMouseEvent *event) override; 
 
   bool m_switchable = true; // for Sidebar
+  bool m_tintIcon = true; // for SwitchUserDialog which reuses SidebarItem
 public:
   bool switchable() {return m_switchable;}
   // should this be a qbutton then?
@@ -72,6 +73,7 @@ public:
   }
   std::string label() const {return m_label;}
   explicit SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent = nullptr);
+  void setTintIcon(bool enable) {m_tintIcon = enable;};
   void enterEvent(QEnterEvent *event) override;
   void leaveEvent(QEvent *event) override;
   void paintEvent(QPaintEvent *event) override; 

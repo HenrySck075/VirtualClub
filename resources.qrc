@@ -23,6 +23,7 @@
     <file alias="Quicksand-Regular.ttf">resources/Quicksand-Regular.ttf</file>
     <file alias="Quicksand-SemiBold.ttf">resources/Quicksand-SemiBold.ttf</file>
     <file alias="app-icon.png">resources/app-icon.png</file>
+    <file alias="defaultuserprofile.png">resources/defaultuserprofile.png</file>
   </qresource>
   <qresource prefix="/audio">
     <file alias="sidebar_click.wav">resources/audio/i4.wav</file>

@@ -231,7 +231,7 @@ void MainWindow::paintEvent(QPaintEvent *event) {
 bool MainWindow::confirmQuit() {
   // writing this made me wonder if the vfs solution, while do save disk spaces, was actually a good idea..
   // -henrysck
-  return Dialog::showActionDialog(
+  return QApplication::quitOnLastWindowClosed() || Dialog::showActionDialog(
       this, 
       "Are you sure you want to exit?", 
       "There are mods running, and the launcher has to be kept in background for it to work.", 

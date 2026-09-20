@@ -118,14 +118,17 @@ void SidebarItem::paintEvent(QPaintEvent *event) {
     // Draw the icon
     if (!m_icon.isNull()) {
         QPixmap pixmap = m_icon.pixmap(24, 24); // Adjust size
-        QPixmap coloredPixmap(pixmap.size());
-        coloredPixmap.fill(Qt::transparent);
-        QPainter iconPainter(&coloredPixmap);
-        iconPainter.setCompositionMode(QPainter::CompositionMode_Source);
-        iconPainter.drawPixmap(0, 0, pixmap);
-        iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        iconPainter.fillRect(coloredPixmap.rect(), iconColor);
-        iconPainter.end();
+        QPixmap coloredPixmap = pixmap;
+        if (m_tintIcon) {
+            coloredPixmap = QPixmap(pixmap.size());
+            coloredPixmap.fill(Qt::transparent);
+            QPainter iconPainter(&coloredPixmap);
+            iconPainter.setCompositionMode(QPainter::CompositionMode_Source);
+            iconPainter.drawPixmap(0, 0, pixmap);
+            iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            iconPainter.fillRect(coloredPixmap.rect(), iconColor);
+            iconPainter.end();
+        }
         painter.drawPixmap(xOffsetA+10, (height() - 24) / 2, coloredPixmap); // Adjust position
     }
 

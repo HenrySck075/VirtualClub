@@ -7,8 +7,11 @@
 #include <QMediaDevices>
 #include <QAudioDevice>
 #include <QFileDialog>
+#include <QCommandLineParser>
+#include <QCommandLineOption>
 
 #include "utils/ProfileSettings.hpp"
+#include "utils/ProfileSingleApp.hpp"
 #include "utils/utils.hpp"
 #include "utils/macros.h"
 
@@ -21,9 +24,40 @@
 
 namespace py = pybind11;
 
+class GlobalEventFilter : public QObject {
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        if (event->type() == QEvent::MouseButtonPress || 
+            event->type() == QEvent::MouseMove) {
+            qDebug() << "Mouse event delivered to target:" << obj;
+        }
+        return QObject::eventFilter(obj, event); // Do not suppress the event
+    }
+};
+
 int main(int argc, char *argv[]) {
     py::scoped_interpreter guard{};
-    QApplication app(argc, argv);
+
+    ProfileSingleApp app(argc, argv);
+    QCommandLineParser parser;
+    QCommandLineOption profileOption(
+        QStringList() << "p" << "profile", 
+        "Specify profile name", 
+        "profile", 
+        "default" // Default profile fallback
+    );
+    parser.addOption(profileOption);
+    parser.addHelpOption();
+    parser.process(app);
+
+    QString selectedProfile = parser.value(profileOption);
+    app.setProfileId(selectedProfile);
+
+    // If this instance is secondary for this profile, pass args to primary and exit
+    if (app.isSecondary()) {
+        app.notifyPrimaryInstance(app.arguments());
+        return 0; // Terminate secondary instance cleanly
+    }
     QCoreApplication::setApplicationName("VirtualClub");
     QCoreApplication::setOrganizationName("henrysck075");
     Q_INIT_RESOURCE(resources);
@@ -53,6 +87,17 @@ int main(int argc, char *argv[]) {
     MainWindow window;
     window.setWindowIcon(QIcon(":/app-icon.png"));
     window.show();
+
+    // Handle messages when a user attempts to re-open the app under this profile
+    QObject::connect(&app, &ProfileSingleApp::messageReceivedFromSecondary, [&](const QStringList &args) {
+        qDebug() << "Received focus request or arguments from secondary instance:" << args;
+        if (window.isMinimized()) {
+          window.showNormal();
+        }
+        window.show();
+        window.raise();
+        window.activateWindow();
+    });
 
 #ifdef MVC_DEBUG
     CPPTRACE_TRY {

@@ -132,3 +132,4 @@ Thumbs.db
 # Ren'Py cache file residing in assets/patches/cache for some reason 
 # ==========================================
 assets/patches/cache/
+*.rpyc

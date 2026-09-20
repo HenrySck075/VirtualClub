@@ -1,18 +1,14 @@
 #include "ProfileSettings.hpp"
+#include "utils/ProfileSingleApp.hpp"
 #include <QDirIterator>
 #include <QDir>
 #include <QSettings>
 #include <mutex>
 
 std::shared_ptr<YamlSettings> ProfileSettings::get() {
-  QSettings qs;
-  return getOf(qs.value("currentProfile", "default").toString());
+  return getOf(ProfileSingleApp::instance()->profileId());
 }
 
-void ProfileSettings::setActiveProfile(const QString& profileId) {
-  QSettings qs;
-  qs.setValue("currentProfile", profileId);
-}
 
 std::shared_ptr<YamlSettings> ProfileSettings::getOf(const QString &name) {
   static std::unordered_map<std::string, std::weak_ptr<YamlSettings>> registry;

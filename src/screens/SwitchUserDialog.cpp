@@ -10,13 +10,20 @@ public:
   SwitchUserDialogContent() {
     // vbox
     auto* layout = new QVBoxLayout(this);
+    layout->setAlignment(Qt::AlignTop);
 
     auto profileIds = ProfileSettings::list();
     
     for (const auto& profileId : profileIds) {
-      auto* button = new Button(profileId, this);
-      connect(button, &Button::clicked, this, [profileId](){
-        ProfileSettings::setActiveProfile(profileId);
+      auto s = ProfileSettings::getOf(profileId);
+      QIcon icon(s->value("profileImage", ":/defaultuserprofile.png").toString());
+      auto name = s->value("displayName", profileId).toString();
+      auto* button = new SidebarItem(icon, name.toStdString(), false, this);
+      button->setMaximumWidth(QWIDGETSIZE_MAX);
+      button->setTintIcon(false);
+      button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+      connect(button, &SidebarItem::clicked, this, [profileId](){
+        // launch a new instance with a new profile id
         //getMainWindow()->reload();
       });
       layout->addWidget(button);
