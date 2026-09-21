@@ -1,7 +1,9 @@
-#include "Dialog.hpp"
+#include "MESWidgets.hpp"
 #include <QFont>
 #include <QApplication>
 #include <QPainterPath>
+#include <QCheckBox>
+#include <QStyleOptionButton>
 #include <qgraphicseffect.h>
 
 #include "../utils/EventFilters.hpp"
@@ -467,4 +469,72 @@ void Dialog::showContentDialog(QWidget* parent,
   dlg.exec();
 }
 
-#include "Dialog.moc"
+// ==========================================
+// Switch Implementation
+// ==========================================
+Switch::Switch(QWidget *parent)
+    : QCheckBox(parent)
+{
+    setCursor(Qt::PointingHandCursor);
+    connect(this, &QCheckBox::toggled, this, [this](bool checked) {
+        qDebug() << "g";
+        update(); // Trigger repaint on state change
+    });
+}
+
+QSize Switch::sizeHint() const
+{
+    return QSize(60, 32);
+}
+
+void Switch::paintEvent(QPaintEvent * /*event*/)
+{
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    QStyleOptionButton option;
+    initStyleOption(&option);
+
+    const qreal width = rect().width();
+    const qreal height = rect().height();
+
+    // 1. Draw track outline
+    const qreal borderWidth = 3.0;
+    const qreal trackMargin = borderWidth / 2.0;
+    QRectF trackRect(trackMargin, trackMargin, width - borderWidth, height - borderWidth);
+    const qreal cornerRadius = trackRect.height() / 2.0;
+
+    QPen trackPen(isEnabled() ? c_primaryColor : c_disabledColor, borderWidth);
+    painter.setPen(trackPen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(trackRect, cornerRadius, cornerRadius);
+
+    // 2. Draw interior donut button
+    const qreal outerDiameter = height - (borderWidth * 2.0) - 4.0; // Margin from border
+    const qreal innerDiameter = outerDiameter * 0.45;               // Center hole size
+
+    // X position based on check state
+    const qreal leftPos = trackRect.left() + 2.0;
+    const qreal rightPos = trackRect.right() - outerDiameter - 2.0;
+    const qreal xPos = isChecked() ? rightPos : leftPos;
+    const qreal yPos = (height - outerDiameter) / 2.0;
+
+    QRectF outerCircleRect(xPos, yPos, outerDiameter, outerDiameter);
+    QRectF innerCircleRect(
+        xPos + (outerDiameter - innerDiameter) / 2.0,
+        yPos + (outerDiameter - innerDiameter) / 2.0,
+        innerDiameter,
+        innerDiameter
+    );
+
+    // Construct donut path using EvenOddFill rule
+    QPainterPath donutPath;
+    donutPath.setFillRule(Qt::OddEvenFill);
+    donutPath.addEllipse(outerCircleRect);
+    donutPath.addEllipse(innerCircleRect);
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(isEnabled() ? c_secondaryColor : c_disabledColor);
+    painter.drawPath(donutPath);
+}
+#include "MESWidgets.moc"

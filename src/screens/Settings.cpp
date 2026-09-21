@@ -3,13 +3,15 @@
 #include <QLabel>
 #include <QLineEdit>
 #include "../ui/GradientBackground.hpp"
-#include "../ui/Dialog.hpp"
-#include "../MainWindow.hpp"
+#include "../ui/MESWidgets.hpp"
+#include "MainWindow.hpp"
 #include "utils/LucideIcons.hpp"
 #include "utils/ProfileSettings.hpp"
+#include "utils/ProfileSingleApp.hpp"
 #include "utils/utils.hpp"
 
 SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
+  setWindowTitle("Settings");
   // Set up the layout for the Settings screen
   auto *layout = new QVBoxLayout(this);
   static const int margin = 24;
@@ -21,9 +23,11 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   auto* contentLayout = new QVBoxLayout(content);
   static const int contentMargin = 16;
   contentLayout->setContentsMargins(contentMargin, contentMargin, contentMargin, contentMargin);
-  contentLayout->setSpacing(2);
+  contentLayout->setSpacing(4);
   contentLayout->setAlignment(Qt::AlignTop);
   contentLayout->setHorizontalSizeConstraint(QLayout::SetMaximumSize);
+
+  contentLayout->addWidget(new QLabel("<i>All changes are automatically saved.</i>"),0,Qt::AlignLeft);
 
   // Add a label or any other widgets you want to display on the Settings screen
   auto addSettingsLabel = [contentLayout](QString name, QString desc, QWidget* action) {
@@ -58,6 +62,24 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
     askForBasePathChange();
 
     pcDescLabel->setText(settings->value("baseGameInstallPath").toString());
+  });
+
+  auto* displayNameTextInput = new QLineEdit();
+  displayNameTextInput->setText(settings->value("displayName", ProfileSingleApp::instance()->profileId()).toString());
+  bool haveDisplayName = settings->contains("displayName");
+  auto [dnNameLabel, dnDescLabel] = addSettingsLabel(
+    "Display name", 
+    haveDisplayName
+      ? "Change the profile's display name."
+      : "you dont want the name to look like that, do you?", 
+    displayNameTextInput
+  );
+  connect(displayNameTextInput, &QLineEdit::editingFinished, this, [displayNameTextInput, dnDescLabel, haveDisplayName, settings](){
+    settings->setValue("displayName", displayNameTextInput->text());
+    if (!haveDisplayName) 
+      dnDescLabel->setText("great! :D");
+
+    getMainWindow()->setPageTitleBar("Settings");
   });
 
   /*

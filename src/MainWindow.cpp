@@ -18,91 +18,14 @@
 #include "screens/Mods.hpp"
 #include "screens/Settings.hpp"
 #include "screens/SwitchUserDialog.hpp"
-#include "ui/Dialog.hpp"
+#include "ui/MESWidgets.hpp"
 #include "ui/Sidebar.hpp"
 #include "ui/CoverImageWidget.hpp"
+#include "utils/BackgroundLoader.hpp"
 #include "utils/LucideIcons.hpp"
+#include "utils/ProfileSettings.hpp"
+#include "utils/ProfileSingleApp.hpp"
 #include "utils/anime.hpp"
-
-// Helper to parse times like "18", "18.30", "6.15", "6" into QTime
-QTime parseFlexibleTime(const std::string& str) {
-    QString qstr = QString::fromStdString(str).trimmed();
-    QTime t = QTime::fromString(qstr, "H.m");
-    if (!t.isValid()) {
-        t = QTime::fromString(qstr, "H");
-    }
-    return t;
-}
-
-// Checks if current time falls within [start, end], handling midnight wraps
-bool isTimeInRange(const QTime& current, const QTime& start, const QTime& end) {
-    if (start <= end) {
-        // Standard range within the same day (e.g., 08:00 to 16:30)
-        return current >= start && current <= end;
-    } else {
-        // Overnight range wrapping past midnight (e.g., 18:00 to 06:00)
-        return current >= start || current <= end;
-    }
-}
-
-struct BgImageCandidate {
-    QTime startTime;
-    QTime endTime;
-    std::filesystem::path path;
-};
-
-QImage getCurrentImage(const std::string& pack) {
-    namespace fs = std::filesystem;
-
-    fs::path bgAssetsFolder = fs::path(QCoreApplication::applicationDirPath().toStdString()) 
-                            / "assets" / "bg" / pack;
-    std::cout << bgAssetsFolder << " " << std::endl;
-
-    std::error_code ec;
-    if (!fs::exists(bgAssetsFolder, ec) || !fs::is_directory(bgAssetsFolder, ec)) {
-        std::cerr << "ow" << std::endl;
-        return QImage(); // Empty QImage indicates failure
-    }
-
-    std::vector<BgImageCandidate> candidates;
-
-    // Collect and parse files
-    for (const auto& entry : fs::directory_iterator(bgAssetsFolder, ec)) {
-        if (!entry.is_regular_file()) continue;
-
-        std::string filename = entry.path().stem().string(); // filename without extension
-        size_t dashIdx = filename.find('-');
-        if (dashIdx == std::string::npos) continue;
-
-        std::string startStr = filename.substr(0, dashIdx);
-        std::string endStr = filename.substr(dashIdx + 1);
-
-        QTime startTime = parseFlexibleTime(startStr);
-        QTime endTime = parseFlexibleTime(endStr);
-
-        if (startTime.isValid() && endTime.isValid()) {
-            candidates.push_back({startTime, endTime, entry.path()});
-        }
-    }
-
-    // Sort in reverse numerical order based on start time (e.g., 20:00 before 18:00 before 06:00)
-    std::sort(candidates.begin(), candidates.end(), [](const BgImageCandidate& a, const BgImageCandidate& b) {
-        return a.startTime > b.startTime;
-    });
-
-    QTime currentTime = QTime::currentTime();
-
-    // Iterate through candidates (now sorted in reverse numerical order)
-    for (const auto& item : candidates) {
-        if (isTimeInRange(currentTime, item.startTime, item.endTime)) {
-            std::cout << "Selected image: " << item.path << " (Current time: " << currentTime.toString().toStdString() << ")" << std::endl;
-            return QImage(QString::fromStdString(item.path.string()));
-        }
-    }
-
-    return QImage(); // Return null/empty QImage if no matching interval matches
-}
-
 
 QString turkye(const QColor& color) {
   return QString("rgb(%1,%2,%3)")
@@ -113,11 +36,11 @@ QString turkye(const QColor& color) {
 }
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
-  setWindowTitle("VirtualClub Ren'Py Mod Manager");
+  setPageTitleBar("");
   setMinimumSize(QSize(600,400));
   resize(1020, 600); // Set default starting size (Width, Height)
 
-  m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
+  //m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
   initUI();
   setupTrayIcon();
 
@@ -134,6 +57,18 @@ QLineEdit {
   padding: 4px;
 }
 )").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
+}
+
+void MainWindow::setPageTitleBar(const QString& pageTitle) {
+  auto title = QString("VirtualClub Ren'Py Mod Manager - %1").arg(
+    ProfileSettings::get()->value("displayName", ProfileSingleApp::instance()->profileId()).toString()
+  );
+
+  if (!pageTitle.isEmpty()) {
+    title = pageTitle + " - " + title;
+  }
+
+  setWindowTitle(title);
 }
 
 void MainWindow::initUI() {
@@ -160,7 +95,7 @@ void MainWindow::initUI() {
   m_stackedWidget = new QStackedWidget(m_mainContent);
   contentLayout->addWidget(m_stackedWidget);
 
-  static_cast<CoverImageWidget*>(m_mainContent)->setPixmap(QPixmap::fromImage(m_currentBackgroundImage));
+  static_cast<CoverImageWidget*>(m_mainContent)->setImagePath(BackgroundLoader::getImage());
   // make m_mainContent expands to the remaining portion of the layout
   m_mainContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   mainLayout->addWidget(m_mainContent);
@@ -187,6 +122,8 @@ void MainWindow::onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newIte
   m_stackedWidget->setCurrentWidget(thisWidget);
 
   anime::slideFade(thisWidget, ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up); 
+
+  setPageTitleBar(thisWidget->windowTitle());
 }
 
 SidebarItem* MainWindow::addNavigationItem(QIcon icon, std::string name, SidebarPosition position, QWidget* widget) {
@@ -194,6 +131,11 @@ SidebarItem* MainWindow::addNavigationItem(QIcon icon, std::string name, Sidebar
 
   m_navigationMap[item] = widget;
   m_stackedWidget->addWidget(widget);
+  connect(widget, &QWidget::windowTitleChanged, this, [this, widget](){
+    if (m_stackedWidget->currentWidget() == widget) {
+      setPageTitleBar(widget->windowTitle());
+    }
+  });
   widget->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 
   return item;

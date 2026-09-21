@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QFontDatabase>
 #include "MainWindow.hpp"
+#include "utils/BackgroundLoader.hpp"
 #include "utils/ModIndex.hpp"
 #include "utils/RenpyArchive.hpp"
 #include <QResource>
@@ -24,16 +25,6 @@
 
 namespace py = pybind11;
 
-class GlobalEventFilter : public QObject {
-protected:
-    bool eventFilter(QObject *obj, QEvent *event) override {
-        if (event->type() == QEvent::MouseButtonPress || 
-            event->type() == QEvent::MouseMove) {
-            qDebug() << "Mouse event delivered to target:" << obj;
-        }
-        return QObject::eventFilter(obj, event); // Do not suppress the event
-    }
-};
 
 int main(int argc, char *argv[]) {
     py::scoped_interpreter guard{};
@@ -82,6 +73,13 @@ int main(int argc, char *argv[]) {
       askForBasePathChange();
     }
 
+    if (!settings->contains("background")) {
+      auto packs = BackgroundLoader::getPacks();
+      if (!packs.isEmpty()) {
+        settings->setValue("background", packs.first());
+      }
+    }
+
     settings->save();
 
     MainWindow window;
@@ -97,6 +95,10 @@ int main(int argc, char *argv[]) {
         window.show();
         window.raise();
         window.activateWindow();
+    });
+    QObject::connect(&app, &QApplication::aboutToQuit, [](){
+      ModsIndex::saveModsIndex();
+      // settings saving is handled by ProfileSettings dtor
     });
 
 #ifdef MVC_DEBUG

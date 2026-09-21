@@ -5,7 +5,7 @@
 #include "../ui/IconButton.hpp"
 #include "../utils/LucideIcons.hpp"
 #include "MainWindow.hpp"
-#include "ui/Dialog.hpp"
+#include "ui/MESWidgets.hpp"
 #include "utils/ModIndex.hpp"
 #include "utils/SessionManager.hpp"
 #include <QDesktopServices>
@@ -79,6 +79,28 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   m_playFromSaveButton->setEnabled(false);
   m_playFromSaveButton->setToolTip("Playing is currently unsupported on this platform.");
 #endif
+
+  auto* content2 = new GradientBackground(this);
+  content2->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+  layout->addWidget(content2);
+  auto* contentLayout2 = new QVBoxLayout(content2);
+  contentLayout2->setSpacing(8);
+  contentLayout2->setAlignment(Qt::AlignTop);
+
+  auto addThing = [contentLayout2](const QString& name, QWidget* actionWidget) {
+    auto* tl = new QHBoxLayout();
+    tl->setAlignment(Qt::AlignLeft);
+    contentLayout2->addLayout(tl);
+
+    tl->addWidget(actionWidget);
+    tl->addWidget(new QLabel(name));
+  };
+
+  m_developerModeSwitch = new Switch();
+  addThing("Developer Mode", m_developerModeSwitch);
+
+  m_forceRecompileSwitch = new Switch();
+  addThing("Force Recompile .rpyc", m_forceRecompileSwitch);
 }
 
 void ModInfoScreen::onOpenModDirClicked() {
@@ -94,11 +116,19 @@ void ModInfoScreen::onPlayButtonClicked() {
   if (m_displayingMod.has_value()) {
     m_playButton->setEnabled(false);
     m_playFromSaveButton->setEnabled(false);
+    m_developerModeSwitch->setEnabled(false);
+    m_forceRecompileSwitch->setEnabled(false);
+
+    setWindowTitle(QString::fromStdString(m_displayingMod->name)+" [Playing]");
     ModsIndex::Mod currentMod = m_displayingMod.value();
     SessionManager::launch(m_displayingMod.value(), [this,currentMod](){
       if (currentMod != m_displayingMod.value()) return;
       m_playButton->setEnabled(true);  
       m_playFromSaveButton->setEnabled(true);
+      m_developerModeSwitch->setEnabled(true);
+      m_forceRecompileSwitch->setEnabled(true);
+
+      setWindowTitle(QString::fromStdString(m_displayingMod->name));
     });
   }
 }
@@ -118,6 +148,7 @@ void ModInfoScreen::onDeleteButtonClicked() {
 }
 
 void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
+  setWindowTitle(QString::fromStdString(mod.name));
   m_displayingMod = mod;
   QPixmap pixmap(QString::fromStdString(mod.getIconPath()));
   m_modIconLabel->setPixmap(pixmap);
@@ -125,11 +156,19 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
   m_modNameLabel->setText(mod.name.c_str());
   m_modVersionLabel->setText(QString("Version: %1").arg(mod.version.c_str()));
 
+  m_developerModeSwitch->setChecked(m_displayingMod->enableDeveloper);
+  m_forceRecompileSwitch->setChecked(m_displayingMod->forceRecompile);
+
   if (SessionManager::isMounted(mod.id)) {
     m_playButton->setEnabled(false);
     m_playFromSaveButton->setEnabled(false);
+    m_developerModeSwitch->setEnabled(false);
+    m_forceRecompileSwitch->setEnabled(false);
   } else {
     m_playButton->setEnabled(true);
     m_playFromSaveButton->setEnabled(true);
+    m_developerModeSwitch->setEnabled(true);
+    m_forceRecompileSwitch->setEnabled(true);
   }
+
 }

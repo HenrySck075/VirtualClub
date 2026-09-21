@@ -6,7 +6,7 @@
 #include <optional>
 #include "../utils/ModIndex.hpp"
 #include "../ui/PixmapWidget.hpp"
-#include "ui/Dialog.hpp"
+#include "ui/MESWidgets.hpp"
 class ModInfoScreen : public QWidget {
   Q_OBJECT
 public:
@@ -28,6 +28,9 @@ private:
   Button* m_playButton = nullptr;
   Button* m_playFromSaveButton = nullptr;
   Button* m_deleteButton = nullptr;
+
+  Switch* m_developerModeSwitch = nullptr;
+  Switch* m_forceRecompileSwitch = nullptr;
 
   std::optional<ModsIndex::Mod> m_displayingMod;
 };

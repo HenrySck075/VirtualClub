@@ -22,6 +22,7 @@ namespace ModsIndex {
   };
 
   void loadModsIndex();
+  void saveModsIndex();
 
   std::vector<Mod>& getMods();
   Mod installMod(std::filesystem::path path);

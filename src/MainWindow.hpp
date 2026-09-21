@@ -30,6 +30,8 @@ public:
     m_rootWidget->deleteLater();
   }
 
+  void setPageTitleBar(const QString& pageTitle);
+
 protected:
   void initUI();
 

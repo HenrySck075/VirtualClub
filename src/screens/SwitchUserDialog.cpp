@@ -3,7 +3,7 @@
 #include "ui/Sidebar.hpp" // for reused SidebarItem
 #include "utils/ProfileSettings.hpp"
 
-#include "ui/Dialog.hpp"
+#include "ui/MESWidgets.hpp"
 
 class SwitchUserDialogContent : public QWidget {
 public:

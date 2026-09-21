@@ -5,11 +5,9 @@
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <string>
-#include <vector>
-#include <filesystem>
-#include <thread>
-#include <memory>
 #include "macros.h"
 
 #ifdef _WIN32
@@ -55,142 +53,38 @@ QString SessionManager::mountPathOf(std::string modId) {
 namespace fs = std::filesystem;
 
 void spawn_process(
-    const std::string& command,
-    const std::vector<std::string>& argv,
-    const std::vector<std::string>& extra_env,
+    const QString& command,
+    const QStringList& argv,
+    const QStringList& extra_env,
     std::function<void(pid_t pid)> on_created,
     std::function<void(int exit_code)> on_exit
 )
 {
-    // Launch a background thread to block on child execution
-    std::thread([command, argv, extra_env, on_created, on_exit]() {
-        int exit_code = -1;
+  QProcess* process = new QProcess();
+  process->setProgram(command);
+  process->setArguments(argv);
+  auto env = QProcessEnvironment::systemEnvironment();
 
-#if defined(_WIN32)
-        // -------------------------------------------------------------
-        // WINDOWS IMPLEMENTATION
-        // -------------------------------------------------------------
-        char* sys_env = GetEnvironmentStringsA();
-        if (!sys_env) {
-            if (on_exit) on_exit(-1);
-            return;
-        }
+  for (const auto& envVar : extra_env) {
+      auto parts = envVar.split('=');
+      if (parts.size() == 2) {
+          env.insert(parts[0], parts[1]);
+      }
+  }
 
-        std::vector<char> env_block;
-        
-        // 1. Copy existing system environment block
-        char* ptr = sys_env;
-        while (*ptr != '\0') {
-            size_t len = std::strlen(ptr) + 1;
-            env_block.insert(env_block.end(), ptr, ptr + len);
-            ptr += len;
-        }
-        FreeEnvironmentStringsA(sys_env);
+  process->setProcessEnvironment(env);
+  
 
-        // 2. Append extra "KEY=VALUE" strings
-        for (const auto& var : extra_env) {
-            env_block.insert(env_block.end(), var.c_str(), var.c_str() + var.length() + 1);
-        }
+  QObject::connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                   [process, on_exit](int exitCode, QProcess::ExitStatus exitStatus) {
+                       if (exitStatus == QProcess::CrashExit) {
+                           qDebug() << "Process crashed";
+                       }
+                       on_exit(exitCode);
+                       process->deleteLater();
+                   });
 
-        // 3. Add final double null terminator required by Windows
-        env_block.push_back('\0');
-
-        STARTUPINFOA si = { sizeof(si) };
-        PROCESS_INFORMATION pi = { 0 };
-        // Wrap command in quotes to handle paths with spaces safely
-        std::string cmd = "\"" + command + "\"";
-        for (const auto& arg : argv) {
-            cmd += " \"" + arg + "\"";
-        }
-
-        if (CreateProcessA(NULL, cmd.data(), NULL, NULL, FALSE, 0, env_block.data(), NULL, &si, &pi)) {
-            if (on_created) on_created(pi.dwProcessId);
-            // Block thread until child exits
-            WaitForSingleObject(pi.hProcess, INFINITE);
-
-            DWORD code = 0;
-            if (GetExitCodeProcess(pi.hProcess, &code)) {
-                exit_code = static_cast<int>(code);
-            }
-
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-        }
-
-#else
-        // -------------------------------------------------------------
-        // LINUX / POSIX IMPLEMENTATION
-        // -------------------------------------------------------------
-        std::vector<std::string> env_storage;
-        std::vector<char*> env_vec;
-
-        // Parse key names from extra_env (e.g. "LD_LIBRARY_PATH")
-        std::vector<std::string> extra_keys;
-        for (const auto& var : extra_env) {
-            auto pos = var.find('=');
-            if (pos != std::string::npos) {
-                extra_keys.push_back(var.substr(0, pos));
-            }
-        }
-
-        // Copy existing environment except keys that are overridden in extra_env
-        for (char** env = environ; *env != nullptr; ++env) {
-            std::string entry(*env);
-            auto pos = entry.find('=');
-            std::string key = (pos != std::string::npos) ? entry.substr(0, pos) : entry;
-
-            bool is_overridden = false;
-            for (const auto& k : extra_keys) {
-                if (k == key) { is_overridden = true; break; }
-            }
-
-            if (!is_overridden) {
-                env_storage.push_back(entry);
-            }
-        }
-
-        // Add extra environment variables
-        for (const auto& var : extra_env) {
-            env_storage.push_back(var);
-        }
-
-        for (auto& s : env_storage) {
-            env_vec.push_back(s.data());
-        }
-        env_vec.push_back(nullptr);
-
-        std::vector<char*> argv_vec;
-        
-        // FIX: argv[0] must be the command/executable name by POSIX convention
-        argv_vec.push_back(const_cast<char*>(command.c_str()));
-        
-        for (const auto& arg : argv) {
-            argv_vec.push_back(const_cast<char*>(arg.c_str()));
-        }
-        argv_vec.push_back(nullptr);
-
-        pid_t pid;
-        int status = posix_spawn(&pid, command.c_str(), NULL, NULL, argv_vec.data(), env_vec.data());
-
-        if (status == 0) {
-            if (on_created) on_created(pid);
-            int wait_status = 0;
-            // Block thread until process terminates
-            if (waitpid(pid, &wait_status, 0) != -1) {
-                if (WIFEXITED(wait_status)) {
-                    exit_code = WEXITSTATUS(wait_status);
-                } else if (WIFSIGNALED(wait_status)) {
-                    exit_code = 128 + WTERMSIG(wait_status);
-                }
-            }
-        }
-#endif
-
-        // Trigger callback on background thread upon exit
-        if (on_exit) {
-            on_exit(exit_code);
-        }
-    }).detach();
+  process->start();
 }
 
 
@@ -281,30 +175,30 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> exitedCal
   }
 
   // Step 4. Prepare environment variables and launch the game
-  std::vector<std::string> extra_env;
-  std::vector<std::string> argv;
-  extra_env.push_back("MVC_MOD_ID=" + mod.id);
-  if (mod.enableDeveloper) extra_env.push_back("MVC_DEVELOPER=Mon-ika");
-  if (saveId != "") extra_env.push_back(("MVC_SAVE_ID=" + saveId).toStdString());
+  QStringList extra_env;
+  QStringList argv;
+  extra_env << QString::fromStdString("MVC_MOD_ID=" + mod.id);
+  if (mod.enableDeveloper) extra_env << "MVC_DEVELOPER=Mon-ika";
+  if (saveId != "") extra_env << ("MVC_SAVE_ID=" + saveId);
 
   #ifdef __linux__
   // get current list of LD_LIBRARY_PATH
   const char* ld_library_path = std::getenv("LD_LIBRARY_PATH");
-  extra_env.push_back("LD_LIBRARY_PATH=" + pythonwPath->parent_path().string() + ":" + (ld_library_path ? ld_library_path : ""));
+  extra_env << QString::fromStdString("LD_LIBRARY_PATH=" + pythonwPath->parent_path().string() + ":" + (ld_library_path ? ld_library_path : ""));
   #endif
 
   // Ren'Py 6 fallback launch flag. cant believe i have to do this
   // TODO: this check's works but it's weird, given that we're going 
   // to allow users to omit the renpy engine from the mod folder. not now though so no care
   if (!fs::exists(fs::path(mod.modPath) / "lib")) {
-      argv.push_back("-EO");
+      argv << "-EO";
   }
-  argv.push_back(bootstrapperPath);
+  argv << QString::fromStdString(bootstrapperPath);
 
   std::string modId = mod.id;
 
   spawn_process(
-      pythonwPath->string(), argv, extra_env, 
+      QString::fromStdString(pythonwPath->string()), argv, extra_env, 
       [](pid_t pid) {},
       [modId, exitedCallback](int exit_code) {
           qDebug() << "Game exited with code:" << exit_code;

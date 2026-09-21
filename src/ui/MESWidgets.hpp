@@ -1,5 +1,5 @@
-#ifndef MESDialog_H
-#define MESDialog_H
+#ifndef MESWidgets_H
+#define MESWidgets_H
 
 #include <QDialog>
 #include <QPushButton>
@@ -11,6 +11,9 @@
 #include <QLinearGradient>
 #include <QSoundEffect>
 #include <QVariantAnimation>
+#include <QCheckBox>
+#include <QColor>
+
 
 //  Button Class
 class Button : public QPushButton {
@@ -97,5 +100,19 @@ private:
     float m_enterEffectProgress = 1.0;
 
     OverlayWidget* m_overlay = nullptr;
+};
+
+
+//  Switch class
+class Switch : public QCheckBox {
+    Q_OBJECT
+
+public:
+    explicit Switch(QWidget *parent = nullptr);
+
+    QSize sizeHint() const override;
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
 };
 #endif

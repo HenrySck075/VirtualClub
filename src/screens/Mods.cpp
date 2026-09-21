@@ -2,7 +2,7 @@
 #include <QLayout>
 #include <QLabel>
 #include "../ui/IconButton.hpp"
-#include "../ui/Dialog.hpp"
+#include "../ui/MESWidgets.hpp"
 #include "../utils/LucideIcons.hpp"
 #include "../utils/anime.hpp"
 #include "../MainWindow.hpp"
@@ -146,6 +146,7 @@ private:
 
 
 ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
+  setWindowTitle("Mods");
   // Set up the layout for the Mods screen
   auto *layout = new QVBoxLayout(this);
   static const int margin = 24;
@@ -206,12 +207,18 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   auto backCb = [this](){
     c_navigationSfx->play();
     m_contentWrapper->setCurrentWidget(m_modsListPage);
+    setWindowTitle("Mods");
     anime::slideFade(m_modsListPage, anime::SlideDirection::Right);
   };
   connect(m_modInfoPage, &ModInfoScreen::backButtonClicked, backCb);
   connect(m_modInfoPage, &ModInfoScreen::modUninstalled, [this, backCb](std::string modId){
     removeModItem(modId);
     backCb();
+  });
+  connect(m_modInfoPage, &QWidget::windowTitleChanged, this, [this](const QString& title){
+    if (m_contentWrapper->currentWidget() == m_modInfoPage) {
+      setWindowTitle(title);
+    }
   });
 
 }
@@ -247,6 +254,7 @@ void ModsScreen::openModInfo(const ModsIndex::Mod& mod) {
   c_navigationSfx->play();
   m_contentWrapper->setCurrentWidget(m_modInfoPage);
   m_modInfoPage->setDisplayingMod(mod);
+  setWindowTitle(m_modInfoPage->windowTitle());
   anime::slideFade(m_modInfoPage, anime::SlideDirection::Left);
 }
 
