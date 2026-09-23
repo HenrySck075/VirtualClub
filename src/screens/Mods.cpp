@@ -270,9 +270,15 @@ void ModsScreen::deselectOtherItems(DesktopIconWidget* selectedItem) {
   });
 }
 
+#ifndef MVC_DEBUG
+#define CPPTRACE_TRY try
+#define CPPTRACE_CATCH(x) catch(x)
+#endif
+
 void ModsScreen::onAddModButtonClicked() {
   auto directory = QFileDialog::getExistingDirectory(nullptr, "Select a mod directory containing a _valid Ren'Py game structure_ to add.");
   if (directory == "") return;
+    
   CPPTRACE_TRY {
     auto m = ModsIndex::installMod(directory.toStdString());
     addModItem(m); 
