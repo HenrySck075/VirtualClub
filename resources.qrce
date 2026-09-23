@@ -15,6 +15,7 @@
     <file alias="bug.svg">resources/icons/bug.svg</file>
     <file alias="refresh_cw.svg">resources/icons/refresh_cw.svg</file>
     <file alias="trash.svg">resources/icons/trash.svg</file>
+    <file alias="images.svg">resources/icons/images.svg</file>
   </qresource>
   <qresource>
     <file alias="Quicksand-Bold.ttf">resources/Quicksand-Bold.ttf</file>

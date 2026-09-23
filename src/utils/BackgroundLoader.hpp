@@ -18,10 +18,10 @@ class BackgroundLoader {
 public:
   static QStringList getPacks();
   // get a list of images in the current background pack
-  static QStringList getImages();
+  static QStringList getImages(const QString& pack = "");
   // get the image for single-image background, 
   // or the image corresponding to the current time for the multiple variant.
-  static QString getImage();
+  static QString getImage(const QString& pack = "");
 
   struct BackgroundInfo {
     enum BackgroundType {

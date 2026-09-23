@@ -216,7 +216,7 @@ public:
               return patchesPath.string();
           }
         } else if (path == "/game/patches") {
-          return launcherRoot / "assets" / "patches";
+          return (launcherRoot / "assets" / "patches").string();
         }
 
         if (path.rfind("/lib", 0) == 0) {
@@ -279,8 +279,8 @@ public:
                 found = true;
                 for (const auto &entry : fs::directory_iterator(dir)) {
                     auto name = entry.path().filename();
-                    if (name != ".vclubmgr" && !is_whiteouted(path / name)) {
-                        dirents.insert(name);
+                    if (name.string() != ".vclubmgr" && !is_whiteouted(path / name)) {
+                        dirents.insert(name.string());
                     }
                 }
             }

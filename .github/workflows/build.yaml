@@ -1,4 +1,4 @@
-name: Build and Release Qt6 Application
+name: Build and Release
 
 on:
   workflow_dispatch:
@@ -24,6 +24,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Set up Python (required for pybind11 integration)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Qt 6.11.1 Manually
+        run: python .github/scripts/install_qt.py
+
+      # Install pybind11 on Windows via pip
+      - name: Install pybind11 (Windows)
+        if: matrix.platform == 'windows'
+        run: pip install "pybind11[global]"
+
       # Extract version from CMakeLists.txt (runs on Linux build)
       - name: Extract Version
         id: version
@@ -37,56 +51,68 @@ jobs:
       - name: Install Linux Dependencies
         if: matrix.platform == 'linux'
         run: |
+
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
             libgl1-mesa-dev \
             libxkbcommon-dev \
-            libvulkan-dev
+            libvulkan-dev \
+            libicu-dev \
+            libglib2.0-dev \
+            libdbus-1-dev \
+            libfontconfig1 \
+            libfreetype6 \
+            libasound2t64 \
+            libpulse0 \
+            python3-dev \
+            pybind11-dev \
+            fuse3 \
+            libfuse3-dev
 
-      # Setup Ninja build tool
-      - name: Install Ninja
-        uses: xmake-io/github-action-setup-ninja@v1
+      # Install WinFSP for Windows (required for FUSE support)
+      - name: Install WinFSP (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          choco install winfsp -y
+          echo "WINFSP_DIR=C:\Program Files (x86)\WinFsp" >> $env:GITHUB_ENV
 
-      # Install Qt 6 using jurplel/install-qt
-      - name: Install Qt 6
-        uses: jurplel/install-qt@v4
-        with:
-          version: '6.11.2'
-          arch: ${{ matrix.platform == 'windows' && 'win64_msvc2019_64' || '' }}
-          cache: true
-
-      # Setup MSVC compiler environment on Windows
-      - name: Setup MSVC (Windows)
+      # Initialize MSVC and Windows SDK environment variables
+      - name: Set up MSVC environment
         if: matrix.platform == 'windows'
         uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
-      # Configure CMake
       - name: Configure CMake
-        run: |
-          cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}"
+        env:
+          CC: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang' }}
+          CXX: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang++' }}
+          LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
       # Build application
       - name: Build Project
         run: cmake --build build --config Release
 
-      # Package Linux Application into a tarball
+      # Package Linux Application into a tarball (with assets folder)
       - name: Package Application (Linux)
         if: matrix.platform == 'linux'
         run: |
-          mkdir dist
+          mkdir -p dist
           cp build/VirtualClub dist/
+          cp -r assets dist/
           tar -czvf app-linux-x64.tar.gz -C dist .
 
-      # Package Windows Application with windeployqt into a zip
+      # Package Windows Application with windeployqt into a zip (with assets folder)
       - name: Package Application (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path dist
+          New-Item -ItemType Directory -Path dist -Force
           Copy-Item build\Release\VirtualClub.exe -Destination dist\
+          Copy-Item -Recurse assets dist\
           windeployqt --release dist\VirtualClub.exe
           Compress-Archive -Path dist\* -DestinationPath app-windows-x64.zip
 
@@ -123,3 +149,4 @@ jobs:
             app-windows-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

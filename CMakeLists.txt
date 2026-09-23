@@ -20,8 +20,19 @@ find_package(pybind11 REQUIRED CONFIG)
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.hpp")
 qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
-    resources.qrc
+    #resources.qrc
 )
+
+
+file(GLOB_RECURSE TL_RC_FILES "resources/*.*")
+
+
+qt_add_resources(${PROJECT_NAME} "tl_rc"
+    BASE "resources"
+    FILES ${TL_RC_FILES}
+)
+
+
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 include(FetchContent)

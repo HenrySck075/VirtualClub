@@ -17,12 +17,17 @@
 #include <windows.h>
 #include <io.h>
 #include <direct.h>
+
+typedef unsigned short mode_t;
+typedef unsigned long pid_t;
+typedef SSIZE_T ssize_t;
 #else
 #include <sys/wait.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <spawn.h>
 extern char** environ;
+
 #endif
 
 #include <QApplication>

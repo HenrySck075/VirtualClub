@@ -29,6 +29,13 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
   contentLayout->addWidget(new QLabel("<i>All changes are automatically saved.</i>"),0,Qt::AlignLeft);
 
+  auto addSettingsHeader = [contentLayout](QString headerName) {
+    auto* headerLabel = new QLabel(headerName);
+    headerLabel->setFont(QFont("Quicksand", 18, QFont::Bold));
+    contentLayout->addWidget(headerLabel, 0, Qt::AlignLeft);
+    return headerLabel;
+  };
+
   // Add a label or any other widgets you want to display on the Settings screen
   auto addSettingsLabel = [contentLayout](QString name, QString desc, QWidget* action) {
     auto layout = new QHBoxLayout();
@@ -55,6 +62,8 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
 
   auto settings = ProfileSettings::get();
+
+  addSettingsHeader("Profile");
 
   auto* pathChangeButton = new Button(LucideIcons::folder_pen, content);
   auto [pcNameLabel, pcDescLabel] = addSettingsLabel("Base game's path", settings->value("baseGameInstallPath").toString(), pathChangeButton);

@@ -4,7 +4,6 @@
 #include "utils/BackgroundLoader.hpp"
 #include "utils/ModIndex.hpp"
 #include "utils/RenpyArchive.hpp"
-#include <QResource>
 #include <QMediaDevices>
 #include <QAudioDevice>
 #include <QFileDialog>
@@ -51,7 +50,6 @@ int main(int argc, char *argv[]) {
     }
     QCoreApplication::setApplicationName("VirtualClub");
     QCoreApplication::setOrganizationName("henrysck075");
-    Q_INIT_RESOURCE(resources);
 
     QFontDatabase::addApplicationFont(":/Quicksand-Bold.ttf");
     QFontDatabase::addApplicationFont(":/Quicksand-Light.ttf");
