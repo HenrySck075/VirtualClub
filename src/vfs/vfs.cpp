@@ -279,7 +279,7 @@ public:
                 found = true;
                 for (const auto &entry : fs::directory_iterator(dir)) {
                     auto name = entry.path().filename();
-                    if (name.string() != ".vclubmgr" && !is_whiteouted(path / name)) {
+                    if (name.string() != ".vclubmgr" && !is_whiteouted((path / name).string())) {
                         dirents.insert(name.string());
                     }
                 }
