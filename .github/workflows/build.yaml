@@ -111,7 +111,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path dist -Force
-          Copy-Item build\Release\VirtualClub.exe -Destination dist\
+          Copy-Item build\VirtualClub.exe -Destination dist\
           Copy-Item -Recurse assets dist\
           windeployqt --release dist\VirtualClub.exe
           Compress-Archive -Path dist\* -DestinationPath app-windows-x64.zip
