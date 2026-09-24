@@ -4,6 +4,7 @@
 #include "GradientBackground.hpp"
 #include <QScrollArea>
 #include <QLayout>
+#include <QPushButton>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
 #include <QSoundEffect>
@@ -19,12 +20,11 @@ protected:
 };
 
 
-class SidebarItem : public QWidget {
+class SidebarItem : public QPushButton {
   Q_OBJECT 
   Q_PROPERTY(int hoverAlpha READ hoverAlpha WRITE setHoverAlpha)
   Q_PROPERTY(float slideAnim READ slideAnim WRITE setSlideAnim)
 signals:
-  void clicked();
   void selectedChanged();
 private:
   int m_hoverAnimationValue = 0; // Ranges from 0 (invisible) to 255 (full opacity)

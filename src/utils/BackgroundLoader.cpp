@@ -3,6 +3,7 @@
 #include <QImage>
 #include <QCoreApplication>
 #include <filesystem>
+#include "consts.hpp"
 #include "utils/ProfileSettings.hpp"
 
 // Helper to parse times like "18", "18.30", "6.15", "6" into QTime
@@ -63,7 +64,7 @@ QStringList BackgroundLoader::getPacks() {
 }
 
 QString BackgroundLoader::getImage(const QString& pack_) {
-  auto pack = pack_.isEmpty() ? ProfileSettings::get()->value("background").toString() : pack_;
+  auto pack = pack_.isEmpty() ? ProfileSettings::get()->value(STK_BGPACK).toString() : pack_;
 
   fs::path bgAssetsFolder;
   try {

@@ -24,7 +24,10 @@ namespace ModsIndex {
   void loadModsIndex();
   void saveModsIndex();
 
-  std::vector<Mod>& getMods();
+  void addModToRecentlyPlayed(const std::string& id);
+  const std::vector<Mod>& getRecentlyPlayed();
+
+  const std::vector<Mod>& getMods();
   Mod installMod(std::filesystem::path path);
   void removeMod(Mod& mod);
   const Mod& getModByID(std::string id);

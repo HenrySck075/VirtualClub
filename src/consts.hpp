@@ -18,4 +18,12 @@ inline void initGlobalSfx() {
   }
 }
 
+
+inline constexpr auto STK_BASEPATH = "baseGameInstallPath";
+inline constexpr auto STK_BGPACK = "background";
+inline constexpr auto STK_DISPLAYNAME = "displayName";
+inline constexpr auto STK_PFP = "profileImage";
+inline constexpr auto STK_RECENTLIST = "recentList";
+
+
 #endif

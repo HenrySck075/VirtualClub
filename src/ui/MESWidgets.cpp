@@ -197,60 +197,6 @@ void OverlayWidget::mousePressEvent(QMouseEvent* event) {
   QWidget::mousePressEvent(event);
 }
 
-class ClickEventFilter : public QObject
-{
-  Q_OBJECT
-
-public:
-  explicit ClickEventFilter(QObject *parent = nullptr) : QObject(parent) {}
-
-signals:
-  // Signal emitted when a valid click is detected
-  void clicked(QWidget *target);
-
-protected:
-  bool eventFilter(QObject *watched, QEvent *event) override {
-    QWidget *widget = qobject_cast<QWidget*>(watched);
-    if (!widget) {
-        return QObject::eventFilter(watched, event);
-    }
-
-    switch (event->type()) {
-    case QEvent::MouseButtonPress: {
-      auto *mouseEvent = static_cast<QMouseEvent*>(event);
-      if (mouseEvent->button() == Qt::LeftButton) {
-          m_mousePressed = true;
-          // Return true here if you want to consume/block the press event
-          return false; 
-      }
-      break;
-    }
-    case QEvent::MouseButtonRelease: {
-      auto *mouseEvent = static_cast<QMouseEvent*>(event);
-      if (mouseEvent->button() == Qt::LeftButton && m_mousePressed) {
-        m_mousePressed = false;
-
-        // Ensure the release occurred within the target widget's area
-        if (widget->rect().contains(mouseEvent->position().toPoint())) {
-          emit clicked(widget);
-          // Return true if you want to consume the click event
-          return false; 
-        }
-      }
-      break;
-    }
-    default:
-      break;
-    }
-
-    // Pass the event on to the base class / target object
-    return QObject::eventFilter(watched, event);
-  }
-
-private:
-    bool m_mousePressed = false;
-};
-
 // ==========================================
 // Dialog Implementation
 // ==========================================
@@ -565,4 +511,3 @@ void Switch::paintEvent(QPaintEvent * /*event*/)
     painter.setBrush(isEnabled() ? c_secondaryColor : c_disabledColor);
     painter.drawPath(donutPath);
 }
-#include "MESWidgets.moc"
