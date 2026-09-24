@@ -48,23 +48,49 @@ jobs:
           echo "APP_VERSION=$VERSION" >> $GITHUB_OUTPUT
 
       # Install Linux-specific build dependencies
+      # whole wall for qt6
       - name: Install Linux Dependencies
         if: matrix.platform == 'linux'
         run: |
-
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
             libgl1-mesa-dev \
             libxkbcommon-dev \
+            libxkbcommon-x11-dev \
             libvulkan-dev \
             libicu-dev \
             libglib2.0-dev \
             libdbus-1-dev \
-            libfontconfig1 \
-            libfreetype6 \
-            libasound2t64 \
-            libpulse0 \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libasound2-dev \
+            libpulse-dev \
+            libxcb1-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxcb-icccm4-dev \
+            libxcb-image0-dev \
+            libxcb-keysyms1-dev \
+            libxcb-randr0-dev \
+            libxcb-render-util0-dev \
+            libxcb-util-dev \
+            libxcb-xinerama0-dev \
+            libxcb-xkb-dev \
+            libx11-xcb-dev \
+            libsm-dev \
+            libice-dev \
+            libegl1-mesa-dev \
+            libzstd-dev \
+            libz-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-alsa \
+            gstreamer1.0-pulseaudio \
+            gstreamer1.0-x \
             python3-dev \
             pybind11-dev \
             fuse3 \
