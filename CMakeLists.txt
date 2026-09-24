@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.1.1 LANGUAGES CXX)
+project(VirtualClub VERSION 0.1.1 LANGUAGES C CXX)
 
 add_compile_definitions(
   MVC_VERSION=${PROJECT_VERSION}
@@ -17,7 +17,7 @@ set(CMAKE_AUTORCC ON)
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
 find_package(pybind11 REQUIRED CONFIG)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.hpp")
+file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c" "src/*.hpp")
 qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     #resources.qrc

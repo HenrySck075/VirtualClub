@@ -183,8 +183,10 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> exitedCal
   QStringList extra_env;
   QStringList argv;
   extra_env << QString::fromStdString("MVC_MOD_ID=" + mod.id);
+
   if (mod.enableDeveloper) extra_env << "MVC_DEVELOPER=Mon-ika";
   if (saveId != "") extra_env << ("MVC_SAVE_ID=" + saveId);
+  qDebug() << "save id:" << saveId;
 
   #ifdef __linux__
   // get current list of LD_LIBRARY_PATH

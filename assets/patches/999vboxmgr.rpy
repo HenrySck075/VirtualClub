@@ -1,3 +1,12 @@
+init -2027 python early:
+    # check if all the required environment variables is present 
+    # (if not then throw an error saying this file should be removed)
+    import os
+    launcher_env_vars = ["MVC_MOD_ID"]
+    if not all(var in os.environ for var in launcher_env_vars):
+        raise RuntimeError("Missing required environment variables for launcher integration. "
+                           "Please remove 999vboxmgr.rpy if not using the launcher.")
+
 init -2026 python early:
     def setDeveloperMode():
         import os
@@ -87,14 +96,14 @@ init 999 python:
 init -67 python early:
     mod_uuid = os.getenv("MVC_MOD_ID") # variable provided by the launcher
     config.save_directory = mod_uuid
-    config.savedir = mod_uuid
+    # config.savedir = os.getenv("MVC_SAVE_DIR")
 
 
 init 999 python:
     def _autoload_check():
         import os
         maybeSaveID = os.environ.pop("MVC_SAVE_ID", None)
-        if maybeSaveID:
+        if maybeSaveID is not None:
             import renpy
             renpy.loadsave.load(maybeSaveID)
         config.periodic_callbacks.remove(_autoload_check)

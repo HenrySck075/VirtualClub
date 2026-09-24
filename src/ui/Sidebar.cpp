@@ -28,14 +28,14 @@ void GradientBackground2::paintEvent(QPaintEvent* event) {
     }
 }
 
-void SidebarItem::mousePressEvent(QMouseEvent* event) {
+void SidebarItem::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         if (m_switchable) setSelected(true);
         emit clicked(); // Emit your signal when left-clicked
     }
     
     // Pass the event to the base class if needed
-    QWidget::mousePressEvent(event);
+    QWidget::mouseReleaseEvent(event);
 } 
 SidebarItem::SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent) : QWidget(parent), m_switchable(switchable) {
   setFixedHeight(50); // Set a fixed height for each sidebar item

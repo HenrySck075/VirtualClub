@@ -8,13 +8,17 @@
 #include "ui/MESWidgets.hpp"
 #include <qframe.h>
 
-class SwitchUserDialogContent : public QWidget {
+class SwitchUserDialogContent : public DialogContent {
 public:
 
 
 SwitchUserDialogContent() {
   auto* layout = new QVBoxLayout(this);
   layout->setAlignment(Qt::AlignTop);
+
+  auto* incompleteLabel = new QLabel("<i>incomplete feature do not use pls thx</i>");
+  incompleteLabel->setFont(QFont("Quicksand", 9));
+  layout->addWidget(incompleteLabel);
 
   auto* userList = new QScrollArea(this);
   userList->setWidgetResizable(true);

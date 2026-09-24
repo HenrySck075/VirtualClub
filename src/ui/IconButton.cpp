@@ -20,16 +20,15 @@ void IconButton::setSelected(bool selected) {
 }
 
 
-void IconButton::mousePressEvent(QMouseEvent* event) {
+void IconButton::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         if (m_selectable) setSelected(true);
-        emit clicked(); // Emit your signal when left-clicked
     }
     
     // Pass the event to the base class if needed
-    QWidget::mousePressEvent(event);
+    QPushButton::mouseReleaseEvent(event);
 }
-IconButton::IconButton(QIcon icon, QWidget *parent) : QWidget(parent) {
+IconButton::IconButton(QIcon icon, QWidget *parent) : QPushButton(parent) {
   setFixedSize({40,30}); // Set a fixed height for each sidebar item
   // Setup animation (duration: 200 ms)
   m_fadeAnimation = new QPropertyAnimation(this, "hoverAlpha", this);
@@ -104,7 +103,6 @@ void IconButton::paintEvent(QPaintEvent *event) {
 
 bool IconButton::event(QEvent *event) {
   if (event->type() == QEvent::ToolTip) {
-    qDebug() << "m";
     auto *helpEvent = static_cast<QHelpEvent *>(event);
 
     if (!toolTip().isEmpty()) {

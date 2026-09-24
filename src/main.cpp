@@ -15,6 +15,7 @@
 #include "utils/utils.hpp"
 #include "utils/macros.h"
 
+#include <filesystem>
 #include <pybind11/embed.h>
 
 #ifdef MVC_DEBUG

@@ -56,6 +56,10 @@ QLineEdit {
   font-family: Quicksand, Segoe UI;
   padding: 4px;
 }
+
+QScrollBar::handle {
+  background: %1;
+}
 )").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
 }
 

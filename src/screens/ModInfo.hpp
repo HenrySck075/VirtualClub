@@ -18,6 +18,7 @@ signals:
   void modUninstalled(std::string modId);
 private:
   void onPlayButtonClicked();
+  void play(const QString& saveId = "");
   void onOpenModDirClicked();
   void onDeleteButtonClicked();
 
@@ -33,6 +34,8 @@ private:
   Switch* m_forceRecompileSwitch = nullptr;
 
   std::optional<ModsIndex::Mod> m_displayingMod;
+
+  friend class SaveSelectDialogContent;
 };
 
 #endif

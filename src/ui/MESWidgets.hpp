@@ -13,6 +13,7 @@
 #include <QVariantAnimation>
 #include <QCheckBox>
 #include <QColor>
+#include <QPointer>
 
 
 //  Button Class
@@ -59,9 +60,22 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
 };
 
+class Dialog;
+// abstract class for widgets to be used as [Dialog]'s content
+class DialogContent : public QWidget {
+private:
+  // contrary to what you might think, this variable is only valid for the duration of Dialog::showContentDialog. its null at any other moments.
+  Dialog* m_dialog = nullptr;
+  friend class Dialog;
+public:
+  void closeDialog();
+};
+
 //  Dialog Class
 class Dialog : public QDialog {
     Q_OBJECT
+
+    friend class DialogContent;
 public:
     enum DialogType {
         Confirm, // Single OK button
@@ -83,16 +97,22 @@ public:
                            bool danger = false);
     static void showContentDialog(QWidget* parent, 
                            const QString& title, 
-                           QWidget* content,
+                           DialogContent* content,
                            QSize size);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
 
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
     static constexpr int BOTTOM_BAR_HEIGHT = 20;
     static constexpr int TITLE_BAR_HEIGHT = 35;
+
+    // Dragging state
+    bool m_isDragging = false;
+    QPoint m_dragPosition;
     
     QColor m_purpleColor{137, 35, 137};
 
@@ -101,6 +121,7 @@ private:
 
     OverlayWidget* m_overlay = nullptr;
 };
+
 
 
 //  Switch class
@@ -114,5 +135,8 @@ public:
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    bool hitButton(const QPoint &pos) const override {
+        return rect().contains(pos);
+    }
 };
 #endif

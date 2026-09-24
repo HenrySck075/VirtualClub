@@ -279,10 +279,11 @@ Dialog::Dialog(const QString& title,
 
   // 1. Title Bar
   QWidget* titleBar = new QWidget(this);
+  titleBar->installEventFilter(this);
   titleBar->setFixedHeight(TITLE_BAR_HEIGHT);
   titleBar->setStyleSheet("background: white;");
   QHBoxLayout* titleLayout = new QHBoxLayout(titleBar);
-  titleLayout->setContentsMargins(15, 6, 15, 0);
+  titleLayout->setContentsMargins(15, 0, 15, 0);
 
   QLabel* titleLabel = new QLabel(title, titleBar);
   titleLabel->setFont(QFont("Quicksand", 11, QFont::ExtraBold));
@@ -342,6 +343,27 @@ Dialog::Dialog(const QString& title,
     m_enterEffectProgress = 0;
     update();
   });
+}
+
+bool Dialog::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::MouseButtonPress) {
+        auto* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::LeftButton) {
+            m_isDragging = true;
+            m_dragPosition = mouseEvent->globalPosition().toPoint() - frameGeometry().topLeft();
+            return true;
+        }
+    } else if (event->type() == QEvent::MouseMove) {
+        auto* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (m_isDragging && (mouseEvent->buttons() & Qt::LeftButton)) {
+            move(mouseEvent->globalPosition().toPoint() - m_dragPosition);
+            return true;
+        }
+    } else if (event->type() == QEvent::MouseButtonRelease) {
+        m_isDragging = false;
+        return true;
+    }
+    return QDialog::eventFilter(watched, event);
 }
 
 inline QColor editColor(QColor base, float a) {
@@ -454,12 +476,14 @@ bool Dialog::showActionDialog(QWidget* parent,
 
 void Dialog::showContentDialog(QWidget* parent, 
                        const QString& title, 
-                       QWidget* content,
+                       DialogContent* content,
                        QSize size) {
   Dialog dlg(title, content, "qrc:/audio/sidebar_click.wav", true, parent);
   if (size.isValid()) {
     dlg.setFixedSize(size);
   }
+
+  content->m_dialog = &dlg;
 
   if (parent) {
       // Center dialog over parent window
@@ -467,6 +491,14 @@ void Dialog::showContentDialog(QWidget* parent,
   }
 
   dlg.exec();
+
+  content->m_dialog = nullptr;
+}
+
+void DialogContent::closeDialog() {
+  if (m_dialog) {
+    m_dialog->accept();
+  }
 }
 
 // ==========================================
@@ -476,10 +508,6 @@ Switch::Switch(QWidget *parent)
     : QCheckBox(parent)
 {
     setCursor(Qt::PointingHandCursor);
-    connect(this, &QCheckBox::toggled, this, [this](bool checked) {
-        qDebug() << "g";
-        update(); // Trigger repaint on state change
-    });
 }
 
 QSize Switch::sizeHint() const

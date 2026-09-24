@@ -1,15 +1,14 @@
 #ifndef IconButton_H
 #define IconButton_H
 
-#include <QWidget>
 #include <QPropertyAnimation>
+#include <QPushButton>
 #include "../consts.hpp"
 
-class IconButton : public QWidget {
+class IconButton : public QPushButton {
   Q_OBJECT 
   Q_PROPERTY(int hoverAlpha READ hoverAlpha WRITE setHoverAlpha)
 signals:
-  void clicked();
   void selectedChanged();
 private:
   int m_hoverAnimationValue = 0; // Ranges from 0 (invisible) to 255 (full opacity)
@@ -27,7 +26,7 @@ private:
   bool m_selectable = false;
   int hoverAlpha() const { return m_hoverAnimationValue; }
   void setHoverAlpha(int alpha);
-  void mousePressEvent(QMouseEvent *event) override; 
+  void mouseReleaseEvent(QMouseEvent *event) override; 
 public:
   // should this be a qbutton then?
   // nah i dont think so

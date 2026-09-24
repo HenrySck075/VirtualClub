@@ -55,7 +55,7 @@ private:
         update(); // Triggers paintEvent() on every animation frame
     }
   }
-  void mousePressEvent(QMouseEvent *event) override; 
+  void mouseReleaseEvent(QMouseEvent *event) override; 
 
   bool m_switchable = true; // for Sidebar
   bool m_tintIcon = true; // for SwitchUserDialog which reuses SidebarItem

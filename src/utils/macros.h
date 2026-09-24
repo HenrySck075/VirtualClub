@@ -25,16 +25,19 @@
 #define MVC_MAC(...)
 #define MVC_LINUX(...)
 #define MVC_UNIX(...)
+#define MVC_IS_WINDOWS
 #elif defined(__APPLE__)
 #define MVC_WIN(...) 
 #define MVC_MAC(...) __VA_ARGS__
 #define MVC_LINUX(...)
 #define MVC_UNIX(...) __VA_ARGS__
+#define MVC_IS_MAC
 #elif defined(__linux__)
 #define MVC_WIN(...) 
 #define MVC_MAC(...)
 #define MVC_LINUX(...) __VA_ARGS__
 #define MVC_UNIX(...) __VA_ARGS__
+#define MVC_IS_LINUX
 #else
 #error "what"
 #endif
