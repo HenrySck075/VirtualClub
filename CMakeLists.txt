@@ -146,8 +146,9 @@ qt_generate_deploy_app_script(
 )
 
 install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION .
     BUNDLE DESTINATION .
 )
 
 install(SCRIPT ${deploy_script})
+install(DIRECTORY assets DESTINATION .)

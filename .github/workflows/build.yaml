@@ -148,7 +148,6 @@ jobs:
 
   release:
     name: Create GitHub Release
-    if: false
     needs: build
     runs-on: ubuntu-latest
     permissions:
