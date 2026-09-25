@@ -122,32 +122,21 @@ jobs:
       - name: Build Project
         run: cmake --build build --config Release
 
-      # Package Linux Application into a tarball
+      # Install Application using Qt's CMake deployment API
+      - name: Install and Deploy Application
+        run: cmake --install build --prefix dist
+
+      # Package Linux Application into a tarball (with assets folder)
       - name: Package Application (Linux)
         if: matrix.platform == 'linux'
         run: |
-          mkdir -p dist
-          cp build/VirtualClub dist/
-          cp -r assets dist/
-          
-          # Download linuxdeployqt (or install via AppImage)
-          wget https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
-          chmod +x linuxdeployqt-continuous-x86_64.AppImage
-          
-          # Deploy dependencies into dist directory
-          ./linuxdeployqt-continuous-x86_64.AppImage dist/VirtualClub -unsupported-bundle-everything -appimage
-          
           tar -czvf app-linux-x64.tar.gz -C dist .
 
-      # Package Windows Application with windeployqt into a zip (with assets folder)
+      # Package Windows Application into a zip (with assets folder)
       - name: Package Application (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path dist -Force
-          Copy-Item build\VirtualClub.exe -Destination dist\
-          Copy-Item -Recurse assets dist\
-          windeployqt --release dist\VirtualClub.exe
           Compress-Archive -Path dist\* -DestinationPath app-windows-x64.zip
 
       # Upload artifacts temporarily for the release job
@@ -159,6 +148,7 @@ jobs:
 
   release:
     name: Create GitHub Release
+    if: false
     needs: build
     runs-on: ubuntu-latest
     permissions:
