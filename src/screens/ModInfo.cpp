@@ -350,14 +350,15 @@ void ModInfoScreen::onPlayButtonClicked() {
 }
 void ModInfoScreen::play(const QString& saveId) {
   if (m_displayingMod.has_value()) {
-    m_playButton->setEnabled(false);
-    m_playFromSaveButton->setEnabled(false);
-    m_developerModeSwitch->setEnabled(false);
-    m_forceRecompileSwitch->setEnabled(false);
-
-    setWindowTitle(QString::fromStdString(m_displayingMod->name)+" [Playing]");
     ModsIndex::Mod currentMod = m_displayingMod.value();
-    SessionManager::launch(m_displayingMod.value(), [this,currentMod](){
+    SessionManager::launch(m_displayingMod.value(), [this](){
+      m_playButton->setEnabled(false);
+      m_playFromSaveButton->setEnabled(false);
+      m_developerModeSwitch->setEnabled(false);
+      m_forceRecompileSwitch->setEnabled(false);
+
+      setWindowTitle(QString::fromStdString(m_displayingMod->name)+" [Playing]");
+    }, [this,currentMod](){
       if (currentMod != m_displayingMod.value()) return;
       m_playButton->setEnabled(true);  
       m_playFromSaveButton->setEnabled(true);
@@ -384,7 +385,8 @@ void ModInfoScreen::onDeleteButtonClicked() {
 }
 
 void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
-  setWindowTitle(QString::fromStdString(mod.name));
+  bool isPlaying = SessionManager::isPlaying(mod.id);
+  setWindowTitle(QString::fromStdString(mod.name) + (isPlaying ? " [Playing]" : ""));
   m_displayingMod = mod;
   QPixmap pixmap(QString::fromStdString(mod.getIconPath()));
   m_modIconLabel->setPixmap(pixmap);
@@ -395,7 +397,7 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
   m_developerModeSwitch->setChecked(m_displayingMod->enableDeveloper);
   m_forceRecompileSwitch->setChecked(m_displayingMod->forceRecompile);
 
-  if (SessionManager::isMounted(mod.id)) {
+  if (isPlaying) {
     m_playButton->setEnabled(false);
     m_playFromSaveButton->setEnabled(false);
     m_developerModeSwitch->setEnabled(false);

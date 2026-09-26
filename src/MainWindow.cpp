@@ -65,7 +65,7 @@ QScrollBar::handle {
 
 void MainWindow::setPageTitleBar(const QString& pageTitle) {
   auto title = QString("VirtualClub Ren'Py Mod Manager - %1").arg(
-    ProfileSettings::get()->value("displayName", ProfileSingleApp::instance()->profileId()).toString()
+    ProfileSettings::get()->value(STK_DISPLAYNAME, ProfileSingleApp::instance()->profileId()).toString()
   );
 
   if (!pageTitle.isEmpty()) {

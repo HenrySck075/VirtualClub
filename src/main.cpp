@@ -1,6 +1,7 @@
 #include <QApplication>
 #include <QFontDatabase>
 #include "MainWindow.hpp"
+#include "consts.hpp"
 #include "utils/BackgroundLoader.hpp"
 #include "utils/ModIndex.hpp"
 #include "utils/RenpyArchive.hpp"
@@ -68,14 +69,14 @@ int main(int argc, char *argv[]) {
     initGlobalSfx();
 
     auto settings = ProfileSettings::get(); 
-    if (!settings->contains("baseGameInstallPath")) {
+    if (!settings->contains(STK_BASEPATH)) {
       askForBasePathChange();
     }
 
-    if (!settings->contains("background")) {
+    if (!settings->contains(STK_BGPACK)) {
       auto packs = BackgroundLoader::getPacks();
       if (!packs.isEmpty()) {
-        settings->setValue("background", packs.first());
+        settings->setValue(STK_BGPACK, packs.first());
       }
     }
 

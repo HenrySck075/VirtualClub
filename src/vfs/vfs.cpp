@@ -17,6 +17,7 @@
 #endif
 #include "vfs.hpp"
 #include "utils/ModIndex.hpp"
+#include "consts.hpp"
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <cerrno>
@@ -189,7 +190,7 @@ public:
         : launcherRoot(launcherRoot), startupConfigs(startupConfigs) {
 
         auto settings = ProfileSettings::get();
-        baseFolder = settings->value("baseGameInstallPath").toString().toStdString();
+        baseFolder = settings->value(STK_BASEPATH).toString().toStdString();
         if (baseFolder.empty()) {
             std::cerr << "Base game installation path not found in settings.json. Please set it in the launcher." << std::endl;
             throw std::runtime_error("Base game installation path not found.");

@@ -5,6 +5,7 @@
 #include "../ui/GradientBackground.hpp"
 #include "../ui/MESWidgets.hpp"
 #include "MainWindow.hpp"
+#include "consts.hpp"
 #include "utils/LucideIcons.hpp"
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
@@ -66,16 +67,18 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   addSettingsHeader("Profile");
 
   auto* pathChangeButton = new Button(LucideIcons::folder_pen, content);
-  auto [pcNameLabel, pcDescLabel] = addSettingsLabel("Base game's path", settings->value("baseGameInstallPath").toString(), pathChangeButton);
+  auto [pcNameLabel, pcDescLabel] = addSettingsLabel("Base game's path", settings->value(STK_BASEPATH).toString(), pathChangeButton);
   connect(pathChangeButton, &Button::clicked, this, [this, settings, pcDescLabel](){
     askForBasePathChange();
 
-    pcDescLabel->setText(settings->value("baseGameInstallPath").toString());
+    pcDescLabel->setText(settings->value(STK_BASEPATH).toString());
   });
 
   auto* displayNameTextInput = new QLineEdit();
-  displayNameTextInput->setText(settings->value("displayName", ProfileSingleApp::instance()->profileId()).toString());
-  bool haveDisplayName = settings->contains("displayName");
+  displayNameTextInput->setText(
+    settings->value(STK_DISPLAYNAME, ProfileSingleApp::instance()->profileId()).toString()
+  );
+  bool haveDisplayName = settings->contains(STK_DISPLAYNAME);
   auto [dnNameLabel, dnDescLabel] = addSettingsLabel(
     "Display name", 
     haveDisplayName
@@ -84,7 +87,7 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
     displayNameTextInput
   );
   connect(displayNameTextInput, &QLineEdit::editingFinished, this, [displayNameTextInput, dnDescLabel, haveDisplayName, settings](){
-    settings->setValue("displayName", displayNameTextInput->text());
+    settings->setValue(STK_DISPLAYNAME, displayNameTextInput->text());
     if (!haveDisplayName) 
       dnDescLabel->setText("great! :D");
 

@@ -33,7 +33,11 @@ extern char** environ;
 #include <QApplication>
 
 #ifdef MVC_VFS_AVAILABLE
+
+#include <unordered_map>
+#include <unordered_set>
 static std::unordered_map<std::string, std::unique_ptr<VFSInstance>> m_mountedMods;
+static std::unordered_set<std::string> m_playingMods;
 
 void SessionManager::mount(ModsIndex::Mod& mod) {
   if (m_mountedMods.contains(mod.id)) return;
@@ -50,6 +54,9 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
 
 bool SessionManager::isMounted(std::string modId) {
   return m_mountedMods.contains(modId);
+}
+bool SessionManager::isPlaying(std::string modId) {
+  return m_playingMods.contains(modId);
 }
 QString SessionManager::mountPathOf(std::string modId) {
   return m_mountedMods[modId]->mountPath();
@@ -89,11 +96,14 @@ void spawn_process(
                        process->deleteLater();
                    });
 
+  QObject::connect(process, &QProcess::started, [process, on_created]() {
+      on_created(process->processId());
+  });
   process->start();
 }
 
 
-void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> exitedCallback, const QString& saveId) {
+void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCallback, std::function<void()> exitedCallback, const QString& saveId) {
   mount(mod);
 
   // Step 1. get the bundled pythonw executable
@@ -206,10 +216,15 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> exitedCal
 
   spawn_process(
       QString::fromStdString(pythonwPath->string()), argv, extra_env, 
-      [](pid_t pid) {},
+      [modId, startedCallback](pid_t pid) {
+          qDebug() << "Game launched with PID:" << pid;
+          m_playingMods.insert(modId);
+          startedCallback();
+      },
       [modId, exitedCallback](int exit_code) {
           qDebug() << "Game exited with code:" << exit_code;
           if (exit_code == 0) SessionManager::unmount(modId);
+          m_playingMods.erase(modId);
           exitedCallback();
       }
   );
@@ -227,11 +242,14 @@ void SessionManager::unmount(std::string modId) {
 
 #else
 void SessionManager::mount(ModsIndex::Mod&) {}
-void SessionManager::launch(ModsIndex::Mod&, std::function<void()>, const QString&) {} 
+void SessionManager::launch(ModsIndex::Mod&, std::function<void()>, std::function<void()>, const QString&) {} 
 void SessionManager::unmount(ModsIndex::Mod&) {}
 void SessionManager::unmount(std::string) {}
 
 bool SessionManager::isMounted(std::string modId) {
+  return false;
+}
+bool SessionManager::isPlaying(std::string modId) {
   return false;
 }
 QString SessionManager::mountPathOf(std::string modId) {

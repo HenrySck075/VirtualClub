@@ -1,6 +1,7 @@
 #pragma once
 
 #include "YamlSettings.hpp"
+#include <memory>
 
 // glorified settings manager
 class ProfileSettings {

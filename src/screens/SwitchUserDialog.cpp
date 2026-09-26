@@ -1,5 +1,6 @@
 #include "SwitchUserDialog.hpp"
 #include "MainWindow.hpp"
+#include "consts.hpp"
 #include "ui/IconButton.hpp"
 #include "ui/Sidebar.hpp" // for reused SidebarItem
 #include "utils/LucideIcons.hpp"
@@ -42,8 +43,8 @@ SwitchUserDialogContent() {
   
   for (const auto& profileId : profileIds) {
     auto s = ProfileSettings::getOf(profileId);
-    QIcon icon(s->value("profileImage", ":/defaultuserprofile.png").toString());
-    auto name = s->value("displayName", profileId).toString();
+    QIcon icon(s->value(STK_PFP, ":/defaultuserprofile.png").toString());
+    auto name = s->value(STK_DISPLAYNAME, profileId).toString();
     
     auto* button = new SidebarItem(icon, name.toStdString(), false, container);
     button->setMaximumWidth(QWIDGETSIZE_MAX);

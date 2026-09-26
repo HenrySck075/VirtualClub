@@ -1,4 +1,5 @@
 #include "ModIndex.hpp"
+#include "consts.hpp"
 #include "utils/ProfileSettings.hpp"
 #include <algorithm>
 #include <filesystem>
@@ -68,7 +69,7 @@ std::string generate_uuid_v4() {
 namespace ModsIndex {
   std::vector<Mod> modsList;
 
-  std::vector<Mod>& getMods() {
+  const std::vector<Mod>& getMods() {
     return modsList;
   }
 
@@ -163,7 +164,7 @@ namespace ModsIndex {
   Mod installMod(std::filesystem::path path) {
     auto settings = ProfileSettings::get();
     auto modGameDir = path / "game";
-    auto baseGameDir = std::filesystem::path(settings->value("baseGameInstallPath").toString().toStdString()) / "game";
+    auto baseGameDir = std::filesystem::path(settings->value(STK_BASEPATH).toString().toStdString()) / "game";
     std::map<std::string, std::pair<std::string, py::object>, std::greater<std::string>> indexes; 
 
     for (auto& dir : {modGameDir, baseGameDir}) {
@@ -199,6 +200,7 @@ namespace ModsIndex {
       return py::none{};
     };
 
+    // TODO: Analyze EVERY files
     auto optionsRpyc = readGameFile("options.rpyc");
     // by standard this shouldnt be none, but if will be here just in case my ported logic has a flaw idk
     if (optionsRpyc.is_none()) {
@@ -285,6 +287,41 @@ void removeMod(Mod& mod) {
   std::filesystem::remove(iconsDir / (mod.id + ".scaled.png"));
 
   saveModsIndex();
+}
+
+
+void addModToRecentlyPlayed(const QString& id) {
+  std::shared_ptr<YamlSettings> s = ProfileSettings::get();
+  auto list = s->value(STK_RECENTLIST, QVariantList()).toList();
+
+  if (list.contains(id)) {
+    list.removeAll(id);
+  }
+  if (list.size() >= 10) {
+    list.removeLast();
+  }
+  list.prepend(id);
+  s->setValue(STK_RECENTLIST, list);
+}
+
+const std::vector<Mod>& getRecentlyPlayed() {
+  static std::vector<Mod> recentlyPlayed;
+  recentlyPlayed.clear();
+
+  auto settings = ProfileSettings::get();
+  auto list = settings->value(STK_RECENTLIST, QVariantList()).toList();
+
+  for (const auto& idVariant : list) {
+    QString id = idVariant.toString();
+    auto it = std::find_if(modsList.begin(), modsList.end(), [&id](const Mod& mod) {
+      return QString::fromStdString(mod.id) == id;
+    });
+    if (it != modsList.end()) {
+      recentlyPlayed.push_back(*it);
+    }
+  }
+
+  return recentlyPlayed;
 }
 }
 
