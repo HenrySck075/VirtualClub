@@ -1,8 +1,18 @@
 looks smth like this atm
 
-![](readme_assets/ss1.png)
+![The nothing home screen](readme_assets/ss1.png)
 
-(dont mind the title bar pls thx)
+![Mods screen with one mod item selected](readme_assets/ss2.png)
+Mods screen
+
+![Mods screen with several mod items selected](readme_assets/ss3.png)
+ditto with multiple items selected by Shift+click
+
+![](readme_assets/ss4.png)
+Settings screen and the Switch user dialog
+
+![](readme_assets/ss5.png)
+Mod info screen and save selection dialog (by clicking "...from save" button)
 
 ## Notice
 This is a completely independent project and is not affiliated with any parties referenced throughout the program's interface.

@@ -2,8 +2,8 @@
 #include <QFontDatabase>
 #include "MainWindow.hpp"
 #include "consts.hpp"
+#include "screens/UserSetupDialog.hpp"
 #include "utils/BackgroundLoader.hpp"
-#include "utils/ModIndex.hpp"
 #include "utils/RenpyArchive.hpp"
 #include <QMediaDevices>
 #include <QAudioDevice>
@@ -13,10 +13,8 @@
 
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
-#include "utils/utils.hpp"
 #include "utils/macros.h"
 
-#include <filesystem>
 #include <pybind11/embed.h>
 
 #ifdef MVC_DEBUG
@@ -26,6 +24,13 @@
 
 namespace py = pybind11;
 
+QString turkye(const QColor& color) {
+  return QString("rgb(%1,%2,%3)")
+    .arg(color.red())
+    .arg(color.green())
+    .arg(color.blue())
+  ;
+}
 
 int main(int argc, char *argv[]) {
     py::scoped_interpreter guard{};
@@ -47,11 +52,13 @@ int main(int argc, char *argv[]) {
 
     // If this instance is secondary for this profile, pass args to primary and exit
     if (app.isSecondary()) {
-        app.notifyPrimaryInstance(app.arguments());
-        return 0; // Terminate secondary instance cleanly
+        if (app.notifyPrimaryInstance(app.arguments())) {
+          return 0; // Terminate secondary instance cleanly
+        }
     }
     QCoreApplication::setApplicationName("VirtualClub");
     QCoreApplication::setOrganizationName("henrysck075");
+    QCoreApplication::setOrganizationDomain("henrysck.sh");
 
     QFontDatabase::addApplicationFont(":/Quicksand-Bold.ttf");
     QFontDatabase::addApplicationFont(":/Quicksand-Light.ttf");
@@ -59,8 +66,7 @@ int main(int argc, char *argv[]) {
     QFontDatabase::addApplicationFont(":/Quicksand-Regular.ttf");
     QFontDatabase::addApplicationFont(":/Quicksand-SemiBold.ttf");
 
-    ModsIndex::loadArchiveReaderModules();
-    ModsIndex::loadModsIndex();
+    ArchiveReader::loadArchiveReaderModules();
     //LucideIcons::initializeIcons();
     //
     QAudioDevice defaultDevice = QMediaDevices::defaultAudioOutput();
@@ -68,10 +74,28 @@ int main(int argc, char *argv[]) {
 
     initGlobalSfx();
 
+    app.setStyleSheet(QString(R"(
+QLabel {
+  font-family: Quicksand, Segoe UI;
+  color: %1;
+}
+
+QLineEdit {
+  border: 0px;
+  border-bottom: 2px solid %2;
+  font-family: Quicksand, Segoe UI;
+  padding: 4px;
+}
+
+QScrollBar::handle {
+  background: %1;
+}
+)").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
+
+
+    showUserSetupDialogIfNeeded();
+
     auto settings = ProfileSettings::get(); 
-    if (!settings->contains(STK_BASEPATH)) {
-      askForBasePathChange();
-    }
 
     if (!settings->contains(STK_BGPACK)) {
       auto packs = BackgroundLoader::getPacks();
@@ -95,10 +119,6 @@ int main(int argc, char *argv[]) {
         window.show();
         window.raise();
         window.activateWindow();
-    });
-    QObject::connect(&app, &QApplication::aboutToQuit, [](){
-      ModsIndex::saveModsIndex();
-      // settings saving is handled by ProfileSettings dtor
     });
 
 #ifdef MVC_DEBUG

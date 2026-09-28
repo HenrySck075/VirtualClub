@@ -4,8 +4,9 @@
 #include <QWidget>
 #include <QLabel>
 #include <optional>
-#include "../utils/ModIndex.hpp"
-#include "../ui/PixmapWidget.hpp"
+#include "utils/ModIndex.hpp"
+#include "ui/PixmapWidget.hpp"
+#include "ui/IconButton.hpp"
 #include "ui/MESWidgets.hpp"
 class ModInfoScreen : public QWidget {
   Q_OBJECT
@@ -28,7 +29,7 @@ private:
 
   Button* m_playButton = nullptr;
   Button* m_playFromSaveButton = nullptr;
-  Button* m_deleteButton = nullptr;
+  IconButton* m_deleteButton = nullptr;
 
   Switch* m_developerModeSwitch = nullptr;
   Switch* m_forceRecompileSwitch = nullptr;

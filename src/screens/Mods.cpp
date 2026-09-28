@@ -254,7 +254,7 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
 
   QLabel* lcp = new QLabel("Collect your universes by pressing the + button");
   lcp->setAlignment(Qt::AlignCenter);
-  lcp->setStyleSheet("color: rgba(255,255,255,0.5); font-size: 14px; font-family: Quicksand; font-weight: 600;");
+  lcp->setStyleSheet("color: rgba(255,255,255,0.5); font-size: 14px; font-family: Quicksand; font-weight: bold;");
   lcp->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   lcp->setWordWrap(true);
   m_listContentPlaceholder = lcp;
@@ -283,7 +283,7 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   m_contentLayout->setSpacing(4);
   m_contentLayout->setAlignment(Qt::AlignLeft);
 
-  for (auto& mod : ModsIndex::getMods()) {
+  for (auto& mod : ModsIndex::get()->getMods()) {
     addModItem(mod);
   }
 
@@ -340,10 +340,10 @@ void ModsScreen::onItemSelected(bool s) {
 }
 
 void ModsScreen::updateModsCountLabel() {
-  m_modsCountLabel->setText(QString("Mods: %1").arg(ModsIndex::getMods().size()));
+  m_modsCountLabel->setText(QString("Mods: %1").arg(ModsIndex::get()->getMods().size()));
 };
 void ModsScreen::updateModsListDisplay() {
-  if (ModsIndex::getMods().size() != 0) {
+  if (ModsIndex::get()->getMods().size() != 0) {
     m_listContentStack->setCurrentWidget(m_listContent);
   } else {
     m_listContentStack->setCurrentWidget(m_listContentPlaceholder);
@@ -413,7 +413,7 @@ void ModsScreen::onAddModButtonClicked() {
   if (directory == "") return;
     
   CPPTRACE_TRY {
-    auto m = ModsIndex::installMod(directory.toStdString());
+    auto m = ModsIndex::get()->installMod(directory.toStdString());
     addModItem(m); 
   } CPPTRACE_CATCH (std::exception& e) {
 #ifdef MVC_DEBUG

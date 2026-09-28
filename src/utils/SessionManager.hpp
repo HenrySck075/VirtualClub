@@ -13,4 +13,8 @@ public:
   static bool isMounted(std::string modId);
   static bool isPlaying(std::string modId);
   static QString mountPathOf(std::string modId);
+
+
+  static bool hasMountedMod();
+  static bool hasPlayingMod();
 };

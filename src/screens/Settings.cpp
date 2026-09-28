@@ -2,10 +2,14 @@
 #include <QLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <qfiledialog.h>
+#include <qstandardpaths.h>
 #include "../ui/GradientBackground.hpp"
 #include "../ui/MESWidgets.hpp"
 #include "MainWindow.hpp"
 #include "consts.hpp"
+#include "ui/IconButton.hpp"
+#include "ui/PixmapWidget.hpp"
 #include "utils/LucideIcons.hpp"
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
@@ -24,7 +28,7 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   auto* contentLayout = new QVBoxLayout(content);
   static const int contentMargin = 16;
   contentLayout->setContentsMargins(contentMargin, contentMargin, contentMargin, contentMargin);
-  contentLayout->setSpacing(4);
+  contentLayout->setSpacing(8);
   contentLayout->setAlignment(Qt::AlignTop);
   contentLayout->setHorizontalSizeConstraint(QLayout::SetMaximumSize);
 
@@ -34,11 +38,13 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
     auto* headerLabel = new QLabel(headerName);
     headerLabel->setFont(QFont("Quicksand", 18, QFont::Bold));
     contentLayout->addWidget(headerLabel, 0, Qt::AlignLeft);
+    // pad it out veritcally
+    headerLabel->setContentsMargins(0, 16, 0, 12);
     return headerLabel;
   };
 
   // Add a label or any other widgets you want to display on the Settings screen
-  auto addSettingsLabel = [contentLayout](QString name, QString desc, QWidget* action) {
+  auto addSettingsLabel = [contentLayout](QString name, QString desc, QWidget* action, std::function<void(QHBoxLayout*, QVBoxLayout*)> extra = nullptr) {
     auto layout = new QHBoxLayout();
     contentLayout->addLayout(layout);
     layout->setAlignment(Qt::AlignLeft);
@@ -58,6 +64,8 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
     layout->addWidget(action);
 
+    if (extra) extra(layout, metadataLayout);
+
     return std::make_pair(nameLabel, descLabel);
   };
 
@@ -66,13 +74,31 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
   addSettingsHeader("Profile");
 
-  auto* pathChangeButton = new Button(LucideIcons::folder_pen, content);
-  auto [pcNameLabel, pcDescLabel] = addSettingsLabel("Base game's path", settings->value(STK_BASEPATH).toString(), pathChangeButton);
-  connect(pathChangeButton, &Button::clicked, this, [this, settings, pcDescLabel](){
-    askForBasePathChange();
+  auto* pfpChangeButton = new IconButton(LucideIcons::pen);
 
-    pcDescLabel->setText(settings->value(STK_BASEPATH).toString());
-  });
+  addSettingsLabel(
+    "Profile picture",
+    "Change how your profile looks",
+    pfpChangeButton,
+    [this, settings, pfpChangeButton](QHBoxLayout* layout, QVBoxLayout* metadataLayout){
+      auto* pfpLabel = new PixmapWidget;
+      pfpLabel->setPixmap(QPixmap(settings->value(STK_PFP, ":/defaultuserprofile.png").toString()));
+      pfpLabel->setFixedSize({64,64});
+      layout->insertWidget(0, pfpLabel);
+
+      connect(pfpChangeButton, &Button::clicked, this, [this, settings, pfpLabel](){
+        auto pfpImagePath = QFileDialog::getOpenFileName(this, "Select a profile picture", "", "Images (*.png *.jpg *.jpeg *.bmp)");
+        auto pfpStore = std::filesystem::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()) / "profile_pictures";
+        std::filesystem::create_directories(pfpStore);
+        auto pfpFileName = std::filesystem::path(pfpImagePath.toStdString()).filename();
+        auto pfpDestPath = pfpStore / pfpFileName;
+        std::filesystem::copy_file(pfpImagePath.toStdString(), pfpDestPath, std::filesystem::copy_options::overwrite_existing);
+        settings->setValue(STK_PFP, QString::fromStdString(pfpDestPath.string()));
+        pfpLabel->setPixmap(QPixmap(settings->value(STK_PFP).toString()));
+      });
+    }
+  );
+
 
   auto* displayNameTextInput = new QLineEdit();
   displayNameTextInput->setText(
@@ -93,6 +119,17 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
     getMainWindow()->setPageTitleBar("Settings");
   });
+
+
+
+  auto* pathChangeButton = new IconButton(LucideIcons::folder_pen, content);
+  auto [pcNameLabel, pcDescLabel] = addSettingsLabel("Base game's path", settings->value(STK_BASEPATH).toString(), pathChangeButton);
+  connect(pathChangeButton, &Button::clicked, this, [this, settings, pcDescLabel](){
+    askForBasePathChange();
+
+    pcDescLabel->setText(settings->value(STK_BASEPATH).toString());
+  });
+
 
   /*
   auto* testButton1 = new Button("Dialog");

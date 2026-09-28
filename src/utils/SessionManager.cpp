@@ -239,8 +239,15 @@ void SessionManager::unmount(std::string modId) {
     QApplication::setQuitOnLastWindowClosed(true);
   }
 };
+bool SessionManager::hasMountedMod() {
+  return !m_mountedMods.empty();
+}
+bool SessionManager::hasPlayingMod() {
+  return !m_playingMods.empty();
+}
 
 #else
+
 void SessionManager::mount(ModsIndex::Mod&) {}
 void SessionManager::launch(ModsIndex::Mod&, std::function<void()>, std::function<void()>, const QString&) {} 
 void SessionManager::unmount(ModsIndex::Mod&) {}
@@ -256,5 +263,11 @@ QString SessionManager::mountPathOf(std::string modId) {
   return "";
 }
 
+bool SessionManager::hasMountedMod() {
+  return false;
+}
+bool SessionManager::hasPlayingMod() {
+  return false;
+}
 #endif
 

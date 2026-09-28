@@ -4,7 +4,7 @@
 
 namespace py = pybind11;
 
-namespace ModsIndex {
+namespace ArchiveReader {
   std::optional<py::module_> rpaReader = std::nullopt;
   std::optional<py::module_> rpycReader = std::nullopt;
 

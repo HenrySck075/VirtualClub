@@ -5,7 +5,7 @@
 #undef slots
 #include <pybind11/embed.h>
 namespace py = pybind11;
-namespace ModsIndex {
+namespace ArchiveReader {
   void loadArchiveReaderModules();
   
   py::module_ rpaReaderModule();

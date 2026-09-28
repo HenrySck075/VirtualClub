@@ -15,8 +15,8 @@
 // ==========================================
 Button::Button(const QString& text, QWidget* parent)
   : QPushButton(text, parent),
-    m_primaryColor(QColor(137, 35, 137)),
-    m_secondaryColor(QColor(220, 50, 150)), // Adjust target hover color here
+    m_primaryColor(c_primaryColor),
+    m_secondaryColor(c_secondaryColor), // Adjust target hover color here
     m_currentColor(m_primaryColor)
 {
   QFont font("Quicksand", 11, QFont::Bold);
@@ -218,6 +218,7 @@ Dialog::Dialog(const QString& title,
   setAttribute(Qt::WA_TranslucentBackground, false);
   setFixedSize(450, 260);
 
+
   // Root layout
   QVBoxLayout* mainLayout = new QVBoxLayout(this);
   mainLayout->setContentsMargins(0, 0, 0, BOTTOM_BAR_HEIGHT);
@@ -289,6 +290,11 @@ Dialog::Dialog(const QString& title,
     m_enterEffectProgress = 0;
     update();
   });
+
+
+  if (auto dlgContent = qobject_cast<DialogContent*>(content)) {
+    m_content = dlgContent;  
+  }
 }
 
 bool Dialog::eventFilter(QObject* watched, QEvent* event) {
@@ -318,6 +324,12 @@ inline QColor editColor(QColor base, float a) {
   return base;
 }
 
+void Dialog::closeEvent(QCloseEvent* event) {
+  if (m_content) {
+    event->setAccepted(m_content->allowClosing());
+    return;
+  }
+}
 void Dialog::paintEvent(QPaintEvent* /*event*/) {
   static const int titleBarHeight = TITLE_BAR_HEIGHT;
   QPainter painter(this);

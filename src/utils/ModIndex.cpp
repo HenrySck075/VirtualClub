@@ -3,15 +3,14 @@
 #include "utils/ProfileSettings.hpp"
 #include <algorithm>
 #include <filesystem>
-#include <random>
-#include <sstream>
 #include <fstream>
-#include <iomanip>
 #include <QStandardPaths>
 #include <stdexcept>
 #include <utility>
 #include "RenpyArchive.hpp"
 #include "macros.h"
+#include "utils/ProfileSingleApp.hpp"
+#include "utils/utils.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
@@ -43,241 +42,221 @@ py::bytes read_file_to_bytes(const std::string& filepath) {
 }
 
 
-std::string generate_uuid_v4() {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    static std::uniform_int_distribution<uint32_t> dis;
+ModsIndex::ModsIndex(const QString &path)
+: m_store(std::make_shared<YamlSettings>(path)) {
+  m_modsList.clear();
 
-    uint32_t data[4] = { dis(gen), dis(gen), dis(gen), dis(gen) };
+  auto mods = m_store->value("mods").toMap();
 
-    // Set UUID version 4 (bits 12-15 of time_hi_and_version to 0100)
-    data[1] = (data[1] & 0xFFFF0FFF) | 0x00004000;
-    // Set UUID variant (bits 6-7 of clock_seq_hi_and_reserved to 10)
-    data[2] = (data[2] & 0x3FFFFFFF) | 0x80000000;
-
-    std::ostringstream ss;
-    ss << std::hex << std::setfill('0')
-       << std::setw(8) << data[0] << "-"
-       << std::setw(4) << (data[1] >> 16) << "-"
-       << std::setw(4) << (data[1] & 0xFFFF) << "-"
-       << std::setw(4) << (data[2] >> 16) << "-"
-       << std::setw(4) << (data[2] & 0xFFFF)
-       << std::setw(8) << data[3];
-
-    return ss.str();
+  for (const auto& modVariant : mods.asKeyValueRange()) {
+    auto modMap = modVariant.second.toMap();
+    Mod mod {
+      modVariant.first.toStdString(),
+      modMap["name"].toString().toStdString(),
+      modMap["version"].toString().toStdString(),
+      modMap["buildId"].toString().toStdString(),
+      modMap["path"].toString().toStdString(),
+      modMap["enableDeveloper"].toBool(),
+      modMap["forceRecompile"].toBool()
+    };
+    m_modsList.push_back(mod);
+  }
 }
-namespace ModsIndex {
-  std::vector<Mod> modsList;
 
-  const std::vector<Mod>& getMods() {
-    return modsList;
-  }
+std::shared_ptr<ModsIndex> ModsIndex::get() {
+  static auto newInstance =
+     std::shared_ptr<ModsIndex>(new ModsIndex(QString("profiles/mods/%1.yaml").arg(
+        ProfileSingleApp::instance()->profileId()
+      )));
+  return newInstance;
+}
 
-  void loadModsIndex() {
-    modsList.clear();
-    auto settings = ProfileSettings::get();
+const std::vector<ModsIndex::Mod>& ModsIndex::getMods() {
+  return m_modsList;
+}
 
-    auto mods = settings->value("mods").toMap();
 
-    for (const auto& modVariant : mods.asKeyValueRange()) {
-      auto modMap = modVariant.second.toMap();
-      Mod mod {
-        modVariant.first.toStdString(),
-        modMap["name"].toString().toStdString(),
-        modMap["version"].toString().toStdString(),
-        modMap["buildId"].toString().toStdString(),
-        modMap["path"].toString().toStdString(),
-        modMap["enableDeveloper"].toBool(),
-        modMap["forceRecompile"].toBool()
-      };
-      modsList.push_back(mod);
-    }
-  }
-
-  void saveModsIndex() {
-    auto settings = ProfileSettings::get();
+ModsIndex::~ModsIndex() { 
+  QMap<QString, QVariant> mods;
+  for (const auto& mod : m_modsList) {
+    QVariantMap modMap;
     
-    QMap<QString, QVariant> mods;
-    for (const auto& mod : modsList) {
-      QVariantMap modMap;
-      
-      modMap["name"] = QString::fromStdString(mod.name);
-      modMap["version"] = QString::fromStdString(mod.version);
-      modMap["buildId"] = QString::fromStdString(mod.buildId);
-      modMap["path"] = QString::fromStdString(mod.modPath);
-      modMap["enableDeveloper"] = mod.enableDeveloper;
-      modMap["forceRecompile"] = mod.forceRecompile;
-      mods[QString::fromStdString(mod.id)] = modMap;
-    }
-
-    settings->setValue("mods", mods);
+    modMap["name"] = QString::fromStdString(mod.name);
+    modMap["version"] = QString::fromStdString(mod.version);
+    modMap["buildId"] = QString::fromStdString(mod.buildId);
+    modMap["path"] = QString::fromStdString(mod.modPath);
+    modMap["enableDeveloper"] = mod.enableDeveloper;
+    modMap["forceRecompile"] = mod.forceRecompile;
+    mods[QString::fromStdString(mod.id)] = modMap;
   }
 
-  void writeIcons(std::string id, unsigned char* buffer, int len) {
-    int x,y,comp;
-    unsigned char* content = stbi_load_from_memory(buffer, len, &x, &y, &comp, 0);
-    
-    if (!content) {
-      throw std::invalid_argument(std::string("Failed to decode image: ") + stbi_failure_reason());
-    }
+  m_store->setValue("mods", mods);
+}
 
-    static auto iconsDir = std::filesystem::path(
-      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
-    ) / "icons";
-
-    // save the (.png'd) original under {id}.png
-    // and a 80x80 downscaled version under {id}.scaled.png
-
-    if (!std::filesystem::exists(iconsDir)) {
-      std::filesystem::create_directories(iconsDir);
-    }
-
-    std::filesystem::path originalPath = iconsDir / (id + ".png");
-    std::filesystem::path scaledPath = iconsDir / (id + ".scaled.png");
-
-    stbi_write_png(originalPath.string().c_str(), x, y, comp, content, x * comp);
-    unsigned char* scaledContent = new unsigned char[80 * 80 * comp];
-    stbir_resize_uint8_linear(content, x, y, 0, scaledContent, 80, 80, 0, (stbir_pixel_layout)(comp));
-    stbi_write_png(scaledPath.string().c_str(), 80, 80, comp, scaledContent, 80 * comp);
-
-    stbi_image_free(content);
-    delete[] scaledContent;
-  }
-  void writeIconsFromFile(std::string id, std::string file) {
-    std::ifstream inputFile(file, std::ios::binary);
-    if (!inputFile) {
-        throw std::runtime_error("Could not open file: " + file);
-    }
-    auto fileSize = std::filesystem::file_size(file);
-    std::vector<unsigned char> buffer(fileSize);
-    inputFile.read(reinterpret_cast<char*>(buffer.data()), fileSize);
-    writeIcons(id, buffer.data(), fileSize);
+void writeIcons(std::string id, unsigned char* buffer, int len) {
+  int x,y,comp;
+  unsigned char* content = stbi_load_from_memory(buffer, len, &x, &y, &comp, 0);
+  
+  if (!content) {
+    throw std::invalid_argument(std::string("Failed to decode image: ") + stbi_failure_reason());
   }
 
-  std::string Mod::getIconPath() const {
-    const auto iconsDir = std::filesystem::path(
-      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
-    ) / "icons";
-    return (iconsDir / (id + ".png")).string();
+  static auto iconsDir = std::filesystem::path(
+    QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
+  ) / "icons";
+
+  // save the (.png'd) original under {id}.png
+  // and a 80x80 downscaled version under {id}.scaled.png
+
+  if (!std::filesystem::exists(iconsDir)) {
+    std::filesystem::create_directories(iconsDir);
+  }
+
+  std::filesystem::path originalPath = iconsDir / (id + ".png");
+  std::filesystem::path scaledPath = iconsDir / (id + ".scaled.png");
+
+  stbi_write_png(originalPath.string().c_str(), x, y, comp, content, x * comp);
+  unsigned char* scaledContent = new unsigned char[80 * 80 * comp];
+  stbir_resize_uint8_linear(content, x, y, 0, scaledContent, 80, 80, 0, (stbir_pixel_layout)(comp));
+  stbi_write_png(scaledPath.string().c_str(), 80, 80, comp, scaledContent, 80 * comp);
+
+  stbi_image_free(content);
+  delete[] scaledContent;
+}
+void writeIconsFromFile(std::string id, std::string file) {
+  std::ifstream inputFile(file, std::ios::binary);
+  if (!inputFile) {
+      throw std::runtime_error("Could not open file: " + file);
+  }
+  auto fileSize = std::filesystem::file_size(file);
+  std::vector<unsigned char> buffer(fileSize);
+  inputFile.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+  writeIcons(id, buffer.data(), fileSize);
+}
+
+std::string ModsIndex::Mod::getIconPath() const {
+  const auto iconsDir = std::filesystem::path(
+    QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
+  ) / "icons";
+  return (iconsDir / (id + ".png")).string();
+};
+
+ModsIndex::Mod ModsIndex::installMod(std::filesystem::path path) {
+  auto settings = ProfileSettings::get();
+  auto modGameDir = path / "game";
+  auto baseGameDir = std::filesystem::path(settings->value(STK_BASEPATH).toString().toStdString()) / "game";
+  std::map<std::string, std::pair<std::string, py::object>, std::greater<std::string>> indexes; 
+
+  for (auto& dir : {modGameDir, baseGameDir}) {
+    for (auto& p : std::filesystem::recursive_directory_iterator(dir)) {
+      if (p.is_regular_file() && p.path().extension() == ".rpa") {
+        auto filepath = p.path().string();
+        auto filename = p.path().filename().string();
+        if (indexes.contains(filename)) {
+          continue; // skip if already processed
+        }
+        auto index = ArchiveReader::rpaReaderModule().attr("read_rpa_index")(filepath);
+        indexes[filename] = std::make_pair(filepath, index);
+      }
+    }
   };
 
-  Mod installMod(std::filesystem::path path) {
-    auto settings = ProfileSettings::get();
-    auto modGameDir = path / "game";
-    auto baseGameDir = std::filesystem::path(settings->value(STK_BASEPATH).toString().toStdString()) / "game";
-    std::map<std::string, std::pair<std::string, py::object>, std::greater<std::string>> indexes; 
-
-    for (auto& dir : {modGameDir, baseGameDir}) {
-      for (auto& p : std::filesystem::recursive_directory_iterator(dir)) {
-        if (p.is_regular_file() && p.path().extension() == ".rpa") {
-          auto filepath = p.path().string();
-          auto filename = p.path().filename().string();
-          if (indexes.contains(filename)) {
-            continue; // skip if already processed
-          }
-          auto index = ModsIndex::rpaReaderModule().attr("read_rpa_index")(filepath);
-          indexes[filename] = std::make_pair(filepath, index);
+  // returns a py::bytes or a none equivalent idr what its called
+  auto readGameFile = [&modGameDir, &indexes](std::string filepath) -> py::object {
+    auto modFilePath = modGameDir / filepath;
+    if (std::filesystem::exists(modFilePath)) {
+      qDebug() << QString::fromStdString(filepath) << "exists as loose file";
+      return read_file_to_bytes(modFilePath.string());
+    } else {
+      for (auto& [key, value] : indexes) {
+        auto index = value.second;
+        if (index.contains(filepath.c_str())) {
+          qDebug() << QString::fromStdString(filepath) << "exists as archived file in" << QString::fromStdString(value.first);
+          auto fileData = ArchiveReader::rpaReaderModule().attr("extract_single_file")(value.first, filepath, index);
+          return fileData;
         }
       }
-    };
-
-    // returns a py::bytes or a none equivalent idr what its called
-    auto readGameFile = [&modGameDir, &indexes](std::string filepath) -> py::object {
-      auto modFilePath = modGameDir / filepath;
-      if (std::filesystem::exists(modFilePath)) {
-        qDebug() << QString::fromStdString(filepath) << "exists as loose file";
-        return read_file_to_bytes(modFilePath.string());
-      } else {
-        for (auto& [key, value] : indexes) {
-          auto index = value.second;
-          if (index.contains(filepath.c_str())) {
-            qDebug() << QString::fromStdString(filepath) << "exists as archived file in" << QString::fromStdString(value.first);
-            auto fileData = ModsIndex::rpaReaderModule().attr("extract_single_file")(value.first, filepath, index);
-            return fileData;
-          }
-        }
-      }
-      return py::none{};
-    };
-
-    // TODO: Analyze EVERY files
-    auto optionsRpyc = readGameFile("options.rpyc");
-    // by standard this shouldnt be none, but if will be here just in case my ported logic has a flaw idk
-    if (optionsRpyc.is_none()) {
-      throw std::runtime_error("Could not find options.rpyc in mod or base game.");
     }
+    return py::none{};
+  };
 
-    auto statements = ModsIndex::rpycReaderModule().attr("get_rpyc_statements")(ModsIndex::rpycReaderModule().attr("peek_rpyc")(optionsRpyc)).cast<py::list>();
+  // TODO: Analyze EVERY files
+  auto optionsRpyc = readGameFile("options.rpyc");
+  // by standard this shouldnt be none, but if will be here just in case my ported logic has a flaw idk
+  if (optionsRpyc.is_none()) {
+    throw std::runtime_error("Could not find options.rpyc in mod or base game.");
+  }
 
-    /*
-    std::unordered_map<std::string, std::vector<std::string>> requestedDefines {
-      {"config", { "name", "window_icon", "version", "save_directory" }},
-      {"build",  {"name"}}
-    };
-    */
+  auto rpycReaderModule = ArchiveReader::rpycReaderModule();
+  auto statements = rpycReaderModule.attr("get_rpyc_statements")(rpycReaderModule.attr("peek_rpyc")(optionsRpyc)).cast<py::list>();
 
-    // this code is responsible for banning msvc from being used to build the app.
+  /*
+  std::unordered_map<std::string, std::vector<std::string>> requestedDefines {
+    {"config", { "name", "window_icon", "version", "save_directory" }},
+    {"build",  {"name"}}
+  };
+  */
+
+  // this code is responsible for banning msvc from being used to build the app.
 #define PYDICT_INIT(...) ({\
-      py::dict ret;\
-      __VA_ARGS__\
-      ret;\
-    })
+    py::dict ret;\
+    __VA_ARGS__\
+    ret;\
+  })
 #define PYDICT_ARG(key,value) ret[key] = value;
 #define PYLIST_INIT__() PYLIST_INIT_
 #define PYLIST_INIT_(i, ...) \
-    ret2.append(i);\
-    __VA_OPT__(DEFER1(PYLIST_INIT__)()(__VA_ARGS__))
+  ret2.append(i);\
+  __VA_OPT__(DEFER1(PYLIST_INIT__)()(__VA_ARGS__))
 #define PYLIST_INIT(...) ({\
-      py::list ret2;\
-      EVAL(PYLIST_INIT_(__VA_ARGS__))\
-      ret2;\
-    })
+    py::list ret2;\
+    EVAL(PYLIST_INIT_(__VA_ARGS__))\
+    ret2;\
+  })
 
-    py::dict requestedDefines = PYDICT_INIT(
-      PYDICT_ARG("config", PYLIST_INIT("name", "window_icon", "version", "save_directory"))
-      PYDICT_ARG("build", PYLIST_INIT("name"))
-    );
+  py::dict requestedDefines = PYDICT_INIT(
+    PYDICT_ARG("config", PYLIST_INIT("name", "window_icon", "version", "save_directory"))
+    PYDICT_ARG("build", PYLIST_INIT("name"))
+  );
 
-    auto defines = ModsIndex::rpycReaderModule().attr("lookup_defines")(statements, requestedDefines).cast<py::dict>();
+  auto defines = rpycReaderModule.attr("lookup_defines")(statements, requestedDefines).cast<py::dict>();
 
-    std::string name = defines.contains("config.name") ? defines["config.name"].cast<std::string>() : "Doki Doki Modding Club!";
-    std::string version = defines.contains("config.version") ? defines["config.version"].cast<std::string>() : "1.0.0";
-    std::string icon = defines.contains("config.window_icon") ? defines["config.window_icon"].cast<py::str>().attr("removeprefix")("/").cast<std::string>() : "";
-    std::string buildId = defines.contains("build.name") ? defines["build.name"].cast<std::string>() : "DDLC";
-    std::string saveDirectory = defines.contains("config.save_directory") ? defines["config.save_directory"].cast<std::string>() : "DDLC";
+  std::string name = defines.contains("config.name") ? defines["config.name"].cast<std::string>() : "Doki Doki Modding Club!";
+  std::string version = defines.contains("config.version") ? defines["config.version"].cast<std::string>() : "1.0.0";
+  std::string icon = defines.contains("config.window_icon") ? defines["config.window_icon"].cast<py::str>().attr("removeprefix")("/").cast<std::string>() : "";
+  std::string buildId = defines.contains("build.name") ? defines["build.name"].cast<std::string>() : "DDLC";
+  std::string saveDirectory = defines.contains("config.save_directory") ? defines["config.save_directory"].cast<std::string>() : "DDLC";
 
-    std::string id = generate_uuid_v4();
+  std::string id = generate_uuid_v4();
 
-    auto iconContentPy = readGameFile(icon);
-    if (iconContentPy.is_none()) {
-      // im just too tired
-      throw std::runtime_error("Create an issue on GitHub to tell me to implement the edge case of icon content being null.");
-    }
-
-    // turn a python bytes to char*
-    std::string_view sv = iconContentPy.cast<py::bytes>(); // ?
-    const unsigned char* ptr = reinterpret_cast<const unsigned char*>(sv.data());
-    ModsIndex::writeIcons(id, const_cast<unsigned char*>(ptr), sv.size());
-
-
-    Mod mod {
-      id,
-      name,
-      version,
-      buildId,
-      path.string(),
-      false
-    };
-    modsList.push_back(mod);
-
-    saveModsIndex();
-    
-    return mod;
+  auto iconContentPy = readGameFile(icon);
+  if (iconContentPy.is_none()) {
+    // im just too tired
+    throw std::runtime_error("Create an issue on GitHub to tell me to implement the edge case of icon content being null.");
   }
-void removeMod(Mod& mod) {
-  auto i = std::find(modsList.begin(), modsList.end(), mod);
-  if (i == modsList.end()) throw std::invalid_argument("Supplied mod of ID " + mod.id + " does not exist.");
-  modsList.erase(i);
+
+  // turn a python bytes to char*
+  std::string_view sv = iconContentPy.cast<py::bytes>(); // ?
+  const unsigned char* ptr = reinterpret_cast<const unsigned char*>(sv.data());
+  writeIcons(id, const_cast<unsigned char*>(ptr), sv.size());
+
+
+  ModsIndex::Mod mod {
+    id,
+    name,
+    version,
+    buildId,
+    path.string(),
+    false
+  };
+  m_modsList.push_back(mod);
+
+  return mod;
+}
+void ModsIndex::removeMod(Mod& mod) {
+  auto i = std::find(m_modsList.begin(), m_modsList.end(), mod);
+  if (i == m_modsList.end()) throw std::invalid_argument("Supplied mod of ID " + mod.id + " does not exist.");
+  m_modsList.erase(i);
 
   // delete the icons
   auto iconsDir = std::filesystem::path(
@@ -286,42 +265,39 @@ void removeMod(Mod& mod) {
   std::filesystem::remove(iconsDir / (mod.id + ".png"));
   std::filesystem::remove(iconsDir / (mod.id + ".scaled.png"));
 
-  saveModsIndex();
 }
 
 
-void addModToRecentlyPlayed(const QString& id) {
-  std::shared_ptr<YamlSettings> s = ProfileSettings::get();
-  auto list = s->value(STK_RECENTLIST, QVariantList()).toList();
+void ModsIndex::addModToRecentlyPlayed(const std::string& id) {
+  auto qid = QString::fromStdString(id);
+  auto list = m_store->value(STK_RECENTLIST, QVariantList()).toList();
 
-  if (list.contains(id)) {
-    list.removeAll(id);
+  if (list.contains(qid)) {
+    list.removeAll(qid);
   }
   if (list.size() >= 10) {
     list.removeLast();
   }
-  list.prepend(id);
-  s->setValue(STK_RECENTLIST, list);
+  list.prepend(qid);
+  m_store->setValue(STK_RECENTLIST, list);
 }
 
-const std::vector<Mod>& getRecentlyPlayed() {
+const std::vector<ModsIndex::Mod>& ModsIndex::getRecentlyPlayed() {
   static std::vector<Mod> recentlyPlayed;
   recentlyPlayed.clear();
 
-  auto settings = ProfileSettings::get();
-  auto list = settings->value(STK_RECENTLIST, QVariantList()).toList();
+  auto list = m_store->value(STK_RECENTLIST, QVariantList()).toList();
 
   for (const auto& idVariant : list) {
     QString id = idVariant.toString();
-    auto it = std::find_if(modsList.begin(), modsList.end(), [&id](const Mod& mod) {
+    auto it = std::find_if(m_modsList.begin(), m_modsList.end(), [&id](const Mod& mod) {
       return QString::fromStdString(mod.id) == id;
     });
-    if (it != modsList.end()) {
+    if (it != m_modsList.end()) {
       recentlyPlayed.push_back(*it);
     }
   }
 
   return recentlyPlayed;
-}
 }
 

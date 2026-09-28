@@ -7,7 +7,10 @@
 #include "utils/ProfileSettings.hpp"
 
 #include "ui/MESWidgets.hpp"
-#include <qframe.h>
+#include "ui/PixmapWidget.hpp"
+#include "utils/utils.hpp"
+#include <QFrame>
+#include <QProcess>
 
 class UserListItem : public QPushButton {
     Q_OBJECT
@@ -15,216 +18,234 @@ class UserListItem : public QPushButton {
 
 signals:
     void selectedChanged();
-    void clicked();
 
-private:
+private:    
     int m_hoverAnimationValue = 0; // Ranges from 0 to 255
     QPropertyAnimation *m_fadeAnimation = nullptr;
 
-    QIcon m_icon;
-    std::string m_label;
-
-    const QColor sm_textColor = c_primaryColor;
-    const QColor sm_iconColor = c_secondaryColor;
-    const QColor sm_hoverColorL = c_primaryLightColor;
-    const QColor sm_hoverColorR = c_secondaryLightColor;
+    PixmapWidget *m_iconWidget = nullptr;
+    QLabel *m_labelWidget = nullptr;
+    QPushButton *m_deleteButton = nullptr;
 
     bool m_selected = false;
     bool m_hovered = false;
     bool m_switchable = true;
-    bool m_tintIcon = true;
 
     int hoverAlpha() const { return m_hoverAnimationValue; }
     void setHoverAlpha(int alpha) {
         if (m_hoverAnimationValue != alpha) {
             m_hoverAnimationValue = alpha;
-            update();
+            updateStyleSheet();
         }
     }
 
-    void mouseReleaseEvent(QMouseEvent *event) override;
-    void enterEvent(QEnterEvent *event) override;
-    void leaveEvent(QEvent *event) override;
+    void updateStyleSheet() {
+        // Build background gradient dynamically based on m_selected and m_hoverAnimationValue
+        QString bgStyle;
+        if (m_selected) {
+            bgStyle = QString("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %1, stop:1 %2);")
+                      .arg(c_secondaryColor.name(), c_primaryColor.name());
+        } else if (m_hoverAnimationValue > 0) {
+            QColor startColor = c_primaryLightColor;
+            QColor stopColor = c_secondaryLightColor;
+            startColor.setAlpha(m_hoverAnimationValue);
+            stopColor.setAlpha(m_hoverAnimationValue);
+
+            bgStyle = QString("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 %1, stop:1 %2);")
+                      .arg(startColor.name(QColor::HexArgb), stopColor.name(QColor::HexArgb));
+        } else {
+            bgStyle = "background: transparent;";
+        }
+
+        setStyleSheet(QString("UserListItem { %1 border: none; }").arg(bgStyle));
+
+        // Update foreground colors
+        QColor activeTextColor = (m_selected || m_hovered) ? QColorConstants::White : c_primaryColor;
+        m_labelWidget->setStyleSheet(QString("color: %1; font-family: 'Quicksand'; font-size: 12pt; font-weight: 600; background: transparent;")
+                                     .arg(activeTextColor.name()));
+    }
+
+protected:
+    void enterEvent(QEnterEvent *event) override {
+        Q_UNUSED(event);
+        m_hovered = true;
+        updateStyleSheet();
+        m_fadeAnimation->stop();
+        m_fadeAnimation->setStartValue(m_hoverAnimationValue);
+        m_fadeAnimation->setEndValue(255);
+        m_fadeAnimation->start();
+
+        m_deleteButton->show();
+    }
+
+    void leaveEvent(QEvent *event) override {
+        Q_UNUSED(event);
+        m_hovered = false;
+        updateStyleSheet();
+        m_fadeAnimation->stop();
+        m_fadeAnimation->setStartValue(m_hoverAnimationValue);
+        m_fadeAnimation->setEndValue(0);
+        m_fadeAnimation->start();
+
+        m_deleteButton->hide();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            if (m_switchable) {
+                setSelected(true);
+                emit clicked();
+            }
+        }
+        QPushButton::mouseReleaseEvent(event);
+    }
 
 public:
-    explicit UserListItem(QIcon icon, std::string label, bool switchable, QWidget *parent = nullptr);
+    explicit UserListItem(QIcon icon, std::string label, bool switchable, QWidget *parent = nullptr)
+        : QPushButton(parent), m_switchable(switchable) {
+        setFixedHeight(60);
+        setFixedWidth(Sidebar::WIDTH);
+
+        // Setup Layout
+        QHBoxLayout *layout = new QHBoxLayout(this);
+        layout->setContentsMargins(8, 0, 8, 0);
+        layout->setSpacing(12);
+
+        // Icon Widget
+        m_iconWidget = new PixmapWidget(icon.pixmap(40, 40), this);
+        m_iconWidget->setFixedSize(40, 40);
+        layout->addWidget(m_iconWidget);
+
+        // Label
+        m_labelWidget = new QLabel(QString::fromStdString(label), this);
+        m_labelWidget->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        layout->addWidget(m_labelWidget, 1);
+
+        // Delete Button placeholder
+        m_deleteButton = new IconButton(LucideIcons::trash, this);
+        m_deleteButton->setFixedSize(24, 24);
+        m_deleteButton->setFlat(true);
+        layout->addWidget(m_deleteButton);
+        m_deleteButton->hide();
+        m_deleteButton->setToolTip("Remove profile");
+
+        setLayout(layout);
+
+        // Setup fade animation for hover effect
+        m_fadeAnimation = new QPropertyAnimation(this, "hoverAlpha", this);
+        m_fadeAnimation->setDuration(225);
+        m_fadeAnimation->setEasingCurve(QEasingCurve::InOutQuad);
+
+        updateStyleSheet();
+    }
 
     bool switchable() const { return m_switchable; }
     bool selected() const { return m_selected; }
-    void setSelected(bool selected);
 
-    std::string label() const { return m_label; }
-    void setTintIcon(bool enable) { m_tintIcon = enable; }
+    void setSelected(bool selected) {
+        if (m_selected != selected) {
+            m_selected = selected;
+            updateStyleSheet();
+            emit selectedChanged();
+        }
+    }
 
-protected:
-    void paintEvent(QPaintEvent *event) override;
+    std::string label() const { return m_labelWidget->text().toStdString(); }
 };
-
-
-UserListItem::UserListItem(QIcon icon, std::string label, bool switchable, QWidget *parent)
-    : QPushButton(parent), m_icon(icon), m_label(std::move(label)), m_switchable(switchable) {
-    setFixedHeight(60);
-    setFixedWidth(Sidebar::WIDTH);
-
-    // Setup fade animation for hover effect
-    m_fadeAnimation = new QPropertyAnimation(this, "hoverAlpha", this);
-    m_fadeAnimation->setDuration(225);
-    m_fadeAnimation->setEasingCurve(QEasingCurve::InOutQuad);
-    m_fadeAnimation->setStartValue(0);
-    m_fadeAnimation->setEndValue(255);
-}
-
-void UserListItem::setSelected(bool selected) {
-    if (m_selected != selected) {
-        m_selected = selected;
-        update();
-        emit selectedChanged();
-    }
-}
-
-void UserListItem::enterEvent(QEnterEvent *event) {
-    Q_UNUSED(event);
-    m_hovered = true;
-    m_fadeAnimation->stop();
-    m_fadeAnimation->start();
-}
-
-void UserListItem::leaveEvent(QEvent *event) {
-    Q_UNUSED(event);
-    m_hovered = false;
-    m_fadeAnimation->stop();
-    setHoverAlpha(0);
-}
-
-void UserListItem::mouseReleaseEvent(QMouseEvent* event) {
-    if (event->button() == Qt::LeftButton) {
-        if (m_switchable) {
-            setSelected(true);
-            emit clicked();
-        }
-    }
-    QWidget::mouseReleaseEvent(event);
-}
-
-void UserListItem::paintEvent(QPaintEvent *event) {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    // Only paint the background when selected or hovering
-    if (m_selected || m_hoverAnimationValue > 0) {
-        QLinearGradient gradient(rect().topLeft(), rect().topRight());
-
-        QColor startColor = m_selected ? sm_iconColor : sm_hoverColorL;
-        QColor stopColor = m_selected ? sm_textColor : sm_hoverColorR;
-
-        if (!m_selected) {
-            startColor.setAlpha(m_hoverAnimationValue);
-            stopColor.setAlpha(m_hoverAnimationValue);
-        }
-
-        gradient.setColorAt(0.0, startColor);
-        gradient.setColorAt(1.0, stopColor);
-
-        painter.fillRect(rect(), gradient);
-    }
-
-    // Determine colors based on selection or hover state
-    QColor iconColor = sm_iconColor;
-    QColor textColor = sm_textColor;
-    if (m_selected || m_hovered) {
-        iconColor = QColorConstants::White;
-        textColor = QColorConstants::White;
-    }
-
-    const int iconSize = 40;
-    const int iconX = 8;
-    const int textX = iconX + iconSize + 12;
-
-    // Draw the enlarged icon (40x40)
-    if (!m_icon.isNull()) {
-        QPixmap pixmap = m_icon.pixmap(iconSize, iconSize);
-        QPixmap coloredPixmap = pixmap;
-
-        if (m_tintIcon) {
-            coloredPixmap = QPixmap(pixmap.size());
-            coloredPixmap.fill(Qt::transparent);
-
-            QPainter iconPainter(&coloredPixmap);
-            iconPainter.setCompositionMode(QPainter::CompositionMode_Source);
-            iconPainter.drawPixmap(0, 0, pixmap);
-            iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-            iconPainter.fillRect(coloredPixmap.rect(), iconColor);
-            iconPainter.end();
-        }
-
-        painter.drawPixmap(iconX, (height() - iconSize) / 2, coloredPixmap);
-    }
-
-    // Draw the label
-    painter.setPen(textColor);
-    painter.setFont(QFont("Quicksand", 12, QFont::Weight::DemiBold));
-    painter.drawText(textX, 0, width() - textX, height(), Qt::AlignVCenter | Qt::AlignLeft, QString::fromStdString(m_label));
-}
 
 class SwitchUserDialogContent : public DialogContent {
 public:
 
+  void startNewWithProfile(const QString& profileId) {
+          QStringList args = QCoreApplication::arguments();
 
-SwitchUserDialogContent() {
-  auto* layout = new QVBoxLayout(this);
-  layout->setAlignment(Qt::AlignTop);
+          // 1. Isolate the executable path (index 0)
+          QString program = args.takeFirst();
 
-  auto* incompleteLabel = new QLabel("<i>incomplete feature do not use pls thx</i>");
-  incompleteLabel->setFont(QFont("Quicksand", 9));
-  layout->addWidget(incompleteLabel);
+          // 2. Remove existing "--profile <id>" pairs if present
+          for (int i = 0; i < args.size(); ++i) {
+              if (args.at(i) == "--profile") {
+                  args.removeAt(i); // Remove "--profile"
+                  if (i < args.size()) {
+                      args.removeAt(i); // Remove the <id> following it
+                  }
+                  break;
+              }
+          }
 
-  auto* userList = new QScrollArea(this);
-  userList->setWidgetResizable(true);
-  userList->setFrameShape(QFrame::NoFrame);
+          // 3. Append the new flag and ID as separate arguments
+          args << "--profile" << profileId; // or QString(profileId) if already a string
 
-  // 1. Make QScrollArea and its internal viewport background transparent or explicitly auto-filled
-  userList->setStyleSheet("QScrollArea { background: transparent; }");
-  userList->viewport()->setStyleSheet("background: transparent;");
-
-  auto* container = new QWidget();
-  // 2. Enable auto-fill on the container so Qt explicitly paints its background palette
-  container->setAutoFillBackground(true);
-  
-  // Alternatively, if you want a transparent scroll list, use:
-  // container->setAttribute(Qt::WA_TranslucentBackground);
-
-  auto* userListLayout = new QVBoxLayout(container);
-  userListLayout->setAlignment(Qt::AlignTop);
-
-  auto profileIds = ProfileSettings::list();
-  
-  for (const auto& profileId : profileIds) {
-    auto s = ProfileSettings::getOf(profileId);
-    QIcon icon(s->value(STK_PFP, ":/defaultuserprofile.png").toString());
-    auto name = s->value(STK_DISPLAYNAME, profileId).toString();
-    
-    auto* button = new UserListItem(icon, name.toStdString(), false, container);
-    button->setMaximumWidth(QWIDGETSIZE_MAX);
-    button->setTintIcon(false);
-    button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    
-    connect(button, &UserListItem::clicked, this, [profileId](){
-      // launch a new instance with a new profile id
-    });
-    
-    userListLayout->addWidget(button);
+          // 4. Launch the detached process
+          QProcess::startDetached(program, args);
   }
 
-  userList->setWidget(container);
-  layout->addWidget(userList);
+  SwitchUserDialogContent() {
+    auto* layout = new QVBoxLayout(this);
+    layout->setAlignment(Qt::AlignTop);
 
-  layout->addSpacing(1);
+    /*
+    auto* incompleteLabel = new QLabel("<i>incomplete feature do not use pls thx</i>");
+    incompleteLabel->setFont(QFont("Quicksand", 9));
+    layout->addWidget(incompleteLabel);
+    */
 
-  auto* addProfileButton = new IconButton(LucideIcons::plus);
-  layout->addWidget(addProfileButton, 0, Qt::AlignRight);
-}
+    auto* userList = new QScrollArea(this);
+    userList->setWidgetResizable(true);
+    userList->setFrameShape(QFrame::NoFrame);
 
+    // 1. Make QScrollArea and its internal viewport background transparent or explicitly auto-filled
+    userList->setStyleSheet("QScrollArea { background: transparent; }");
+    userList->viewport()->setStyleSheet("background: transparent;");
+
+    auto* container = new QWidget();
+    // 2. Enable auto-fill on the container so Qt explicitly paints its background palette
+    container->setAutoFillBackground(true);
+    
+    // Alternatively, if you want a transparent scroll list, use:
+    // container->setAttribute(Qt::WA_TranslucentBackground);
+
+    auto* userListLayout = new QVBoxLayout(container);
+    userListLayout->setAlignment(Qt::AlignTop);
+
+    auto profileIds = ProfileSettings::list();
+    
+    for (const auto& profileId : profileIds) {
+      auto s = ProfileSettings::getOf(profileId);
+      QIcon icon(s->value(STK_PFP, ":/defaultuserprofile.png").toString());
+      auto name = s->value(STK_DISPLAYNAME, profileId).toString();
+      
+      auto* button = new UserListItem(icon, name.toStdString(), false, container);
+      button->setMaximumWidth(QWIDGETSIZE_MAX);
+      button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+      
+
+
+      connect(button, &UserListItem::clicked, this, [this,profileId]() {
+          startNewWithProfile(profileId);
+          closeDialog();
+      });
+        
+      userListLayout->addWidget(button);
+    }
+
+    userList->setWidget(container);
+    layout->addWidget(userList);
+
+    layout->addSpacing(1);
+
+    auto* addProfileButton = new IconButton(LucideIcons::plus);
+    layout->addWidget(addProfileButton, 0, Qt::AlignRight);
+    connect(addProfileButton, &IconButton::clicked, this, &SwitchUserDialogContent::onNewProfileButton);
+
+  }
+
+
+  void onNewProfileButton() {
+    auto id = generate_uuid_v4();
+    startNewWithProfile(QString::fromStdString(id));
+    closeDialog();
+  }
 
 };
 

@@ -26,6 +26,8 @@ public:
       return qobject_cast<ProfileSingleApp*>(QApplication::instance());
     }
 
+    QString profileName();
+
 signals:
     void messageReceivedFromSecondary(const QStringList &args);
 

@@ -9,6 +9,7 @@ class PixmapWidget : public QWidget {
     Q_OBJECT
 public:
     explicit PixmapWidget(QWidget *parent = nullptr);
+    explicit PixmapWidget(const QPixmap& pixmap, QWidget *parent = nullptr);
     void setPixmap(const QPixmap &pixmap);
 
 protected:

@@ -1,4 +1,6 @@
 #include "ProfileSingleApp.hpp"
+#include "consts.hpp"
+#include "utils/ProfileSettings.hpp"
 #include <QDataStream>
 #include <QCryptographicHash>
 
@@ -38,6 +40,12 @@ bool ProfileSingleApp::notifyPrimaryInstance(const QStringList &args) {
     
     return true;
 }
+
+
+QString ProfileSingleApp::profileName() {
+  return ProfileSettings::getOf(m_profileId)->value(STK_DISPLAYNAME, m_profileId).toString();
+}
+
 const void ProfileSingleApp::setProfileId(const QString &profileId) {
   if (m_initComplete) return;
 

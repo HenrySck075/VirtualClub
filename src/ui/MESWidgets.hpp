@@ -63,12 +63,19 @@ protected:
 class Dialog;
 // abstract class for widgets to be used as [Dialog]'s content
 class DialogContent : public QWidget {
+  Q_OBJECT
 private:
   // contrary to what you might think, this variable is only valid for the duration of Dialog::showContentDialog. its null at any other moments.
   Dialog* m_dialog = nullptr;
   friend class Dialog;
+protected:
+  // the stack "owns this pointer", so if you do weird stuff to it like delete then good luck handling the aftermath :)
+  Dialog* dialog();
 public:
   void closeDialog();
+
+  // called when the dialog is about to close.
+  virtual bool allowClosing() {return true;};
 };
 
 //  Dialog Class
@@ -103,6 +110,7 @@ public:
 protected:
     void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
     bool eventFilter(QObject* watched, QEvent* event) override;
 
@@ -120,6 +128,8 @@ private:
     float m_enterEffectProgress = 1.0;
 
     OverlayWidget* m_overlay = nullptr;
+
+    DialogContent* m_content = nullptr;
 };
 
 

@@ -11,3 +11,4 @@ inline void copyIcon(const QIcon* source, QIcon* dest) {
 }
 
 bool askForBasePathChange();
+std::string generate_uuid_v4();

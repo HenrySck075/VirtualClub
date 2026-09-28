@@ -36,14 +36,19 @@ public:
 
 #pragma endregion
 
+// Contains a small subset of the Lucide Icons library used by the app. 
+// New icons may be added over time if needed.
 namespace LucideIcons {
   LucideIcons_IMPL(
     arrow_left,
     bug,
+    clock,
     folder,
+    folder_open_dot,
     folder_pen,
     house,
     library,
+    pen,
     play,
     plus,
     trash,

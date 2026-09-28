@@ -4,6 +4,9 @@
 PixmapWidget::PixmapWidget(QWidget *parent) 
     : QWidget(parent) {}
 
+PixmapWidget::PixmapWidget(const QPixmap& pixmap, QWidget *parent)
+  : QWidget(parent), m_pixmap(pixmap) {}
+
 void PixmapWidget::setPixmap(const QPixmap &pixmap) {
     m_pixmap = pixmap;
     update(); // Triggers a paintEvent repaint call

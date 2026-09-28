@@ -15,7 +15,7 @@
 #include <QPointer>
 #include <QFileInfo>
 #include <vector>
-#include <third_party/miniz/miniz.h>
+#include <third_party/kubazip/zip.h>
 #include <nlohmann/json.hpp>
 
 #include <QVariantAnimation>
@@ -141,102 +141,83 @@ public:
       }
     }
 
-    auto* layout = new FlowLayout(this, 4);
+    if (saveFiles.empty()) {
+      auto* label = new QLabel("No saves found. Remember to create some on your playthroughs, it will be helpful :)");
+      label->setAlignment(Qt::AlignCenter);
+      label->setWordWrap(true);
+      auto* layout = new QVBoxLayout(this);
+      layout->addWidget(label);
+    } else {
+      auto* layout = new FlowLayout(this, 4);
 
 
-    for (const auto& savePath : saveFiles) {
-      auto zip_filename = savePath.string();
+      for (const auto& savePath : saveFiles) {
+        auto zip_filename = savePath.string();
 
-      mz_zip_archive zip_archive;
-      memset(&zip_archive, 0, sizeof(zip_archive));
+        auto* zip_archive = zip_open(zip_filename.c_str(), 0, 'r'); 
 
-      if (!mz_zip_reader_init_file(&zip_archive, zip_filename.c_str(), 0)) {
-        qDebug() << "Failed to open ZIP file:" << zip_filename;
-        mz_zip_reader_end(&zip_archive);
-        continue;
-      }
+        auto* thumbnailWidget = new PixmapWidget();
+        thumbnailWidget->setFixedSize({256, 144});
 
-      int num_files = mz_zip_reader_get_num_files(&zip_archive);
+        std::string saveName = savePath.filename().string();
+        {
+          void* buffer;
+          size_t bufsize;
 
-      auto* thumbnailWidget = new PixmapWidget();
-      thumbnailWidget->setFixedSize({256, 144});
-
-      std::string saveName = savePath.filename().string();
-
-      bool saveSSDone = false;
-      bool metadataDone = false;
-
-      for (int i = 0; i < num_files; ++i) {
-        if (saveSSDone && metadataDone) {
-          break;
-        } 
-
-        mz_zip_archive_file_stat file_stat;
-        if (!mz_zip_reader_file_stat(&zip_archive, i, &file_stat)) {
-          qDebug() << "Failed to get file stat for file index" << i << "in ZIP file:" << zip_filename;
-          continue;
-        }
-
-
-#define mz_zip_reader_is_file_exists(filename) strcmp(file_stat.m_filename, filename) == 0 && !mz_zip_reader_is_file_a_directory(&zip_archive, i)
-        // Get screenshot image
-        if (!saveSSDone && mz_zip_reader_is_file_exists("screenshot.png")) {
-          size_t uncompressed_size = static_cast<size_t>(file_stat.m_uncomp_size);
-          std::vector<unsigned char> buffer(uncompressed_size);
-
-          if (mz_zip_reader_extract_to_mem(&zip_archive, i, buffer.data(), uncompressed_size, 0)) {
-            QPixmap pixmap;
-            if (pixmap.loadFromData(buffer.data(), static_cast<int>(uncompressed_size))) {
-              // renpy save screenshots is 256x144 i checked
-              thumbnailWidget->setPixmap(pixmap);
-            }
+          zip_entry_open(zip_archive, "screenshot.png");
+          zip_entry_read(zip_archive, &buffer, &bufsize);
+          zip_entry_close(zip_archive);
+          QPixmap pixmap;
+          if (pixmap.loadFromData((unsigned char*)buffer, static_cast<int>(bufsize))) {
+            // renpy save screenshots is 256x144 i checked
+            thumbnailWidget->setPixmap(pixmap);
           }
-          saveSSDone = true;
-          continue;
         }
 
-        // Get additional data just in case
-        // we just need to load this file (as json) for ["_save_name"]
-        if (!metadataDone && mz_zip_reader_is_file_exists("json")) {
-          size_t uncompressed_size = static_cast<size_t>(file_stat.m_uncomp_size);
-          std::vector<unsigned char> buffer(uncompressed_size);
+        {
+          void* buffer;
+          size_t bufsize;
 
-          if (mz_zip_reader_extract_to_mem(&zip_archive, i, buffer.data(), uncompressed_size, 0)) {
-            try {
-              auto jsonData = nlohmann::json::parse(buffer);
-              if (jsonData.contains("_save_name") && jsonData["_save_name"].is_string()) {
-                auto maybeSaveName = jsonData["_save_name"].get<std::string>();
-                if (!maybeSaveName.empty()) 
-                  saveName = maybeSaveName;
+          // Get additional data just in case
+          // we just need to load this file (as json) for ["_save_name"]
+          zip_entry_open(zip_archive, "json");
+          zip_entry_read(zip_archive, &buffer, &bufsize);
+          zip_entry_close(zip_archive);
 
-              }
-            } catch (const std::exception& e) {
-              qDebug() << "Failed to parse JSON metadata in save file" << QString::fromStdString(zip_filename) << "because:" << e.what();
+          try {
+            std::vector<unsigned char> bufferVec((unsigned char*)buffer, (unsigned char*)buffer + bufsize);
+            auto jsonData = nlohmann::json::parse(bufferVec);
+            if (jsonData.contains("_save_name") && jsonData["_save_name"].is_string()) {
+              auto maybeSaveName = jsonData["_save_name"].get<std::string>();
+              if (!maybeSaveName.empty()) 
+                saveName = maybeSaveName;
+
             }
+          } catch (const std::exception& e) {
+            qDebug() << "Failed to parse JSON metadata in save file" << QString::fromStdString(zip_filename) << "because:" << e.what();
           }
-          metadataDone = true;
-          continue;
         }
+
+        zip_close(zip_archive);
+
+
+        QFileInfo fileInfo(QString::fromStdString(savePath.string()));
+        QString dateTimeStr = fileInfo.lastModified().toString("yyyy-MM-dd HH:mm:ss");
+
+        // saveId is the (numerical) part around the first dash of the save filename
+        const std::string suffix = "-LT1.save"; // presumably unchanged 
+        auto saveFilename = savePath.filename().string();
+        auto saveId = saveFilename.substr(0, saveFilename.size() - suffix.length());
+
+        auto* item = new SSDCItem(thumbnailWidget, QString::fromStdString(saveName), dateTimeStr);
+        connect(item, &SSDCItem::clicked, this, [this, saveId](){
+          if (m_modInfoScreen) {
+            m_modInfoScreen->play(QString::fromStdString(saveId));
+            closeDialog();
+          }
+        });
+        layout->addWidget(item);
       }
-
-      mz_zip_reader_end(&zip_archive);
-
-      QFileInfo fileInfo(QString::fromStdString(savePath.string()));
-      QString dateTimeStr = fileInfo.lastModified().toString("yyyy-MM-dd HH:mm:ss");
-
-      // saveId is the (numerical) part around the first dash of the save filename
-      const std::string suffix = "-LT1.save"; // presumably unchanged 
-      auto saveFilename = savePath.filename().string();
-      auto saveId = saveFilename.substr(0, saveFilename.size() - suffix.length());
-
-      auto* item = new SSDCItem(thumbnailWidget, QString::fromStdString(saveName), dateTimeStr);
-      connect(item, &SSDCItem::clicked, this, [this, saveId](){
-        if (m_modInfoScreen) {
-          m_modInfoScreen->play(QString::fromStdString(saveId));
-          closeDialog();
-        }
-      });
-      layout->addWidget(item);
     }
   };
 };
@@ -302,9 +283,20 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   });
   contentLayout->addWidget(m_playFromSaveButton);
 
-  m_deleteButton = new Button("Uninstall", LucideIcons::trash);
-  connect(m_deleteButton, &Button::clicked, this, &ModInfoScreen::onDeleteButtonClicked);
+  m_deleteButton = new IconButton(LucideIcons::trash);
+  connect(m_deleteButton, &IconButton::clicked, this, &ModInfoScreen::onDeleteButtonClicked);
   contentLayout->addWidget(m_deleteButton);
+
+  auto openMountDirButton = new IconButton(LucideIcons::folder_open_dot);
+  connect(openMountDirButton, &IconButton::clicked, this, [this](){
+    if (m_displayingMod.has_value()) {
+      SessionManager::mount(m_displayingMod.value());
+      auto path = SessionManager::mountPathOf(m_displayingMod->id);
+      // open the directory
+      QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    }
+  });
+  contentLayout->addWidget(openMountDirButton);
 
 #ifndef MVC_VFS_AVAILABLE
   m_playButton->setEnabled(false);
@@ -337,11 +329,15 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
 }
 
 void ModInfoScreen::onOpenModDirClicked() {
+  /*
   if (m_displayingMod.has_value()) {
     SessionManager::mount(m_displayingMod.value());
     auto path = SessionManager::mountPathOf(m_displayingMod->id);
     // open the directory
     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+  }*/ 
+  if (m_displayingMod.has_value()) {
+    QDesktopServices::openUrl(QString::fromStdString(m_displayingMod->modPath));
   }
 }
 
@@ -381,7 +377,7 @@ void ModInfoScreen::onDeleteButtonClicked() {
     Dialog::YesNo,
     true
   )) {
-    ModsIndex::removeMod(m_displayingMod.value());
+    ModsIndex::get()->removeMod(m_displayingMod.value());
     emit modUninstalled(m_displayingMod->id); 
   }
 }

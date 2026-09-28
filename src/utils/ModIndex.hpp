@@ -4,7 +4,10 @@
 #include <filesystem>
 #include <string>
 #include <vector>
-namespace ModsIndex {
+#include "utils/YamlSettings.hpp"
+
+class ModsIndex {
+public:
   struct Mod {
     std::string id;
     std::string name;
@@ -21,8 +24,18 @@ namespace ModsIndex {
     bool operator==(const Mod& other) const = default;
   };
 
-  void loadModsIndex();
-  void saveModsIndex();
+private:
+  std::shared_ptr<YamlSettings> m_store;
+  std::vector<Mod> m_modsList;
+
+  explicit ModsIndex(const QString &path);
+
+
+public:
+  ModsIndex() = delete;
+
+  ~ModsIndex();
+  static std::shared_ptr<ModsIndex> get();
 
   void addModToRecentlyPlayed(const std::string& id);
   const std::vector<Mod>& getRecentlyPlayed();
@@ -31,6 +44,6 @@ namespace ModsIndex {
   Mod installMod(std::filesystem::path path);
   void removeMod(Mod& mod);
   const Mod& getModByID(std::string id);
-}
+};
 
 #endif

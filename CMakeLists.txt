@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 project(VirtualClub VERSION 0.1.1 LANGUAGES C CXX)
 
+if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  message(FATAL_ERROR "MSVC is not supported (i used some clang-specific syntax for ease of development sorry abt that). Please use a different compiler.")
+endif()
+
 add_compile_definitions(
   MVC_VERSION=${PROJECT_VERSION}
 )
@@ -22,10 +26,11 @@ qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     #resources.qrc
 )
-
+if(UNIX AND NOT APPLE)
+  add_compile_definitions(ZIP_HAVE_SYMLINK=1)
+endif()
 
 file(GLOB_RECURSE TL_RC_FILES "resources/*.*")
-
 
 qt_add_resources(${PROJECT_NAME} "tl_rc"
     BASE "resources"
@@ -126,16 +131,18 @@ endif()
 # if on release, copy the folder
 
 # i know qrc exists but its not really what im aiming for
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E create_symlink
-        ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
-    )
-else()
-    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
-    )
+if(NOT DEFINED ENV{CI})
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+            ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
+        )
+    else()
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
+        )
+    endif()
 endif()
 
 # Add deployment script generation for Qt6

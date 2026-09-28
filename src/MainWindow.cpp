@@ -25,15 +25,9 @@
 #include "utils/LucideIcons.hpp"
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
+#include "utils/SessionManager.hpp"
 #include "utils/anime.hpp"
 
-QString turkye(const QColor& color) {
-  return QString("rgb(%1,%2,%3)")
-    .arg(color.red())
-    .arg(color.green())
-    .arg(color.blue())
-  ;
-}
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
   setPageTitleBar("");
@@ -43,24 +37,6 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
   //m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
   initUI();
   setupTrayIcon();
-
-  setStyleSheet(QString(R"(
-QLabel {
-  font-family: Quicksand, Segoe UI;
-  color: %1;
-}
-
-QLineEdit {
-  border: 0px;
-  border-bottom: 2px solid %2;
-  font-family: Quicksand, Segoe UI;
-  padding: 4px;
-}
-
-QScrollBar::handle {
-  background: %1;
-}
-)").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
 }
 
 void MainWindow::setPageTitleBar(const QString& pageTitle) {
@@ -177,17 +153,24 @@ void MainWindow::paintEvent(QPaintEvent *event) {
 bool MainWindow::confirmQuit() {
   // writing this made me wonder if the vfs solution, while do save disk spaces, was actually a good idea..
   // -henrysck
-  return QApplication::quitOnLastWindowClosed() || Dialog::showActionDialog(
+  return SessionManager::hasMountedMod() || Dialog::showActionDialog(
       this, 
-      "Are you sure you want to exit?", 
-      "There are mods running, and the launcher has to be kept in background for it to work.", 
-      "Closing the launcher will terminate these games. Save the progress if you wish to continue.",
+      "Are you sure you want to exit?",
+      SessionManager::hasPlayingMod() 
+      ? "There are mods running, and the launcher has to be kept in background for it to work."
+      : "There are mounted directories which might be in use, and the launcher has to be kept in background for it to exists.",
+      SessionManager::hasPlayingMod()
+      ? "Closing the launcher will terminate these games. Save the progress if you wish to continue."
+      : "Closing the launcher will remove these directories. Save the progress if you wish to continue.",
       Dialog::DialogType::YesNo,
       true
   );
 }
 void MainWindow::setupTrayIcon() {
     m_trayIcon = new QSystemTrayIcon(QIcon(":/app-icon.png"), this);
+    m_trayIcon->setToolTip(QString("VirtualClub - %1").arg(
+      ProfileSingleApp::instance()->profileName()
+    ));
     auto *trayMenu = new QMenu(this);
 
     // Option to bring window back to focus
