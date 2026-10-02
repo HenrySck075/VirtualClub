@@ -22,10 +22,12 @@ private:
   void play(const QString& saveId = "");
   void onOpenModDirClicked();
   void onDeleteButtonClicked();
+  void updatePlaytimeLabel();
 
   PixmapWidget* m_modIconLabel = nullptr;
   QLabel* m_modNameLabel = nullptr;
   QLabel* m_modVersionLabel = nullptr;
+  QLabel* m_playtimeLabel = nullptr;
 
   Button* m_playButton = nullptr;
   Button* m_playFromSaveButton = nullptr;

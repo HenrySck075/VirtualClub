@@ -1,0 +1,167 @@
+#!@Python_EXECUTABLE@
+
+# This script functions (almost) identical to lupdate 
+# except that it runs the preprocessor on all C/C++ files before letting the actual lupdate does its job.
+
+# This script runs the compiler's preprocessor 
+# as such it requires the project to be built beforehand (to generate the .moc files).
+import sys
+import os
+import subprocess
+import tempfile
+import xml.etree.ElementTree as ET
+import shutil
+import json
+
+print("meow")
+
+# Provided by CMake configuration
+REAL_LUPDATE = r"@REAL_LUPDATE_PATH@"
+CXX_COMPILER = r"@CMAKE_CXX_COMPILER@"
+
+def expand_response_files(args):
+    """CMake sometimes passes arguments via @response_file.txt"""
+    expanded = []
+    for arg in args:
+        if arg.startswith('@') and os.path.exists(arg[1:]):
+            with open(arg[1:], 'r', encoding='utf-8') as f:
+                expanded.extend(f.read().splitlines())
+        else:
+            expanded.append(arg)
+    return expanded
+
+def main():
+    args = expand_response_files(sys.argv[1:])
+
+    cpp_flags = []
+    source_files = []
+    include_paths = []
+    lupdate_args = []
+    ts_files = []
+
+    # Parse arguments provided by CMake/qt6_add_translations
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == '-ts':
+            lupdate_args.append(arg)
+            i += 1
+            while i < len(args) and not args[i].startswith('-'):
+                ts_files.append(args[i])
+                lupdate_args.append(args[i])
+                i += 1
+            continue
+        elif arg == '-project':
+            #lupdate_args.append(arg)
+            with open(args[i+1], "r") as f:
+                project_data = json.load(f)
+                source_files.extend(project_data["sources"]) 
+                source_files.extend(project_data["subProjects"][0]["sources"]) 
+                include_paths.extend(project_data["includePaths"])
+                include_paths.extend(project_data["subProjects"][0]["includePaths"])
+
+                ts_files.extend(project_data["translations"])
+
+                source_files = [s for s in source_files if s.endswith(('.cpp', '.cxx', '.cc', '.h', '.hpp', '.hxx'))]
+            #lupdate_args.append(args[i+1])
+            i+=1
+            continue
+        elif arg.startswith('-I') or arg.startswith('-D') or arg.startswith('-U'):
+            cpp_flags.append(arg)
+            lupdate_args.append(arg)
+        elif arg.endswith(('.cpp', '.cxx', '.cc', '.h', '.hpp', '.hxx')):
+            source_files.append(arg)
+        else:
+            if arg == '-I' and i + 1 < len(args):
+                cpp_flags.extend([arg, args[i+1]])
+                lupdate_args.extend([arg, args[i+1]])
+                i += 1
+            else:
+                lupdate_args.append(arg)
+        i += 1
+
+    temp_dir = tempfile.mkdtemp(prefix="lupdate_preproc_")
+    preprocessed_files = []
+    original_mapping = {}
+
+    cpp_flags.extend(["-I"+p for p in include_paths])
+
+    # Preprocess each C++ source file
+    for src in source_files:
+        ext = os.path.splitext(src)[1]
+        temp_file = os.path.join(temp_dir, os.path.basename(src) + ".preprocessed" + ext)
+        
+        # Run preprocessor (-E) using the exact include directories & macros passed by CMake
+        cmd = [CXX_COMPILER, "-E"] + cpp_flags + [src]
+        
+        try:
+            res = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            output = res.stdout
+            
+            original_file_abs = os.path.abspath(src)
+            lines_by_number = {}
+            current_file = None
+            current_line = 1
+            
+            # Filter output: keep only lines belonging to the original file to preserve line counts
+            for line in output.splitlines():
+                if line.startswith('#'):
+                    parts = line.split()
+                    if len(parts) >= 3 and parts[1].isdigit():
+                        current_line = int(parts[1])
+                        current_file = parts[2].strip('"')
+                    continue
+                
+                if current_file and os.path.abspath(current_file) == original_file_abs:
+                    if current_line not in lines_by_number:
+                        lines_by_number[current_line] = []
+                    lines_by_number[current_line].append(line)
+                
+                current_line += 1
+            
+            # Write reconstructed file padded with newlines
+            max_line = max(lines_by_number.keys()) if lines_by_number else 0
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                for line_num in range(1, max_line + 1):
+                    if line_num in lines_by_number:
+                        f.write(" ".join(lines_by_number[line_num]) + "\n")
+                    else:
+                        f.write("\n")
+                        
+            preprocessed_files.append(temp_file)
+            original_mapping[temp_file] = src
+        except subprocess.CalledProcessError as e:
+            print(f"[lupdate-wrapper] Warning: Failed to preprocess {src}. Falling back to un-preprocessed. Error:\n{e.stderr}", file=sys.stderr)
+            preprocessed_files.append(src)
+            original_mapping[src] = src
+
+    # Execute the actual lupdate binary on the preprocessed temp files
+    final_cmd = [REAL_LUPDATE] + lupdate_args + preprocessed_files + ["-ts"] + ts_files
+    res = subprocess.run(final_cmd)
+
+    # Patch the output .ts XML files to point back to the original source paths instead of the temp files
+    for ts_file in ts_files:
+        if not os.path.exists(ts_file):
+            continue
+        try:
+            tree = ET.parse(ts_file)
+            root = tree.getroot()
+            modified = False
+            for loc in root.iter('location'):
+                filename = loc.get('filename')
+                if filename:
+                    for temp_f, orig_f in original_mapping.items():
+                        if filename.endswith(os.path.basename(temp_f)):
+                            loc.set('filename', orig_f)
+                            modified = True
+                            break
+            if modified:
+                tree.write(ts_file, encoding='utf-8', xml_declaration=True, short_empty_elements=False)
+        except Exception as e:
+            print(f"[lupdate-wrapper] Failed to patch TS file {ts_file}: {e}", file=sys.stderr)
+
+    shutil.rmtree(temp_dir, ignore_errors=True)
+    sys.exit(res.returncode)
+
+if __name__ == '__main__':
+    main()

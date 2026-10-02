@@ -485,7 +485,7 @@ void Switch::paintEvent(QPaintEvent * /*event*/)
     const qreal height = rect().height();
 
     // 1. Draw track outline
-    const qreal borderWidth = 3.0;
+    const qreal borderWidth = 2.0;
     const qreal trackMargin = borderWidth / 2.0;
     QRectF trackRect(trackMargin, trackMargin, width - borderWidth, height - borderWidth);
     const qreal cornerRadius = trackRect.height() / 2.0;

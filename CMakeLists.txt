@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.1.1 LANGUAGES C CXX)
+project(VirtualClub VERSION 0.1.2 LANGUAGES C CXX)
 
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported (i used some clang-specific syntax for ease of development sorry abt that). Please use a different compiler.")
@@ -17,15 +17,71 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
+find_package(Python REQUIRED COMPONENTS Interpreter Development)
+
+message(STATUS "Python binary path: ${Python_EXECUTABLE}")
+
 # Find Qt6 components
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia LinguistTools)
+
 find_package(pybind11 REQUIRED CONFIG)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c" "src/*.hpp")
+
+get_target_property(REAL_LUPDATE_PATH ${QT_CMAKE_EXPORT_NAMESPACE}::lupdate IMPORTED_LOCATION)
+message(STATUS "Qt6::lupdate path: ${REAL_LUPDATE_PATH}")
+if(NOT REAL_LUPDATE_PATH)
+  get_target_property(_configs ${QT_CMAKE_EXPORT_NAMESPACE}::lupdate IMPORTED_CONFIGURATIONS)
+    list(GET _configs 0 _first_config)
+    get_target_property(REAL_LUPDATE_PATH ${QT_CMAKE_EXPORT_NAMESPACE}::lupdate IMPORTED_LOCATION_${_first_config})
+endif()
+
+# 2. Configure the Python wrapper
+set(LUPDATE_WRAPPER_DEST "${CMAKE_CURRENT_BINARY_DIR}/lupdate_wrapper.py")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/lupdate2.py.in"
+    "${LUPDATE_WRAPPER_DEST}"
+    @ONLY
+)
+
+# 3. Make the script executable
+execute_process(COMMAND chmod +x "${LUPDATE_WRAPPER_DEST}")
+
+# 4. Create the custom target as an IMPORTED executable
+#add_executable(CustomLupdateWrapper IMPORTED)
+set_target_properties(${QT_CMAKE_EXPORT_NAMESPACE}::lupdate PROPERTIES
+  IMPORTED_LOCATION "${LUPDATE_WRAPPER_DEST}"
+  IMPORTED_LOCATION_RELEASE "${LUPDATE_WRAPPER_DEST}"
+  IMPORTED_LOCATION_DEBUG "${LUPDATE_WRAPPER_DEST}"
+  IMPORTED_LOCATION_RELWITHDEBINFO "${LUPDATE_WRAPPER_DEST}"
+  IMPORTED_LOCATION_MINSIZEREL "${LUPDATE_WRAPPER_DEST}"
+  IMPORTED_LOCATION_NOCONFIG "${LUPDATE_WRAPPER_DEST}"
+)
+
+
+
+qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES vi)
+
+file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c") 
 qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     #resources.qrc
 )
+
+qt_add_translations(
+  ${PROJECT_NAME} 
+  SOURCE_TARGETS ${PROJECT_NAME}
+  #QM_OUTPUT_DIRECTORY translations
+  TS_OUTPUT_DIRECTORY translations
+  RESOURCE_PREFIX "/translations"
+
+  #LUPDATE_TARGET CustomLupdateWrapper
+  LUPDATE_OPTIONS
+  "-tr-function-alias" "QT_TR_NOOP+=trNoop,QT_TRANSLATE_NOOP+=translateNoop"
+  #      "tr+=$setLabelTextForAutoTL,tr+=$setLabelTextAndRegisterAutoTL,tr+=$createAutoTLLabelInline"
+)
+
+
+
 if(UNIX AND NOT APPLE)
   add_compile_definitions(ZIP_HAVE_SYMLINK=1)
 endif()
@@ -36,7 +92,6 @@ qt_add_resources(${PROJECT_NAME} "tl_rc"
     BASE "resources"
     FILES ${TL_RC_FILES}
 )
-
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -150,6 +205,7 @@ qt_generate_deploy_app_script(
     TARGET ${PROJECT_NAME}
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
+    DEPLOY_TOOL_OPTIONS NO_TRANSLATIONS
 )
 
 install(TARGETS ${PROJECT_NAME}
@@ -159,3 +215,5 @@ install(TARGETS ${PROJECT_NAME}
 
 install(SCRIPT ${deploy_script})
 install(DIRECTORY assets DESTINATION .)
+
+

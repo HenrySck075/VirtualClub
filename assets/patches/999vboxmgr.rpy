@@ -2,10 +2,10 @@ init -2027 python early:
     # check if all the required environment variables is present 
     # (if not then throw an error saying this file should be removed)
     import os
-    launcher_env_vars = ["MVC_MOD_ID"]
+    launcher_env_vars = ["MVC_MOD_ID", "MVC_APPDATA_PATH"]
     if not all(var in os.environ for var in launcher_env_vars):
         raise RuntimeError("Missing required environment variables for launcher integration. "
-                           "Please remove 999vboxmgr.rpy if not using the launcher.")
+                           "Please remove 999vboxmgr.rpy (or .rpyc) and accompanying files if not using the launcher.")
 
 init -2026 python early:
     def setDeveloperMode():
@@ -36,6 +36,8 @@ init 999 python:
         Replicates QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
         Compatible with Python 2 and Python 3.
         """
+
+        return os.getenv("MVC_APPDATA_PATH") 
         # Detect platform
         platform = sys.platform
 
@@ -96,7 +98,7 @@ init 999 python:
 init -67 python early:
     mod_uuid = os.getenv("MVC_MOD_ID") # variable provided by the launcher
     config.save_directory = mod_uuid
-    # config.savedir = os.getenv("MVC_SAVE_DIR")
+    config.savedir = os.path.join(os.getenv("MVC_APPDATA_PATH"), "saves", mod_uuid)
 
 
 init 999 python:

@@ -120,7 +120,10 @@ jobs:
 
       # Build application
       - name: Build Project
-        run: cmake --build build --config Release
+        run: |
+          cmake --build build --config Release
+          cmake --build build --target VirtualClub_lupdate
+          cmake --build build --target VirtualClub_lrelease
 
       # Install Application using Qt's CMake deployment API
       - name: Install and Deploy Application

@@ -27,6 +27,7 @@
 #include "utils/ProfileSingleApp.hpp"
 #include "utils/SessionManager.hpp"
 #include "utils/anime.hpp"
+#include "utils/i18n.hpp"
 
 
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
@@ -80,11 +81,11 @@ void MainWindow::initUI() {
   m_mainContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   mainLayout->addWidget(m_mainContent);
 
-  addNavigationItem(LucideIcons::house, "Home", SidebarPosition::Top, new HomeScreen())->setSelected(true);
+  addNavigationItem(LucideIcons::house, translateNoop("Sidebar", "Home"), SidebarPosition::Top, new HomeScreen())->setSelected(true);
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, new ModsScreen());
 
-  addNavigationItem(LucideIcons::settings, "Settings", SidebarPosition::Bottom, new SettingsScreen());
-  addActionItem(LucideIcons::users, "Switch user", SidebarPosition::Bottom, showSwitchUserDialog);
+  addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, new SettingsScreen());
+  addActionItem(LucideIcons::users, translateNoop("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
 
   connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
 
@@ -106,8 +107,16 @@ void MainWindow::onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newIte
   setPageTitleBar(thisWidget->windowTitle());
 }
 
+void addSidebarItemToRetranslate(SidebarItem* item) {
+  item->setText(qApp->translate("Sidebar", item->text().toStdString().c_str()));
+  item->setProperty("mvcTLText", item->text());
+  item->setProperty("mvcTLContext", "Sidebar");
+  addWidgetToRetranslateList(item);
+}
+
 SidebarItem* MainWindow::addNavigationItem(QIcon icon, std::string name, SidebarPosition position, QWidget* widget) {
   auto item = m_sidebar->addSidebarItem(icon, name, position);
+  addSidebarItemToRetranslate(item);
 
   m_navigationMap[item] = widget;
   m_stackedWidget->addWidget(widget);
@@ -123,6 +132,7 @@ SidebarItem* MainWindow::addNavigationItem(QIcon icon, std::string name, Sidebar
 
 SidebarItem* MainWindow::addActionItem(QIcon icon, std::string name, SidebarPosition position, std::function<void()> onClicked) {
   auto item = m_sidebar->addSidebarItem(icon, name, position, false, false);
+  addSidebarItemToRetranslate(item);
 
   m_actionMap.push_back(item);
   connect(item, &SidebarItem::clicked, this, onClicked);

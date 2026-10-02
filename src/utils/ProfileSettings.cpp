@@ -46,3 +46,17 @@ QList<QString> ProfileSettings::list() {
 
   return profileNames;
 }
+
+void ProfileSettings::deleteProfile(const QString& name) {
+  QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+  QString profileFilePath = QDir(configDir).filePath(QString("profiles/%1.yaml").arg(name));
+
+  if (QFile::exists(profileFilePath)) {
+    QFile::remove(profileFilePath);
+  }
+
+  QString modsFilePath = QDir(configDir).filePath(QString("profiles/mods/%1.yaml").arg(name));
+  if (QFile::exists(modsFilePath)) {
+    QFile::remove(modsFilePath);
+  }
+}

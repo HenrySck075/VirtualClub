@@ -51,10 +51,11 @@ namespace LucideIcons {
     pen,
     play,
     plus,
-    trash,
     refresh_cw,
     rotate_cw_clock,
     settings,
+    trash,
+    timer,
     users,
     x,
   )

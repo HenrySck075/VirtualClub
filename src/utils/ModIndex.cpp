@@ -301,3 +301,27 @@ const std::vector<ModsIndex::Mod>& ModsIndex::getRecentlyPlayed() {
   return recentlyPlayed;
 }
 
+std::optional<ModsIndex::Mod::PlaytimePair> ModsIndex::Mod::getPlaytime() const {
+  const QString qSavedir = QString("%1/saves/%2")
+                               .arg(QStandardPaths::writableLocation(
+                                        QStandardPaths::AppDataLocation),
+                                    this->id);
+
+  const std::filesystem::path filePath =
+      std::filesystem::path(qSavedir.toStdString()) / ".mvc_playtime";
+
+  std::ifstream file(filePath);
+  if (!file.is_open()) {
+    return std::nullopt;
+  }
+
+  long long rawSeconds = 0;
+  long long activeSeconds = 0;
+
+  if (file >> rawSeconds >> activeSeconds) {
+    return std::make_pair(std::chrono::seconds(rawSeconds),
+                          std::chrono::seconds(activeSeconds));
+  }
+
+  return std::nullopt;
+}

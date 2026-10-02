@@ -13,9 +13,11 @@
 
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
+#include "utils/i18n.hpp"
 #include "utils/macros.h"
 
 #include <pybind11/embed.h>
+#include <QTranslator>
 
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current_macros.hpp>
@@ -36,6 +38,12 @@ int main(int argc, char *argv[]) {
     py::scoped_interpreter guard{};
 
     ProfileSingleApp app(argc, argv);
+
+    QCoreApplication::setApplicationName("VirtualClub");
+    QCoreApplication::setOrganizationName("henrysck075");
+    QCoreApplication::setOrganizationDomain("henrysck.sh");
+
+
     QCommandLineParser parser;
     QCommandLineOption profileOption(
         QStringList() << "p" << "profile", 
@@ -56,9 +64,6 @@ int main(int argc, char *argv[]) {
           return 0; // Terminate secondary instance cleanly
         }
     }
-    QCoreApplication::setApplicationName("VirtualClub");
-    QCoreApplication::setOrganizationName("henrysck075");
-    QCoreApplication::setOrganizationDomain("henrysck.sh");
 
     QFontDatabase::addApplicationFont(":/Quicksand-Bold.ttf");
     QFontDatabase::addApplicationFont(":/Quicksand-Light.ttf");
@@ -90,6 +95,7 @@ QLineEdit {
 QScrollBar::handle {
   background: %1;
 }
+
 )").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
 
 
@@ -105,6 +111,9 @@ QScrollBar::handle {
     }
 
     settings->save();
+
+    setLanguage(QLocale(settings->value(STK_LANGUAGE, "en").toString()));
+    setupReTLHandler();
 
     MainWindow window;
     window.setWindowIcon(QIcon(":/app-icon.png"));

@@ -38,7 +38,7 @@ void SidebarItem::mouseReleaseEvent(QMouseEvent* event) {
     // Pass the event to the base class if needed
     QPushButton::mouseReleaseEvent(event);
 } 
-SidebarItem::SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent) : QPushButton(parent), m_switchable(switchable) {
+SidebarItem::SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent) : QPushButton(QString::fromStdString(label), parent), m_switchable(switchable) {
   setFixedHeight(50); // Set a fixed height for each sidebar item
   setFixedWidth(Sidebar::WIDTH);
   // Setup animation (duration: 200 ms)
@@ -61,7 +61,6 @@ SidebarItem::SidebarItem(QIcon icon, std::string label, bool switchable, QWidget
   m_hoverAnimation = animgroup;
 
   m_icon = icon;
-  m_label = std::move(label);
 }
 void SidebarItem::enterEvent(QEnterEvent *event) {
     Q_UNUSED(event);
@@ -136,11 +135,11 @@ void SidebarItem::paintEvent(QPaintEvent *event) {
     // Draw the label
     painter.setPen(textColor);
     painter.setFont(QFont("Quicksand", 12, QFont::Weight::DemiBold));
-    painter.drawText(xOffsetA+50, 0, width() - 50, height(), Qt::AlignVCenter | Qt::AlignLeft, QString::fromStdString(m_label));
+    painter.drawText(xOffsetA+50, 0, width() - 50, height(), Qt::AlignVCenter | Qt::AlignLeft, text());
 }
 
 QDebug operator<<(QDebug debug, const SidebarItem *widget) {
-  debug.nospace() << "SidebarItem(" << widget->label().c_str() << ")";
+  debug.nospace() << "SidebarItem(" << widget->text() << ")";
   return debug.space();
 }
 

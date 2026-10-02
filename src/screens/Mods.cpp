@@ -199,7 +199,7 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   headerLayout->setAlignment(Qt::AlignLeft);
 
   auto* addModIcon = new IconButton(LucideIcons::plus);
-  addModIcon->setToolTip("Add a new mod");
+  addModIcon->setToolTip(tr("Add a new mod"));
   connect(addModIcon, &IconButton::clicked, this, &ModsScreen::onAddModButtonClicked);
   headerLayout->addWidget(addModIcon);
 
@@ -222,8 +222,8 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   connect(deleteButton, &IconButton::clicked, this, [this](){
     if (!Dialog::showActionDialog(
       getMainWindow(), 
-      "Delete selected mods?", 
-      "Are you sure you want to delete the selected mods? This action cannot be undone.",
+      tr("Delete selected mods?"), 
+      tr("Are you sure you want to delete the selected mods? This action cannot be undone."),
       "",
       Dialog::YesNo,
       true
@@ -252,7 +252,7 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   modsListPageLayout->addWidget(m_listContentStack);
 
 
-  QLabel* lcp = new QLabel("Collect your universes by pressing the + button");
+  QLabel* lcp = new QLabel(tr("Install new mods by pressing the + button"));
   lcp->setAlignment(Qt::AlignCenter);
   lcp->setStyleSheet("color: rgba(255,255,255,0.5); font-size: 14px; font-family: Quicksand; font-weight: bold;");
   lcp->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -409,7 +409,7 @@ void ModsScreen::deselectOtherItems(DesktopIconWidget* selectedItem) {
 #endif
 
 void ModsScreen::onAddModButtonClicked() {
-  auto directory = QFileDialog::getExistingDirectory(nullptr, "Select a mod directory containing a _valid Ren'Py game structure_ to add.");
+  auto directory = QFileDialog::getExistingDirectory(nullptr, tr("Select a mod directory."));
   if (directory == "") return;
     
   CPPTRACE_TRY {
@@ -422,8 +422,8 @@ void ModsScreen::onAddModButtonClicked() {
 #endif
     Dialog::showActionDialog(
       getMainWindow(), 
-      "Install Error", 
-      "An error was occured while installing the mod.",
+      tr("Install Error"), 
+      tr("An error was occured while installing the mod."),
       e.what(),
       Dialog::DialogType::Confirm
     );

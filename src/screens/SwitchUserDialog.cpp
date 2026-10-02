@@ -18,6 +18,7 @@ class UserListItem : public QPushButton {
 
 signals:
     void selectedChanged();
+    void deleteProfileRequest();
 
 private:    
     int m_hoverAnimationValue = 0; // Ranges from 0 to 255
@@ -128,6 +129,7 @@ public:
         layout->addWidget(m_deleteButton);
         m_deleteButton->hide();
         m_deleteButton->setToolTip("Remove profile");
+        connect(m_deleteButton, &QPushButton::clicked, this, &UserListItem::deleteProfileRequest);
 
         setLayout(layout);
 
@@ -154,30 +156,31 @@ public:
 };
 
 class SwitchUserDialogContent : public DialogContent {
+  Q_OBJECT
 public:
 
   void startNewWithProfile(const QString& profileId) {
-          QStringList args = QCoreApplication::arguments();
+      QStringList args = QCoreApplication::arguments();
 
-          // 1. Isolate the executable path (index 0)
-          QString program = args.takeFirst();
+      // 1. Isolate the executable path (index 0)
+      QString program = args.takeFirst();
 
-          // 2. Remove existing "--profile <id>" pairs if present
-          for (int i = 0; i < args.size(); ++i) {
-              if (args.at(i) == "--profile") {
-                  args.removeAt(i); // Remove "--profile"
-                  if (i < args.size()) {
-                      args.removeAt(i); // Remove the <id> following it
-                  }
-                  break;
+      // 2. Remove existing "--profile <id>" pairs if present
+      for (int i = 0; i < args.size(); ++i) {
+          if (args.at(i) == "--profile") {
+              args.removeAt(i); // Remove "--profile"
+              if (i < args.size()) {
+                  args.removeAt(i); // Remove the <id> following it
               }
+              break;
           }
+      }
 
-          // 3. Append the new flag and ID as separate arguments
-          args << "--profile" << profileId; // or QString(profileId) if already a string
+      // 3. Append the new flag and ID as separate arguments
+      args << "--profile" << profileId; // or QString(profileId) if already a string
 
-          // 4. Launch the detached process
-          QProcess::startDetached(program, args);
+      // 4. Launch the detached process
+      QProcess::startDetached(program, args);
   }
 
   SwitchUserDialogContent() {
@@ -225,6 +228,18 @@ public:
           startNewWithProfile(profileId);
           closeDialog();
       });
+      connect(button, &UserListItem::deleteProfileRequest, this, [this,profileId](){
+        if (Dialog::showActionDialog(
+          dialog(), 
+          tr("Delete profile?"), 
+          tr("Are you sure want to delete this profile? This action cannot be undone."),
+          "",
+          Dialog::YesNo,
+          true
+        )) {
+          ProfileSettings::deleteProfile(profileId);
+        }
+      });
         
       userListLayout->addWidget(button);
     }
@@ -250,7 +265,7 @@ public:
 };
 
 void showSwitchUserDialog() {
-  Dialog::showContentDialog(getMainWindow(), "Switch user", new SwitchUserDialogContent(), {300, 500});
+  Dialog::showContentDialog(getMainWindow(), "Switch profile", new SwitchUserDialogContent(), {300, 500});
 }
 
 #include "SwitchUserDialog.moc"

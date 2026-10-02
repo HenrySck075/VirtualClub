@@ -11,6 +11,8 @@
 #include "utils/FlowLayout.hpp"
 #include "utils/ModIndex.hpp"
 #include "utils/SessionManager.hpp"
+#include "utils/i18n.hpp"
+#include "utils/utils.hpp"
 #include <QDesktopServices>
 #include <QPointer>
 #include <QFileInfo>
@@ -21,7 +23,7 @@
 #include <QVariantAnimation>
 
 class SSDCItem : public QWidget {
-  Q_OBJECT;
+  Q_OBJECT
 signals:
   void clicked();
 private:
@@ -100,13 +102,14 @@ protected:
 
 class ModInfoScreen;
 class SaveSelectDialogContent : public DialogContent {
-  Q_OBJECT;
+  Q_OBJECT
   ModsIndex::Mod m_mod;
 
   QPointer<ModInfoScreen> m_modInfoScreen;
 public:
   // Get the folder where Ren'Py store every game's save data.
   static std::filesystem::path getRenpySaveDirectory() {
+#if 0
 #ifdef MVC_IS_WINDOWNS
     return std::filesystem::path(std::getenv("APPDATA")) / "RenPy";
 #elif defined(MVC_IS_MAC)
@@ -114,6 +117,8 @@ public:
 #else
     return std::filesystem::path(std::getenv("HOME")) / ".renpy";
 #endif
+#endif
+    return std::filesystem::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()) / "saves";
   }
   explicit SaveSelectDialogContent(const ModsIndex::Mod& mod, ModInfoScreen* mic) : m_mod(mod), m_modInfoScreen(mic) {
     auto saveDir = getRenpySaveDirectory() / mod.id;
@@ -142,7 +147,7 @@ public:
     }
 
     if (saveFiles.empty()) {
-      auto* label = new QLabel("No saves found. Remember to create some on your playthroughs, it will be helpful :)");
+      auto* label = new QLabel(tr("No saves found. Remember to create some on your playthroughs, it will be helpful :)"));
       label->setAlignment(Qt::AlignCenter);
       label->setWordWrap(true);
       auto* layout = new QVBoxLayout(this);
@@ -238,8 +243,11 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   layout->addWidget(header);
   static const int contentMargin = 16;
 
-  auto* headerLayout1 = new QHBoxLayout(header);
+  auto* headerLayout = new QVBoxLayout(header);
+
+  auto* headerLayout1 = new QHBoxLayout();
   headerLayout1->setSpacing(8);
+  headerLayout->addLayout(headerLayout1);
 
   m_modIconLabel = new PixmapWidget();
   //m_modIconLabel->setPixmap(modIcon);
@@ -258,11 +266,24 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
 
   m_modVersionLabel = new QLabel();
   m_modVersionLabel->setFont(QFont("Quicksand", 16));
+  $setDynamicLabelTextAndRegisterAutoTL(m_modVersionLabel, "Version: %1");
   headerLayout2->addWidget(m_modVersionLabel);
 
-  auto* openModDirButton = new Button("Open mod directory", LucideIcons::folder);
+  auto* openModDirButton = new Button(LucideIcons::folder);
+  $setLabelTextAndRegisterAutoTL(openModDirButton, "Open mod directory");
   connect(openModDirButton, &Button::clicked, this, &ModInfoScreen::onOpenModDirClicked);
   headerLayout2->addWidget(openModDirButton, 0, Qt::AlignLeft);
+
+  // you cant play on such platforms anyway
+#ifdef MVC_VFS_AVAILABLE
+  m_playtimeLabel = new QLabel(); 
+  m_playtimeLabel->setStyleSheet("color: #000000;");
+
+  // TODO:
+  headerLayout->addWidget(m_playtimeLabel);
+
+  updatePlaytimeLabel();
+#endif
 
   auto* content = new GradientBackground(this);
   content->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
@@ -271,15 +292,20 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   contentLayout->setSpacing(8);
   contentLayout->setAlignment(Qt::AlignLeft);
 
-  m_playButton = new Button("Play", LucideIcons::play);
-  m_playButton->setToolTip("Start the mod");
+  m_playButton = new Button(LucideIcons::play);
+  addRetranslateCallback([this](){
+    m_playButton->setText(tr("Play"));
+  }); 
   connect(m_playButton, &Button::clicked, this, &ModInfoScreen::onPlayButtonClicked);
   contentLayout->addWidget(m_playButton); 
 
-  m_playFromSaveButton = new Button("...from save", LucideIcons::rotate_cw_clock);
-  m_playFromSaveButton->setToolTip("Start the mod from save file");
+  m_playFromSaveButton = new Button(LucideIcons::rotate_cw_clock);
+  addRetranslateCallback([this](){
+    m_playFromSaveButton->setText(tr("...from save"));
+    m_playFromSaveButton->setToolTip(tr("Start the mod from save file"));
+  });
   connect(m_playFromSaveButton, &Button::clicked, [this](){
-    Dialog::showContentDialog(getMainWindow(), "Select save", new SaveSelectDialogContent(m_displayingMod.value(), this), {900,600});
+    Dialog::showContentDialog(getMainWindow(), tr("Select save"), new SaveSelectDialogContent(m_displayingMod.value(), this), {900,600});
   });
   contentLayout->addWidget(m_playFromSaveButton);
 
@@ -296,6 +322,7 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
       QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     }
   });
+  openMountDirButton->setToolTip("Open the mod's mount directory (where the mod is mounted to be used by Ren'Py)");
   contentLayout->addWidget(openMountDirButton);
 
 #ifndef MVC_VFS_AVAILABLE
@@ -312,20 +339,38 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   contentLayout2->setSpacing(8);
   contentLayout2->setAlignment(Qt::AlignTop);
 
-  auto addThing = [contentLayout2](const QString& name, QWidget* actionWidget) {
+  auto addThing = [this, contentLayout2](const QString& name, QWidget* actionWidget) {
     auto* tl = new QHBoxLayout();
     tl->setAlignment(Qt::AlignLeft);
     contentLayout2->addLayout(tl);
 
     tl->addWidget(actionWidget);
-    tl->addWidget(new QLabel(name));
+
+    auto* label = new QLabel();
+    $setLabelTextAndRegisterAutoTL(label, name.toStdString().c_str());
+    tl->addWidget(label);
   };
 
   m_developerModeSwitch = new Switch();
-  addThing("Developer Mode", m_developerModeSwitch);
+  addThing(trNoop("Developer Mode"), m_developerModeSwitch);
 
   m_forceRecompileSwitch = new Switch();
-  addThing("Force Recompile .rpyc", m_forceRecompileSwitch);
+  addThing(trNoop("Force Recompile .rpyc"), m_forceRecompileSwitch);
+}
+
+void ModInfoScreen::updatePlaytimeLabel() {
+  if (m_displayingMod.has_value() && m_playtimeLabel) {
+    auto playtime = m_displayingMod->getPlaytime();
+    if (playtime.has_value()) {
+      auto [playtimeRaw, playtimeActive] = playtime.value();
+      // use the active time for display
+      m_playtimeLabel->setText(
+        QString("Playtime: %1").arg(format_duration(playtimeActive))
+      );
+    } else {
+      m_playtimeLabel->setText("Not played yet!");
+    }
+  }
 }
 
 void ModInfoScreen::onOpenModDirClicked() {
@@ -363,6 +408,8 @@ void ModInfoScreen::play(const QString& saveId) {
       m_forceRecompileSwitch->setEnabled(true);
 
       setWindowTitle(QString::fromStdString(m_displayingMod->name));
+
+      updatePlaytimeLabel();
     }, saveId);
   }
 #endif
@@ -371,9 +418,9 @@ void ModInfoScreen::play(const QString& saveId) {
 void ModInfoScreen::onDeleteButtonClicked() {
   if (Dialog::showActionDialog(
     getMainWindow(), 
-    "Uninstall mod?", 
-    "Are you sure want to uninstall the mod?",
-    "This won't delete the mod's files, however it's save states and launcher configs will be removed.",
+    tr("Uninstall mod?"), 
+    tr("Are you sure want to uninstall the mod?"),
+    tr("This won't delete the mod's files, however it's save states and launcher configs will be removed."),
     Dialog::YesNo,
     true
   )) {
@@ -390,7 +437,7 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
   m_modIconLabel->setPixmap(pixmap);
 
   m_modNameLabel->setText(mod.name.c_str());
-  m_modVersionLabel->setText(QString("Version: %1").arg(mod.version.c_str()));
+  $changeLabelPlaceholderArgs(m_modVersionLabel, QString::fromStdString(mod.version));
 
   m_developerModeSwitch->setChecked(m_displayingMod->enableDeveloper);
   m_forceRecompileSwitch->setChecked(m_displayingMod->forceRecompile);
@@ -407,6 +454,8 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
     m_developerModeSwitch->setEnabled(true);
     m_forceRecompileSwitch->setEnabled(true);
   }
+
+  updatePlaytimeLabel();
 #endif
 }
 

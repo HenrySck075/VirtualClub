@@ -21,6 +21,10 @@ public:
 
     std::string getIconPath() const;
 
+    using PlaytimePair = std::pair<std::chrono::seconds, std::chrono::seconds>;
+
+    std::optional<PlaytimePair> getPlaytime() const;
+
     bool operator==(const Mod& other) const = default;
   };
 

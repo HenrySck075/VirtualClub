@@ -70,7 +70,7 @@ private:
   friend class Dialog;
 protected:
   // the stack "owns this pointer", so if you do weird stuff to it like delete then good luck handling the aftermath :)
-  Dialog* dialog();
+  Dialog* dialog() {return m_dialog;}
 public:
   void closeDialog();
 

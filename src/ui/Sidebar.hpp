@@ -32,7 +32,6 @@ private:
   QParallelAnimationGroup *m_hoverAnimation = nullptr;
 
   QIcon m_icon;
-  std::string m_label;
 
   const QColor sm_textColor = c_primaryColor; 
   const QColor sm_iconColor = c_secondaryColor;
@@ -71,7 +70,6 @@ public:
         emit selectedChanged();
     }
   }
-  std::string label() const {return m_label;}
   explicit SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent = nullptr);
   void setTintIcon(bool enable) {m_tintIcon = enable;};
   void enterEvent(QEnterEvent *event) override;

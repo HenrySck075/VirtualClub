@@ -2,8 +2,9 @@
 #include <QLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <qfiledialog.h>
-#include <qstandardpaths.h>
+#include <QFileDialog>
+#include <QStandardPaths>
+#include <QComboBox>
 #include "../ui/GradientBackground.hpp"
 #include "../ui/MESWidgets.hpp"
 #include "MainWindow.hpp"
@@ -13,6 +14,7 @@
 #include "utils/LucideIcons.hpp"
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
+#include "utils/i18n.hpp"
 #include "utils/utils.hpp"
 
 SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
@@ -44,7 +46,7 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   };
 
   // Add a label or any other widgets you want to display on the Settings screen
-  auto addSettingsLabel = [contentLayout](QString name, QString desc, QWidget* action, std::function<void(QHBoxLayout*, QVBoxLayout*)> extra = nullptr) {
+  auto addSettingsLabel = [contentLayout](QLabel* nameLabel, QLabel* descLabel, QWidget* action, std::function<void(QHBoxLayout*, QVBoxLayout*)> extra = nullptr) {
     auto layout = new QHBoxLayout();
     contentLayout->addLayout(layout);
     layout->setAlignment(Qt::AlignLeft);
@@ -52,11 +54,9 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
     auto metadataLayout = new QVBoxLayout();
     layout->addLayout(metadataLayout);
 
-    auto nameLabel = new QLabel(name); 
     nameLabel->setFont(QFont("Quicksand", 12, QFont::Bold)); 
     metadataLayout->addWidget(nameLabel); 
 
-    auto descLabel = new QLabel(desc); 
     descLabel->setFont(QFont("Quicksand", 10)); 
     descLabel->setWordWrap(true); 
     descLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -77,8 +77,8 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   auto* pfpChangeButton = new IconButton(LucideIcons::pen);
 
   addSettingsLabel(
-    "Profile picture",
-    "Change how your profile looks",
+    $createAutoTLLabelInline("Profile picture"),
+    $createAutoTLLabelInline("Give it a cooler image"),
     pfpChangeButton,
     [this, settings, pfpChangeButton](QHBoxLayout* layout, QVBoxLayout* metadataLayout){
       auto* pfpLabel = new PixmapWidget;
@@ -106,10 +106,10 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   );
   bool haveDisplayName = settings->contains(STK_DISPLAYNAME);
   auto [dnNameLabel, dnDescLabel] = addSettingsLabel(
-    "Display name", 
+    $createAutoTLLabelInline("Display name"), 
     haveDisplayName
-      ? "Change the profile's display name."
-      : "you dont want the name to look like that, do you?", 
+      ? $createAutoTLLabelInline("Change the profile's display name.")
+      : $createAutoTLLabelInline("you dont want the name to look like that, do you?"), 
     displayNameTextInput
   );
   connect(displayNameTextInput, &QLineEdit::editingFinished, this, [displayNameTextInput, dnDescLabel, haveDisplayName, settings](){
@@ -123,13 +123,35 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
 
   auto* pathChangeButton = new IconButton(LucideIcons::folder_pen, content);
-  auto [pcNameLabel, pcDescLabel] = addSettingsLabel("Base game's path", settings->value(STK_BASEPATH).toString(), pathChangeButton);
+  auto [pcNameLabel, pcDescLabel] = addSettingsLabel(
+    $createAutoTLLabelInline("Base game's path"), 
+    new QLabel(settings->value(STK_BASEPATH).toString()), 
+    pathChangeButton
+  );
   connect(pathChangeButton, &Button::clicked, this, [this, settings, pcDescLabel](){
     askForBasePathChange();
 
     pcDescLabel->setText(settings->value(STK_BASEPATH).toString());
   });
 
+  auto* languagesComboBox = new QComboBox();
+  {
+    auto currentLanguage = QLocale(settings->value(STK_LANGUAGE, "en").toString());
+    int idx = 0;
+    for (auto& l : getAvailableLocales()) {
+      languagesComboBox->addItem(QLocale::languageToString(l.language()), l);
+
+      if (currentLanguage == l) languagesComboBox->setCurrentIndex(idx);
+      idx++;
+    }
+  }
+  connect(languagesComboBox, &QComboBox::currentIndexChanged, this, [this, languagesComboBox, settings](int index){
+    auto locale = languagesComboBox->itemData(index).value<QLocale>();
+    qDebug() << "set language to" << locale << "hopefully";
+    setLanguage(locale);
+    settings->setValue(STK_LANGUAGE, locale.name());
+  });
+  contentLayout->addWidget(languagesComboBox);
 
   /*
   auto* testButton1 = new Button("Dialog");

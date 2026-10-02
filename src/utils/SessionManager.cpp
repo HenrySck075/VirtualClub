@@ -193,6 +193,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
   QStringList extra_env;
   QStringList argv;
   extra_env << QString::fromStdString("MVC_MOD_ID=" + mod.id);
+  extra_env << QString::fromStdString("MVC_APPDATA_PATH=" + QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString());
 
   if (mod.enableDeveloper) extra_env << "MVC_DEVELOPER=Mon-ika";
   if (saveId != "") extra_env << ("MVC_SAVE_ID=" + saveId);
