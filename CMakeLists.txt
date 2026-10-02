@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.1.1 LANGUAGES C CXX)
+project(VirtualClub VERSION 0.1.2 LANGUAGES C CXX)
 
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported (i used some clang-specific syntax for ease of development sorry abt that). Please use a different compiler.")
@@ -18,8 +18,16 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
 # Find Qt6 components
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia LinguistTools)
 find_package(pybind11 REQUIRED CONFIG)
+qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES vi)
+
+qt_add_translations(
+  ${PROJECT_NAME} 
+  QM_FILES_OUTPUT_VARIABLE qm_files 
+  QM_OUTPUT_DIRECTORY translations
+  TS_OUTPUT_DIRECTORY translations
+)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c" "src/*.hpp")
 qt_add_executable(${PROJECT_NAME}
@@ -150,6 +158,7 @@ qt_generate_deploy_app_script(
     TARGET ${PROJECT_NAME}
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
+    DEPLOY_TOOL_OPTIONS NO_TRANSLATIONS
 )
 
 install(TARGETS ${PROJECT_NAME}

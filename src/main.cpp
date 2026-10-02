@@ -16,6 +16,7 @@
 #include "utils/macros.h"
 
 #include <pybind11/embed.h>
+#include <QTranslator>
 
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current_macros.hpp>
@@ -36,6 +37,12 @@ int main(int argc, char *argv[]) {
     py::scoped_interpreter guard{};
 
     ProfileSingleApp app(argc, argv);
+
+
+    QTranslator translator;
+    if (translator.load(QLocale::system(), "VirtualClub", "_", ":/i18n"))
+        app.installTranslator(&translator);
+
     QCommandLineParser parser;
     QCommandLineOption profileOption(
         QStringList() << "p" << "profile", 
