@@ -34,10 +34,14 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   contentLayout->setAlignment(Qt::AlignTop);
   contentLayout->setHorizontalSizeConstraint(QLayout::SetMaximumSize);
 
-  contentLayout->addWidget(new QLabel("<i>All changes are automatically saved.</i>"),0,Qt::AlignLeft);
+  auto notesLabel = new QLabel();
+  notesLabel->setStyleSheet("font-style: italic;");
+  $setLabelTextAndRegisterAutoTL(notesLabel,"All changes are automatically saved.");
+  contentLayout->addWidget(notesLabel,0,Qt::AlignLeft);
 
-  auto addSettingsHeader = [contentLayout](QString headerName) {
+  auto addSettingsHeader = [this, contentLayout](QString headerName) {
     auto* headerLabel = new QLabel(headerName);
+    $setLabelTextAndRegisterAutoTL(headerLabel, headerName.toStdString().c_str());
     headerLabel->setFont(QFont("Quicksand", 18, QFont::Bold));
     contentLayout->addWidget(headerLabel, 0, Qt::AlignLeft);
     // pad it out veritcally
@@ -46,7 +50,7 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   };
 
   // Add a label or any other widgets you want to display on the Settings screen
-  auto addSettingsLabel = [contentLayout](QLabel* nameLabel, QLabel* descLabel, QWidget* action, std::function<void(QHBoxLayout*, QVBoxLayout*)> extra = nullptr) {
+  auto addSettingsLabel = [this, contentLayout](QString name, QString desc, QWidget* action, std::function<void(QHBoxLayout*, QVBoxLayout*)> extra = nullptr) {
     auto layout = new QHBoxLayout();
     contentLayout->addLayout(layout);
     layout->setAlignment(Qt::AlignLeft);
@@ -54,9 +58,11 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
     auto metadataLayout = new QVBoxLayout();
     layout->addLayout(metadataLayout);
 
+    auto nameLabel = $createAutoTLLabelInline(name.toStdString().c_str());
     nameLabel->setFont(QFont("Quicksand", 12, QFont::Bold)); 
     metadataLayout->addWidget(nameLabel); 
 
+    auto descLabel = $createAutoTLLabelInline(desc.toStdString().c_str());
     descLabel->setFont(QFont("Quicksand", 10)); 
     descLabel->setWordWrap(true); 
     descLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -72,13 +78,13 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
   auto settings = ProfileSettings::get();
 
-  addSettingsHeader("Profile");
+  addSettingsHeader(trNoop("Profile"));
 
   auto* pfpChangeButton = new IconButton(LucideIcons::pen);
 
   addSettingsLabel(
-    $createAutoTLLabelInline("Profile picture"),
-    $createAutoTLLabelInline("Give it a cooler image"),
+    trNoop("Profile picture"),
+    trNoop("Give it a cooler image"),
     pfpChangeButton,
     [this, settings, pfpChangeButton](QHBoxLayout* layout, QVBoxLayout* metadataLayout){
       auto* pfpLabel = new PixmapWidget;
@@ -106,10 +112,10 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   );
   bool haveDisplayName = settings->contains(STK_DISPLAYNAME);
   auto [dnNameLabel, dnDescLabel] = addSettingsLabel(
-    $createAutoTLLabelInline("Display name"), 
+    trNoop("Display name"), 
     haveDisplayName
-      ? $createAutoTLLabelInline("Change the profile's display name.")
-      : $createAutoTLLabelInline("you dont want the name to look like that, do you?"), 
+      ? trNoop("Change the profile's display name.")
+      : trNoop("you dont want the name to look like that, do you?"), 
     displayNameTextInput
   );
   connect(displayNameTextInput, &QLineEdit::editingFinished, this, [displayNameTextInput, dnDescLabel, haveDisplayName, settings](){
@@ -124,8 +130,8 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
   auto* pathChangeButton = new IconButton(LucideIcons::folder_pen, content);
   auto [pcNameLabel, pcDescLabel] = addSettingsLabel(
-    $createAutoTLLabelInline("Base game's path"), 
-    new QLabel(settings->value(STK_BASEPATH).toString()), 
+    trNoop("Base game's path"), 
+    settings->value(STK_BASEPATH).toString(), 
     pathChangeButton
   );
   connect(pathChangeButton, &Button::clicked, this, [this, settings, pcDescLabel](){
@@ -133,6 +139,9 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
     pcDescLabel->setText(settings->value(STK_BASEPATH).toString());
   });
+
+
+  addSettingsHeader(trNoop("Application"));
 
   auto* languagesComboBox = new QComboBox();
   {
@@ -145,13 +154,19 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
       idx++;
     }
   }
+
   connect(languagesComboBox, &QComboBox::currentIndexChanged, this, [this, languagesComboBox, settings](int index){
     auto locale = languagesComboBox->itemData(index).value<QLocale>();
     qDebug() << "set language to" << locale << "hopefully";
     setLanguage(locale);
     settings->setValue(STK_LANGUAGE, locale.name());
   });
-  contentLayout->addWidget(languagesComboBox);
+  
+  auto [lNameLabel, lDescLabel] = addSettingsLabel(
+    trNoop("Language"), 
+    trNoop("Sets the application language"), 
+    languagesComboBox
+  );
 
   /*
   auto* testButton1 = new Button("Dialog");

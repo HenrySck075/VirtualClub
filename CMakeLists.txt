@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.1.2 LANGUAGES C CXX)
+project(VirtualClub VERSION 0.1.3 LANGUAGES C CXX)
 
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported (i used some clang-specific syntax for ease of development sorry abt that). Please use a different compiler.")
@@ -169,6 +169,7 @@ elseif(NOT IS_ANDROID AND NOT IS_TERMUX)
   pkg_check_modules(FUSE3 REQUIRED fuse3)
   set(FUSE_LIBRARIES ${FUSE3_LIBRARIES})
   set(FUSE_INCLUDE_DIRS ${FUSE3_INCLUDE_DIRS})
+  message(STATUS "fuse libs: ${FUSE_LIBRARIES}")
 endif()
 
 
@@ -200,12 +201,18 @@ if(NOT DEFINED ENV{CI})
     endif()
 endif()
 
+# =============== Deployment ================
 # Add deployment script generation for Qt6
 qt_generate_deploy_app_script(
     TARGET ${PROJECT_NAME}
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
     DEPLOY_TOOL_OPTIONS NO_TRANSLATIONS
+)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    BUILD_RPATH "\$ORIGIN/lib"
+    INSTALL_RPATH "\$ORIGIN/lib"
 )
 
 install(TARGETS ${PROJECT_NAME}
@@ -216,4 +223,110 @@ install(TARGETS ${PROJECT_NAME}
 install(SCRIPT ${deploy_script})
 install(DIRECTORY assets DESTINATION .)
 
+if(WIN32)
+    # Target the DLL in the bin directory corresponding to architecture
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(WINFSP_DLL "${WINFSP_DIR}/bin/winfsp-x64.dll")
+    else()
+        set(WINFSP_DLL "${WINFSP_DIR}/bin/winfsp-x86.dll")
+    endif()
 
+    if(EXISTS "${WINFSP_DLL}")
+        install(FILES "${WINFSP_DLL}" DESTINATION .)
+    endif()
+
+    # in practice termux is my development environment and also this mostly runs on github actions so this wouldn't be happening
+elseif(NOT IS_ANDROID AND NOT IS_TERMUX AND NOT APPLE)
+    # On Linux CI, resolve absolute path to libfuse3.so using PkgConfig Link Libraries
+    find_library(FUSE3_SO_PATH 
+        NAMES fuse3 libfuse3.so.3 libfuse3.so
+        HINTS ${FUSE3_LIBRARY_DIRS}
+    )
+    if(FUSE3_SO_PATH)
+        # idk how well this work
+        # 1. Get the actual binary file and its filename
+        get_filename_component(FUSE3_REAL_PATH "${FUSE3_SO_PATH}" REALPATH)
+        get_filename_component(FUSE3_REAL_NAME "${FUSE3_REAL_PATH}" NAME)
+
+# 2. Install the real binary file into lib/
+        install(FILES "${FUSE3_REAL_PATH}" DESTINATION lib)
+
+        # 3. Explicitly create symlinks for required names (libfuse.so.3 and libfuse3.so.3)
+        install(CODE "
+            if(NOT \"${FUSE3_REAL_NAME}\" STREQUAL \"libfuse3.so.3\")
+                file(CREATE_LINK \"${FUSE3_REAL_NAME}\"
+                    \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/lib/libfuse3.so.3\"
+                    SYMBOLIC)
+            endif()
+        ")
+    endif()
+
+    # Locate Qt's library directory and bundle its ICU dependencies
+    get_target_property(QT_CORE_LIB_PATH Qt6::Core LOCATION)
+    message(STATUS "Qt6::Core library path: ${QT_CORE_LIB_PATH}")
+    if(QT_CORE_LIB_PATH)
+        get_filename_component(QT_LIB_DIR "${QT_CORE_LIB_PATH}" DIRECTORY)
+        get_filename_component(QT_ROOT_DIR "${QT_LIB_DIR}" DIRECTORY)
+        file(GLOB QT_ICU_LIBS "${QT_ROOT_DIR}/libicu*.so*")
+        if(QT_ICU_LIBS)
+            install(FILES ${QT_ICU_LIBS} DESTINATION lib)
+        endif()
+    endif()
+endif()
+
+
+# Define target directory for minimal stdlib
+if(WIN32)
+    set(PY_STDLIB_DEST "Lib")
+else()
+    set(PY_STDLIB_DEST "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}")
+endif()
+
+# Core pure-Python modules required for sys, os, io, pickle, struct to function
+set(MINIMAL_PYTHON_MODULES
+    "os.py"
+    "pickle.py"
+    "io.py"
+    "_collections_abc.py"
+    "_sitebuiltins.py"
+    "codecs.py"
+    "copyreg.py"
+    "sre_compile.py"
+    "sre_constants.py"
+    "sre_parse.py"
+    "enum.py"
+    "stat.py"
+    "genericpath.py"
+    "posixpath.py"
+    "ntpath.py"
+    "_compat_pickle.py"
+    "struct.py"
+)
+
+# Copy individual files into build directory during build
+foreach(PY_FILE ${MINIMAL_PYTHON_MODULES})
+    add_custom_command(
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${Python_STDLIB}/${PY_FILE}"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/${PY_STDLIB_DEST}/${PY_FILE}"
+    )
+    
+    # Install step for final distribution
+    install(
+        FILES "${Python_STDLIB}/${PY_FILE}"
+        DESTINATION "${PY_STDLIB_DEST}"
+        OPTIONAL
+    )
+endforeach()
+
+# Install C-runtime DLL/SO only, skipping lib-dynload
+if(WIN32)
+    if(Python_RUNTIME_LIBRARY)
+        install(FILES "${Python_RUNTIME_LIBRARY}" DESTINATION .)
+    endif()
+else()
+    if(Python_RUNTIME_LIBRARY)
+        install(FILES "${Python_RUNTIME_LIBRARY}" DESTINATION lib)
+    endif()
+endif()

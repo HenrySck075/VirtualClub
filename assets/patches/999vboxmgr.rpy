@@ -101,9 +101,31 @@ init -67 python early:
     config.savedir = os.path.join(os.getenv("MVC_APPDATA_PATH"), "saves", mod_uuid)
 
 
+# simple big text in the center saying "Loading save...", in the same style as renpy's reloading screen
+screen _launcher_splash_saveloading_screen:
+    tag menu
+    
+    text "Loading save...":
+        size 40
+        xalign 0.5
+        yalign 0.5
+
+label _launcher_splash_saveloading:
+    scene black
+    stop music
+    show screen _launcher_splash_saveloading_screen
+    pause 9999
+
 init 999 python:
+    import os
+    maybeSaveID = os.environ.get("MVC_SAVE_ID", None)
+    if maybeSaveID is not None:
+        def _override_label():
+            import renpy
+            renpy.game.script.namemap["splashscreen"] = renpy.game.script.namemap["_launcher_splash_saveloading"]
+        config.start_callbacks.append(_override_label)
+
     def _autoload_check():
-        import os
         maybeSaveID = os.environ.pop("MVC_SAVE_ID", None)
         if maybeSaveID is not None:
             import renpy
@@ -112,3 +134,4 @@ init 999 python:
 
     # conveniently start_callbacks exists since v6.99.11 so base ddlc will still let this through
     config.periodic_callbacks.append(_autoload_check)
+

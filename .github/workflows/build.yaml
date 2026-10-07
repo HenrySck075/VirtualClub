@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install Qt 6.11.1 Manually
+      - name: Install Qt Manually
         run: python .github/scripts/install_qt.py
 
       # Install pybind11 on Windows via pip
@@ -102,7 +102,7 @@ jobs:
         shell: pwsh
         run: |
           choco install winfsp -y
-          echo "WINFSP_DIR=C:\Program Files (x86)\WinFsp" >> $env:GITHUB_ENV
+          echo "WINFSP_DIR=C:/Program Files (x86)/WinFsp" >> $env:GITHUB_ENV
 
       # Initialize MSVC and Windows SDK environment variables
       - name: Set up MSVC environment
@@ -122,11 +122,11 @@ jobs:
       - name: Build Project
         run: |
           cmake --build build --config Release
-          cmake --build build --target VirtualClub_lupdate
-          cmake --build build --target VirtualClub_lrelease
 
       # Install Application using Qt's CMake deployment API
       - name: Install and Deploy Application
+        env:
+          LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
         run: cmake --install build --prefix dist
 
       # Package Linux Application into a tarball (with assets folder)

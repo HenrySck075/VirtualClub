@@ -61,37 +61,37 @@
 <context>
     <name>ModsScreen</name>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="201"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="202"></location>
         <source>Add a new mod</source>
         <translation>Thêm một mod mới</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="224"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="225"></location>
         <source>Delete selected mods?</source>
         <translation>Xóa các mod đã lựa chọn?</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="225"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="226"></location>
         <source>Are you sure you want to delete the selected mods? This action cannot be undone.</source>
         <translation>Bạn có muốn xóa các mod đã lựa chọn? Hành động này không thể hoàn lại.</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="254"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="255"></location>
         <source>Install new mods by pressing the + button</source>
         <translation>Cài đặt mod mới bằng cách bấm vào nút +</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="411"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="412"></location>
         <source>Select a mod directory.</source>
         <translation>Chọn thư mục mod.</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="424"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="425"></location>
         <source>Install Error</source>
         <translation>Lỗi cài đặt</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="425"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Mods.cpp" line="426"></location>
         <source>An error was occured while installing the mod.</source>
         <translation>Có lỗi xảy ra trong quá trình cài đặt mod.</translation>
     </message>
@@ -107,34 +107,59 @@
 <context>
     <name>SettingsScreen</name>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="80"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="39"></location>
+        <source>All changes are automatically saved.</source>
+        <translation>Mọi thay đổi đều được tự động lưu.</translation>
+    </message>
+    <message>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="81"></location>
+        <source>Profile</source>
+        <translation>Hồ sơ</translation>
+    </message>
+    <message>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="86"></location>
         <source>Profile picture</source>
         <translation>Ảnh đại diện</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="81"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="87"></location>
         <source>Give it a cooler image</source>
         <translation>Cho nó cái ảnh ngầu hơn đê</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="109"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="115"></location>
         <source>Display name</source>
         <translation>Tên hiển thị</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="111"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="117"></location>
         <source>Change the profile's display name.</source>
         <translation>Thay đổi tên hiển thị của hồ sơ.</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="112"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="118"></location>
         <source>you dont want the name to look like that, do you?</source>
         <translation>tên xấu vl</translation>
     </message>
     <message>
-        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="127"></location>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="133"></location>
         <source>Base game's path</source>
         <translation>Thư mục đến game gốc</translation>
+    </message>
+    <message>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="144"></location>
+        <source>Application</source>
+        <translation>Ứng dụng</translation>
+    </message>
+    <message>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="166"></location>
+        <source>Language</source>
+        <translation>Ngôn ngữ</translation>
+    </message>
+    <message>
+        <location filename="/mnt/space/vclub_qt/src/screens/Settings.cpp" line="167"></location>
+        <source>Sets the application language</source>
+        <translation>Đặt ngôn ngữ của ứng dụng</translation>
     </message>
 </context>
 <context>

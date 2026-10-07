@@ -163,18 +163,20 @@ void MainWindow::paintEvent(QPaintEvent *event) {
 bool MainWindow::confirmQuit() {
   // writing this made me wonder if the vfs solution, while do save disk spaces, was actually a good idea..
   // -henrysck
-  return SessionManager::hasMountedMod() || Dialog::showActionDialog(
+#define trConfirmQuit(t) qApp->translate("ConfirmQuitDialog", t)
+  return SessionManager::hasMountedMod() && Dialog::showActionDialog(
       this, 
-      "Are you sure you want to exit?",
+      trConfirmQuit("Are you sure want to exit?"),
       SessionManager::hasPlayingMod() 
-      ? "There are mods running, and the launcher has to be kept in background for it to work."
-      : "There are mounted directories which might be in use, and the launcher has to be kept in background for it to exists.",
+      ? trConfirmQuit("There are mods running, and the launcher has to be kept in background for it to work.")
+      : trConfirmQuit("There are mounted directories which might be in use, and the launcher has to be kept in background for it to exists."),
       SessionManager::hasPlayingMod()
-      ? "Closing the launcher will terminate these games. Save the progress if you wish to continue."
-      : "Closing the launcher will remove these directories. Save the progress if you wish to continue.",
+      ? trConfirmQuit("Closing the launcher will terminate these games. Save the progress if you wish to continue.")
+      : trConfirmQuit("Closing the launcher will remove these directories. Save the progress if you wish to continue."),
       Dialog::DialogType::YesNo,
       true
   );
+#undef trConfirmQuit
 }
 void MainWindow::setupTrayIcon() {
     m_trayIcon = new QSystemTrayIcon(QIcon(":/app-icon.png"), this);

@@ -97,7 +97,7 @@ def install_qt():
                 shutil.copyfileobj(resp, out_file)
 
             print(f"Extracting {archive_name}...")
-            subprocess.run([seven_zip, "x", archive_file, f"-o{target_dir}", "-y"], check=True)
+            subprocess.run([seven_zip, "x", archive_file, f"-o{target_dir}", "-y", "-sns"], check=True)
             os.remove(archive_file)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
@@ -127,6 +127,16 @@ def install_qt():
             f.write(f"{bin_dir}\n")
 
     print(f"Qt 6.11.2 successfully setup at {target_dir}")
+
+    # Log the tree of the target_dir for debugging
+    print("Directory structure of the installed Qt:")
+    for root_dir, dirs, files in os.walk(target_dir):
+        level = root_dir.replace(target_dir, "").count(os.sep)
+        indent = " " * 4 * level
+        print(f"{indent}{os.path.basename(root_dir)}/")
+        sub_indent = " " * 4 * (level + 1)
+        for f in files:
+            print(f"{sub_indent}{f}")
 
 if __name__ == "__main__":
     install_qt()

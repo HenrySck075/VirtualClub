@@ -96,6 +96,14 @@ QScrollBar::handle {
   background: %1;
 }
 
+QComboBox {
+  background-color: transparent;
+  border: 2px solid %1;
+  border-radius: 4px;
+  color: %2;
+  padding: 4px 8px;
+}
+
 )").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
 
 

@@ -93,6 +93,19 @@ fs::path get_appdata_dir() {
     return fs::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString());
 }
 
+constexpr size_t constexpr_strlen(const char* str) {
+    size_t len = 0;
+    while (str[len] != '\0') {
+        ++len;
+    }
+    return len;
+}
+
+
+static constexpr auto g_launcherPatchesPath = "/game/_launcher_patches";
+static constexpr auto g_lppLeadingSlash = "/game/_launcher_patches/";
+static constexpr size_t g_lppSize = constexpr_strlen(g_launcherPatchesPath);
+
 // ============================================================================
 // 2. LibbiVFS
 // ============================================================================
@@ -117,6 +130,8 @@ private:
     friend void* fuse_init(struct fuse_conn_info *, struct fuse_config *cfg);
 
     fs::path dbFolder;
+    fs::path deltaFolder;
+    fs::path contentFolder;
     fs::path whiteoutFilePath;
     std::unordered_set<std::string> whiteouts;
     mutable std::shared_mutex dbMutex;
@@ -146,7 +161,7 @@ private:
 
     void save_whiteouts() {
         std::unique_lock lock(dbMutex);
-        fs::create_directories(dbFolder);
+        fs::create_directories(whiteoutFilePath.parent_path());
         std::ofstream f(whiteoutFilePath, std::ios::trunc);
         for (const auto &w : whiteouts) f << w << "\n";
     }
@@ -200,7 +215,9 @@ public:
 
         containsRenpyEngine = fs::exists(modFolder / "lib");
         dbFolder = modFolder / ".vclubmgr";
-        whiteoutFilePath = dbFolder / "whiteouts.txt";
+        deltaFolder = dbFolder / "delta" / startupConfigs.mod.id;
+        contentFolder = deltaFolder / "content";
+        whiteoutFilePath = deltaFolder / ".whiteouts";
         load_whiteouts();
     }
 
@@ -208,30 +225,50 @@ public:
 
     std::string get_path_2(const std::string &path, bool write = false) const {
         std::string stripped = strip_leading_slash(normalize_path(path));
-        fs::path toModFolder = modFolder / stripped;
-        fs::path toBaseFolder = baseFolder / stripped;
+        fs::path toContentFolder = contentFolder / stripped;
 
-        if (path.rfind("/game/patches", 0) == 0) {
-          auto patchesPath = launcherRoot / "assets" / "patches" / path.substr(path.rfind("/game/patches/", 0) == 0 ? 14 : 13);
+        if (path.rfind(g_launcherPatchesPath, 0) == 0) {
+          auto patchesPath = launcherRoot / "assets" / "patches" / path.substr(
+            path.rfind(g_lppLeadingSlash, 0) == 0 ? g_lppSize+1 : g_lppSize
+          );
           if (fs::exists(patchesPath) || (write && fs::exists(patchesPath.parent_path()))) {
               return patchesPath.string();
           }
-        } else if (path == "/game/patches") {
-          return (launcherRoot / "assets" / "patches").string();
         }
+
+        fs::path toModFolder = modFolder / stripped;
 
         if (path.rfind("/lib", 0) == 0) {
-            return (!containsRenpyEngine) ? toBaseFolder.string() : toModFolder.string();
+            if (write) return toContentFolder.string();
+            if (fs::exists(toContentFolder)) return toContentFolder.string();
+            return (!containsRenpyEngine) ? (baseFolder / stripped).string() : toModFolder.string();
         }
 
-        if (write) return toModFolder.string();
-        return fs::exists(toModFolder) ? toModFolder.string() : toBaseFolder.string();
+        if (write) return toContentFolder.string();
+        if (fs::exists(toContentFolder)) return toContentFolder.string();
+        return fs::exists(toModFolder) ? toModFolder.string() : (baseFolder / stripped).string();
     }
 
     std::string get_path(const std::string &path, bool write = false) const {
         auto ret = get_path_2(path, write);
         //qDebug() << "Requested" << path << "| Resolved to" << ret;
         return ret;
+    }
+
+    bool ensure_content_copy(const std::string &path) {
+        fs::path content_path = contentFolder / strip_leading_slash(normalize_path(path));
+        if (fs::exists(content_path)) return true;
+
+        std::string source_path = get_path(path);
+        if (!fs::exists(source_path)) return false;
+
+        fs::create_directories(content_path.parent_path());
+        if (fs::is_directory(source_path)) {
+            fs::create_directories(content_path);
+        } else {
+            fs::copy(source_path, content_path, fs::copy_options::overwrite_existing);
+        }
+        return true;
     }
 
     bool should_bypass_whiteout(const std::string &path) const {
@@ -269,10 +306,11 @@ public:
         if (is_whiteouted(path)) return -ENOENT;
 
         std::unordered_set<std::string> dirents = {".", ".."};
-        std::string stripped = strip_leading_slash(path);
-        std::string mod_path = (!containsRenpyEngine && (path.rfind("/lib", 0) == 0 || path.rfind("\\lib", 0) == 0)) 
-                             ? (baseFolder / stripped).string() : (modFolder / stripped).string();
-        std::string base_path = (baseFolder / stripped).string();
+        std::string stripped = strip_leading_slash(normalize_path(path));
+        fs::path content_path = (contentFolder / stripped);
+        fs::path base_path = (baseFolder / stripped);
+        fs::path mod_path = (!containsRenpyEngine && (path.rfind("/lib", 0) == 0))
+                             ? base_path : (modFolder / stripped);
         bool found = false;
 
         auto populate = [&](const fs::path &dir) {
@@ -287,14 +325,15 @@ public:
             }
         };
 
-        if (path.rfind("/game/patches", 0) == 0 || path.rfind("\\game\\patches", 0) == 0) {
-            fs::path patchesSubdir = (launcherRoot / "assets" / "patches") / path.substr((path.rfind("/game/patches/", 0) == 0 || path.rfind("\\game\\patches\\", 0) == 0) ? 14 : 13);
+        if (path.rfind("/game/_launcher_patches", 0) == 0) {
+            fs::path patchesSubdir = (launcherRoot / "assets" / "patches") / path.substr((path.rfind(g_lppLeadingSlash, 0) == 0) ? g_lppSize+1 : g_lppSize);
             populate(patchesSubdir);
         }
-        else if (path == "/game" || path == "\\game") {
-          dirents.insert("patches");
+        else if (path == "/game") {
+          dirents.insert("_launcher_patches");
         }
 
+        populate(content_path);
         populate(mod_path);
         populate(base_path);
 
@@ -306,7 +345,9 @@ public:
 
     int open(const std::string &path, int flags, uint64_t &fh) {
         if (is_whiteouted(path)) return -ENOENT;
-        std::string full_path = get_path(path);
+        const bool writing = (flags & (O_WRONLY | O_RDWR | O_CREAT | O_TRUNC | O_APPEND)) != 0;
+        if (writing && !ensure_content_copy(path) && !(flags & O_CREAT)) return -ENOENT;
+        std::string full_path = get_path(path, writing);
         int fd = open_file(full_path.c_str(), flags | O_BINARY);
         if (fd == -1) return -errno;
         fh = static_cast<uint64_t>(fd);
@@ -415,21 +456,23 @@ public:
     int rmdir(const std::string &path) {
       if (is_whiteouted(path)) return -ENOENT;
 
-      std::string mod_path = get_path(path, true);
+      std::string content_path = get_path(path, true);
+      std::string mod_path = (modFolder / strip_leading_slash(path)).string();
       std::string base_path = (baseFolder / strip_leading_slash(path)).string();
 
+      bool exists_in_content = fs::exists(content_path) && fs::is_directory(content_path);
       bool exists_in_mod = fs::exists(mod_path) && fs::is_directory(mod_path);
       bool exists_in_base = fs::exists(base_path) && fs::is_directory(base_path);
 
-      if (!exists_in_mod && !exists_in_base) {
+      if (!exists_in_content && !exists_in_mod && !exists_in_base) {
           return -ENOENT;
       }
 
-      if (exists_in_mod) {
-          fs::remove_all(mod_path);
+      if (exists_in_content) {
+          fs::remove_all(content_path);
       }
 
-      if (exists_in_base && !should_bypass_whiteout(path)) {
+      if ((exists_in_mod || exists_in_base) && !should_bypass_whiteout(path)) {
           add_whiteout(path);
       }
 
@@ -439,21 +482,23 @@ public:
     int unlink(const std::string &path) {
       if (is_whiteouted(path)) return -ENOENT;
 
-      std::string mod_path = get_path(path, true);
+      std::string content_path = get_path(path, true);
+      std::string mod_path = (modFolder / strip_leading_slash(path)).string();
       std::string base_path = (baseFolder / strip_leading_slash(path)).string();
 
+      bool exists_in_content = fs::exists(content_path) && !fs::is_directory(content_path);
       bool exists_in_mod = fs::exists(mod_path) && !fs::is_directory(mod_path);
       bool exists_in_base = fs::exists(base_path) && !fs::is_directory(base_path);
 
-      if (!exists_in_mod && !exists_in_base) {
+      if (!exists_in_content && !exists_in_mod && !exists_in_base) {
           return -ENOENT;
       }
 
-      if (exists_in_mod) {
-          fs::remove(mod_path);
+      if (exists_in_content) {
+          fs::remove(content_path);
       }
 
-      if (exists_in_base && !should_bypass_whiteout(path)) {
+      if ((exists_in_mod || exists_in_base) && !should_bypass_whiteout(path)) {
           add_whiteout(path);
       }
 
@@ -477,7 +522,8 @@ public:
         fs::create_directories(fs::path(new_full).parent_path());
         if (::rename(old_full.c_str(), new_full.c_str()) == -1) return -errno;
 
-        if (fs::exists((baseFolder / strip_leading_slash(oldpath)).string())) {
+        if (fs::exists((modFolder / strip_leading_slash(oldpath)).string()) ||
+            fs::exists((baseFolder / strip_leading_slash(oldpath)).string())) {
             add_whiteout(oldpath);
         }
         remove_whiteout(newpath);
@@ -486,15 +532,15 @@ public:
 
     int chmod(const std::string &path, mode_t mode) {
         if (is_whiteouted(path)) return -ENOENT;
+        if (!ensure_content_copy(path)) return -ENOENT;
         std::string full_path = get_path(path, true);
-        if (!fs::exists(full_path)) return -ENOENT;
         return (chmod_file(full_path.c_str(), mode) == -1) ? -errno : 0;
     }
 
     int utimens(const std::string &path, const struct timespec tv[2]) {
         if (is_whiteouted(path)) return -ENOENT;
+        if (!ensure_content_copy(path)) return -ENOENT;
         std::string full_path = get_path(path, true);
-        if (!fs::exists(full_path)) return -ENOENT;
 #ifdef _WIN32
         try {
             auto file_time = std::chrono::system_clock::from_time_t(tv[1].tv_sec);
