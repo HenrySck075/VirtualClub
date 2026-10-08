@@ -1,4 +1,5 @@
 #include "utils.hpp"
+#include "MainWindow.hpp"
 #include "consts.hpp"
 #include "utils/ProfileSettings.hpp"
 #include <QFileDialog>
@@ -68,6 +69,19 @@ bool askForBasePathChange() {
     return true;
   }
   return false;
+}
+
+bool askForProfilePictureChange() {
+  auto pfpImagePath = QFileDialog::getOpenFileName(getMainWindow(), "Select a profile picture", "", "Images (*.png *.jpg *.jpeg *.bmp)");
+  if (pfpImagePath.isEmpty()) return false;
+  auto pfpStore = std::filesystem::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()) / "profile_pictures";
+  std::filesystem::create_directories(pfpStore);
+  auto pfpFileName = std::filesystem::path(pfpImagePath.toStdString()).filename();
+  auto pfpDestPath = pfpStore / pfpFileName;
+  std::filesystem::copy_file(pfpImagePath.toStdString(), pfpDestPath, std::filesystem::copy_options::overwrite_existing);
+
+  ProfileSettings::get()->setValue(STK_PFP, QString::fromStdString(pfpDestPath.string()));
+  return true;
 }
 
 

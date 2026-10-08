@@ -22,7 +22,7 @@ QList<QLocale> getAvailableLocales() {
   QList<QLocale> availableLocales;
 
   // Direct path to application directory + /translations
-  QDir transDir(QCoreApplication::applicationDirPath() + "/translations");
+  QDir transDir(":/translations");
   QStringList qmFiles =
       transDir.entryList(QStringList() << "*.qm", QDir::Files);
 

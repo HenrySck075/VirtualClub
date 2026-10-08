@@ -325,7 +325,7 @@ public:
             }
         };
 
-        if (path.rfind("/game/_launcher_patches", 0) == 0) {
+        if (path.rfind(g_launcherPatchesPath, 0) == 0) {
             fs::path patchesSubdir = (launcherRoot / "assets" / "patches") / path.substr((path.rfind(g_lppLeadingSlash, 0) == 0) ? g_lppSize+1 : g_lppSize);
             populate(patchesSubdir);
         }
@@ -760,25 +760,33 @@ public:
         std::unique_lock lock(mutex);
         if (!fh && !loopThread.joinable()) return;
 
-        if (fh) fuse_exit(fh);
         auto* session = fh ? fuse_get_session(fh) : nullptr;
         auto loop = std::move(loopThread);
         auto handle = fh;
+        fh = nullptr;
         lock.unlock();
+
+        // apparently have to unmount fuse before locking
+        //
+        // fyi previous setup works on arch but stalls on the gh actions build
+        if (session) {
+            fuse_exit(handle);
+            fuse_unmount(handle);
+        }
 
         if (loop.joinable()) loop.join();
 
         lock.lock();
         if (handle) {
             fuse_remove_signal_handlers(session);
-            fuse_unmount(handle);
             fuse_destroy(handle);
-            fh = nullptr;
         }
         lock.unlock();
 
         try {
+          if (!mountpoint.isEmpty()) {
             fs::remove_all(mountpoint.toStdString());
+          }
         } catch (const std::exception& e) {
             std::cerr << "Failed to remove mount point: " << e.what() << '\n';
         }

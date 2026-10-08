@@ -9,6 +9,7 @@
 #include <QProcessEnvironment>
 #include <string>
 #include "macros.h"
+#include "vfs/vfs.hpp"
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN

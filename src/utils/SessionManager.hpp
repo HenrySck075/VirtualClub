@@ -1,7 +1,6 @@
 #pragma once
 
 #include "utils/ModIndex.hpp"
-#include "vfs/vfs.hpp"
 
 class SessionManager {
 public:

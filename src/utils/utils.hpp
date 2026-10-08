@@ -11,6 +11,7 @@ inline void copyIcon(const QIcon* source, QIcon* dest) {
 }
 
 bool askForBasePathChange();
+bool askForProfilePictureChange();
 std::string generate_uuid_v4();
 
 #include <chrono>

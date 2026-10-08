@@ -125,6 +125,8 @@ init 999 python:
             renpy.game.script.namemap["splashscreen"] = renpy.game.script.namemap["_launcher_splash_saveloading"]
         config.start_callbacks.append(_override_label)
 
+    config.start_callbacks.append(setDeveloperMode)
+
     def _autoload_check():
         maybeSaveID = os.environ.pop("MVC_SAVE_ID", None)
         if maybeSaveID is not None:

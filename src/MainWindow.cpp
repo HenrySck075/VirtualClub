@@ -203,7 +203,7 @@ void MainWindow::setupTrayIcon() {
 }
 void MainWindow::closeEvent(QCloseEvent *event) {
     // Check if the user is attempting to close via the window manager (or custom state)
-    if (isVisible() && !QApplication::quitOnLastWindowClosed()) {
+    if (isVisible() && SessionManager::hasMountedMod()) {
       event->ignore(); // Cancel the close request
       this->hide();    // Send window to background
     } else {

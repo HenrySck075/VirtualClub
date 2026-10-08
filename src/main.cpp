@@ -118,9 +118,18 @@ QComboBox {
       }
     }
 
+    if (!settings->contains(STK_LANGUAGE)) {
+      auto systemLocale = QLocale::system();
+      QLocale targetLocale(QLocale::Language::English);
+      if (getAvailableLocales().contains(systemLocale)) 
+        targetLocale = systemLocale;
+      
+      settings->setValue(STK_LANGUAGE, targetLocale.name());
+    }
+
     settings->save();
 
-    setLanguage(QLocale(settings->value(STK_LANGUAGE, "en").toString()));
+    setLanguage(QLocale(settings->value(STK_LANGUAGE).toString()));
     setupReTLHandler();
 
     MainWindow window;

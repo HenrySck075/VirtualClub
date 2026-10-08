@@ -1,4 +1,5 @@
 #include "UserSetupDialog.hpp"
+#include "ui/IconButton.hpp"
 #include "ui/MESWidgets.hpp"
 #include "ui/PixmapWidget.hpp"
 #include "utils/LucideIcons.hpp"
@@ -18,14 +19,26 @@ public:
     layout->setContentsMargins(12, 12, 12, 12);
 
     auto* profilePic = new PixmapWidget(this);
-    profilePic->setPixmap(QPixmap(s->value(STK_PFP, ":/defaultuserprofile.png").toString()).scaled(100, 100, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    profilePic->setPixmap(QPixmap(s->value(STK_PFP, ":/defaultuserprofile.png").toString()));
     profilePic->setStyleSheet(QString("border-radius: 50px"));
     profilePic->setFixedSize({100,100});
+
+    auto* pfpChangeButton = new IconButton(LucideIcons::pen);
+    connect(pfpChangeButton, &Button::clicked, this, [this, s, profilePic](){
+      if (askForProfilePictureChange()) {
+        profilePic->setPixmap(QPixmap(s->value(STK_PFP, ":/defaultuserprofile.png").toString()));
+      }
+    });
+
     layout->addWidget(profilePic, 0, Qt::AlignHCenter);
+    layout->addWidget(pfpChangeButton, 0, Qt::AlignHCenter);
 
     auto* nameEdit = new QLineEdit(s->value(STK_DISPLAYNAME, ProfileSingleApp::instance()->profileName()).toString(), this);
     nameEdit->setFont(QFont("Quicksand", 12, QFont::Bold));
     nameEdit->setAlignment(Qt::AlignCenter);
+    connect(nameEdit, &QLineEdit::textChanged, this, [s](const QString& text) {
+      s->setValue(STK_DISPLAYNAME, text);
+    });
     layout->addWidget(nameEdit);
 
     auto* basePathLabel = new QLabel("Base game's path (Required)", this);

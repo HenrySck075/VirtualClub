@@ -93,14 +93,9 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
       layout->insertWidget(0, pfpLabel);
 
       connect(pfpChangeButton, &Button::clicked, this, [this, settings, pfpLabel](){
-        auto pfpImagePath = QFileDialog::getOpenFileName(this, "Select a profile picture", "", "Images (*.png *.jpg *.jpeg *.bmp)");
-        auto pfpStore = std::filesystem::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()) / "profile_pictures";
-        std::filesystem::create_directories(pfpStore);
-        auto pfpFileName = std::filesystem::path(pfpImagePath.toStdString()).filename();
-        auto pfpDestPath = pfpStore / pfpFileName;
-        std::filesystem::copy_file(pfpImagePath.toStdString(), pfpDestPath, std::filesystem::copy_options::overwrite_existing);
-        settings->setValue(STK_PFP, QString::fromStdString(pfpDestPath.string()));
-        pfpLabel->setPixmap(QPixmap(settings->value(STK_PFP).toString()));
+        if (askForProfilePictureChange()) {
+          pfpLabel->setPixmap(QPixmap(settings->value(STK_PFP, ":/defaultuserprofile.png").toString()));
+        }
       });
     }
   );
