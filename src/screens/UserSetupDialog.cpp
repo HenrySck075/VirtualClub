@@ -36,7 +36,7 @@ public:
     auto* nameEdit = new QLineEdit(s->value(STK_DISPLAYNAME, ProfileSingleApp::instance()->profileName()).toString(), this);
     nameEdit->setFont(QFont("Quicksand", 12, QFont::Bold));
     nameEdit->setAlignment(Qt::AlignCenter);
-    connect(nameEdit, &QLineEdit::textChanged, this, [s](const QString& text) {
+    connect(nameEdit, &QLineEdit::textEdited, this, [s](const QString& text) {
       s->setValue(STK_DISPLAYNAME, text);
     });
     layout->addWidget(nameEdit);
@@ -56,6 +56,7 @@ public:
       basePathText->setText(s->value(STK_BASEPATH).toString());
     });
   }
+
   bool allowClosing() override {
     return ProfileSettings::get()->contains(STK_BASEPATH);
   }

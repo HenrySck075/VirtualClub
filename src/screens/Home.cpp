@@ -18,8 +18,7 @@ HomeScreen::HomeScreen(QWidget* parent) : QWidget(parent) {
     ),
     this
   );
-  header->setFont(QFont("Quicksand", 25, QFont::Weight::Bold));
-  header->setStyleSheet("color: white;");
+  header->setStyleSheet("color: white; font-size: 25; font-weight: bold;");
   header->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
   layout->addWidget(header);
   auto* content = new GradientBackground(this);
