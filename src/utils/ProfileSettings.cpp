@@ -48,6 +48,8 @@ QList<QString> ProfileSettings::list() {
 }
 
 void ProfileSettings::deleteProfile(const QString& name) {
+  if (name == ProfileSingleApp::instance()->profileId()) return;
+
   QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
   QString profileFilePath = QDir(configDir).filePath(QString("profiles/%1.yaml").arg(name));
 

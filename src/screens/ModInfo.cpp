@@ -278,6 +278,7 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
 #ifdef MVC_VFS_AVAILABLE
   m_playtimeLabel = new QLabel(); 
   m_playtimeLabel->setStyleSheet("color: #000000;");
+  addWidgetToRetranslateList_(m_playtimeLabel);
 
   // TODO:
   headerLayout->addWidget(m_playtimeLabel);
@@ -364,11 +365,14 @@ void ModInfoScreen::updatePlaytimeLabel() {
     if (playtime.has_value()) {
       auto [playtimeRaw, playtimeActive] = playtime.value();
       // use the active time for display
-      m_playtimeLabel->setText(
-        QString("Playtime: %1").arg(format_duration(playtimeActive))
+      $setLabelTextForAutoTL(
+        m_playtimeLabel,
+        "Playtime: %1 (Process runtime: %2)", 
+        QString::fromStdString(format_duration(playtimeActive)),
+        QString::fromStdString(format_duration(playtimeRaw))
       );
     } else {
-      m_playtimeLabel->setText("Not played yet!");
+      $setLabelTextForAutoTL(m_playtimeLabel, "Not played yet!");
     }
   }
 }

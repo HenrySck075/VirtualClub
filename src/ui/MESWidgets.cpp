@@ -5,6 +5,7 @@
 #include <QCheckBox>
 #include <QStyleOptionButton>
 #include <qgraphicseffect.h>
+#include <QWindow>
 
 #include "../utils/EventFilters.hpp"
 #include "consts.hpp"
@@ -301,23 +302,14 @@ bool Dialog::eventFilter(QObject* watched, QEvent* event) {
     if (event->type() == QEvent::MouseButtonPress) {
         auto* mouseEvent = static_cast<QMouseEvent*>(event);
         if (mouseEvent->button() == Qt::LeftButton) {
-            m_isDragging = true;
-            m_dragPosition = mouseEvent->globalPosition().toPoint() - frameGeometry().topLeft();
-            return true;
+            if (windowHandle()) {
+                windowHandle()->startSystemMove();
+                return true;
+            }
         }
-    } else if (event->type() == QEvent::MouseMove) {
-        auto* mouseEvent = static_cast<QMouseEvent*>(event);
-        if (m_isDragging && (mouseEvent->buttons() & Qt::LeftButton)) {
-            move(mouseEvent->globalPosition().toPoint() - m_dragPosition);
-            return true;
-        }
-    } else if (event->type() == QEvent::MouseButtonRelease) {
-        m_isDragging = false;
-        return true;
     }
     return QDialog::eventFilter(watched, event);
 }
-
 inline QColor editColor(QColor base, float a) {
   base.setAlphaF(a);
 
@@ -435,8 +427,9 @@ bool Dialog::showActionDialog(QWidget* parent,
 void Dialog::showContentDialog(QWidget* parent, 
                        const QString& title, 
                        DialogContent* content,
-                       QSize size) {
-  Dialog dlg(title, content, "qrc:/audio/sidebar_click.wav", true, parent);
+                       QSize size,
+                       QString openSfx) {
+  Dialog dlg(title, content, openSfx, true, parent);
   if (size.isValid()) {
     dlg.setFixedSize(size);
   }

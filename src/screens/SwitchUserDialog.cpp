@@ -8,6 +8,7 @@
 
 #include "ui/MESWidgets.hpp"
 #include "ui/PixmapWidget.hpp"
+#include "utils/ProfileSingleApp.hpp"
 #include "utils/utils.hpp"
 #include <QFrame>
 #include <QProcess>
@@ -31,6 +32,8 @@ private:
     bool m_selected = false;
     bool m_hovered = false;
     bool m_switchable = true;
+
+    bool m_showDeleteButton = true;
 
     int hoverAlpha() const { return m_hoverAnimationValue; }
     void setHoverAlpha(int alpha) {
@@ -76,7 +79,7 @@ protected:
         m_fadeAnimation->setEndValue(255);
         m_fadeAnimation->start();
 
-        m_deleteButton->show();
+        if (m_showDeleteButton) m_deleteButton->show();
     }
 
     void leaveEvent(QEvent *event) override {
@@ -88,7 +91,7 @@ protected:
         m_fadeAnimation->setEndValue(0);
         m_fadeAnimation->start();
 
-        m_deleteButton->hide();
+        if (m_showDeleteButton) m_deleteButton->hide();
     }
 
     void mouseReleaseEvent(QMouseEvent *event) override {
@@ -139,6 +142,13 @@ public:
         m_fadeAnimation->setEasingCurve(QEasingCurve::InOutQuad);
 
         updateStyleSheet();
+    }
+
+    void showDeleteButton(bool show) {
+        m_showDeleteButton = show;
+        if (!show) {
+            m_deleteButton->hide();
+        }
     }
 
     bool switchable() const { return m_switchable; }
@@ -221,8 +231,8 @@ public:
       auto* button = new UserListItem(icon, name.toStdString(), false, container);
       button->setMaximumWidth(QWIDGETSIZE_MAX);
       button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-      
-
+       
+      button->showDeleteButton(profileId != ProfileSingleApp::instance()->profileId()); // Don't allow deleting the current profile
 
       connect(button, &UserListItem::clicked, this, [this,profileId]() {
           startNewWithProfile(profileId);
@@ -265,7 +275,7 @@ public:
 };
 
 void showSwitchUserDialog() {
-  Dialog::showContentDialog(getMainWindow(), qApp->translate("Sidebar", "Switch profile"), new SwitchUserDialogContent(), {300, 500});
+  Dialog::showContentDialog(getMainWindow(), qApp->translate("Sidebar", "Switch profile"), new SwitchUserDialogContent(), {300, 500}, "");
 }
 
 #include "SwitchUserDialog.moc"

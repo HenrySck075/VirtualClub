@@ -45,11 +45,14 @@ init python:
             #if renpy.context().main_menu:
             #    return True
 
-            menu_screens = ("choice", "navigation", "game_menu", "pause", "save", "load", "preferences", "history", "about")
+            menu_screens = ("navigation", "game_menu", "pause", "save", "load", "preferences", "history", "about")
             for screen in menu_screens:
                 if renpy.get_screen(screen):
                     return True
             return False
+
+        def is_choice_present(self):
+            return renpy.get_screen("choice") 
 
         def update(self):
             """Main updates loop executed periodically by Ren'Py."""
@@ -72,7 +75,7 @@ init python:
 
             # 2. Active clock (subject to AFK thresholds)
             idle_time = now - self.last_activity
-            threshold = 120.0 if self.is_menu_present() else 30.0
+            threshold = 120.0 if self.is_choice_present() else 5.0 if self.is_menu_present() else 30.0
 
             prev_idle = idle_time - dt
             if prev_idle < threshold:

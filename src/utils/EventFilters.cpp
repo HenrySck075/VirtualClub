@@ -26,7 +26,7 @@ bool ClickEventFilter::eventFilter(QObject *watched, QEvent *event) {
     if (mouseEvent->button() == Qt::LeftButton) {
       m_mousePressed = true;
       // Return true here if you want to consume/block the press event
-      return false;
+      return true;
     }
     break;
   }

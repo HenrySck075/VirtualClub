@@ -30,13 +30,14 @@ inline const char* trNoop(const char* text) {return text;}
 inline const char* translateNoop(const char* context, const char* text) {return text;}
 
 #define $setLabelTextForAutoTL(labelPtr, text, ...) \
-  labelPtr->setText(tr(text)__VA_OPT__(.arg(__VA_ARGS__))); \
-  labelPtr->setProperty("mvcTLText", QString(text)); \
+  /*labelPtr->setText(tr(text)__VA_OPT__(.arg(__VA_ARGS__)));*/ \
+  labelPtr->setProperty("mvcTLText", tr(text)); \
   labelPtr->setProperty("mvcTLContext", QString(metaObject()->className()));\
   $changeLabelPlaceholderArgs(labelPtr, __VA_ARGS__);
 
 #define $changeLabelPlaceholderArgs(labelPtr, ...) \
-  __VA_OPT__(labelPtr->setProperty("mvcTLPlaceholderArgs", QList<QVariant>({__VA_ARGS__})));
+  labelPtr->setProperty("mvcTLPlaceholderArgs", QList<QVariant>({__VA_ARGS__})); \
+  retranslateWidget(labelPtr);
 
 #define $setLabelTextAndRegisterAutoTL(labelPtr, text, ...) \
   $setLabelTextForAutoTL(labelPtr, text, __VA_ARGS__); \

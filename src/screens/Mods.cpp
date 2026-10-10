@@ -21,6 +21,7 @@
 #include <QPainterPath>
 #include <QFileDialog>
 #include <QSharedPointer>
+#include <QLineEdit>
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current.hpp>
 #include <cpptrace/from_current_macros.hpp>
@@ -50,6 +51,7 @@ public:
         }
     }
 
+    QString label() const { return m_label; }
 signals:
     void clicked();
     void doubleClicked();
@@ -203,7 +205,20 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   connect(addModIcon, &IconButton::clicked, this, &ModsScreen::onAddModButtonClicked);
   headerLayout->addWidget(addModIcon);
 
-  headerLayout->addStretch();
+  // headerLayout->addStretch();
+  auto* searchBar = new QLineEdit();
+  searchBar->setPlaceholderText("Search mod (by name)");
+  // on text edited (not submitted), filter mods grid by hidiing unmatched DesktopIconWidgets
+  connect(searchBar, &QLineEdit::textEdited, this, [this](const QString& text){
+    findChildWidgetBy(m_contentLayout, [this, text](QWidget* w){
+      if (auto icon = qobject_cast<DesktopIconWidget*>(w)) {
+        bool match = icon->label().contains(text, Qt::CaseInsensitive);
+        icon->setVisible(match);
+      }
+      return false;
+    });
+  });
+  headerLayout->addWidget(searchBar);
 
   m_modsCountLabel = new QLabel();
   m_modsCountLabel->setFont(QFont("Quicksand", 10));

@@ -18,6 +18,7 @@
 
 #include <pybind11/embed.h>
 #include <QTranslator>
+#include <qsettings.h>
 
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current_macros.hpp>
@@ -49,13 +50,22 @@ int main(int argc, char *argv[]) {
         QStringList() << "p" << "profile", 
         "Specify profile name", 
         "profile", 
-        "default" // Default profile fallback
+        "" // Default profile fallback
     );
     parser.addOption(profileOption);
     parser.addHelpOption();
     parser.process(app);
 
-    QString selectedProfile = parser.value(profileOption);
+    QSettings qsettings;
+
+    QString selectedProfile = parser.value(profileOption).trimmed();
+    if (selectedProfile.isEmpty()) {
+      selectedProfile = qsettings.value("lastUsedProfile","").toString();
+      // this is to skip querying the profiles list if selectedProfile is already set
+      if (selectedProfile.isEmpty()) {
+        selectedProfile = ProfileSettings::list().value(0, "default"); 
+      }
+    }
     app.setProfileId(selectedProfile);
 
     // If this instance is secondary for this profile, pass args to primary and exit
@@ -145,6 +155,10 @@ QComboBox {
         window.show();
         window.raise();
         window.activateWindow();
+    });
+    
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, [selectedProfile]() {
+        QSettings().setValue("lastUsedProfile", selectedProfile);
     });
 
 #ifdef MVC_DEBUG

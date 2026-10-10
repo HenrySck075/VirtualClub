@@ -63,7 +63,7 @@ QList<QPointer<QWidget>> g_retranslatingWidgets;
 std::vector<std::function<void()>> g_retranslateCallbacks;
 void addWidgetToRetranslateList_(QWidget* widget) {
   g_retranslatingWidgets.append(QPointer(widget));
-  if (widget->property("mvcUsesDynamicString").toBool()) widget->installEventFilter(new IndividualRetranslateHandler(widget));
+  //if (widget->property("mvcUsesDynamicString").toBool()) widget->installEventFilter(new IndividualRetranslateHandler(widget));
 }
 void addRetranslateCallback(std::function<void()> callback, bool immediate) {
   g_retranslateCallbacks.push_back(callback);

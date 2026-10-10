@@ -30,8 +30,14 @@ HomeScreen::HomeScreen(QWidget* parent) : QWidget(parent) {
   contentLayout->setSpacing(0);
   contentLayout->setAlignment(Qt::AlignTop);
 
-  // Add a label or any other widgets you want to display on the Home screen
-  auto* label = new QLabel("Recently played", content);
-  label->setFont(QFont("Quicksand", 18, QFont::Weight::Bold));
-  contentLayout->addWidget(label);
+  {
+    auto* label = new QLabel("Recently played", content);
+    label->setFont(QFont("Quicksand", 18, QFont::Weight::Bold));
+    contentLayout->addWidget(label);
+  }
+  {
+    auto* label = new QLabel("not implemented atm :(", content);
+    label->setFont(QFont("Quicksand", 15));
+    contentLayout->addWidget(label);
+  }
 }
