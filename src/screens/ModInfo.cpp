@@ -310,8 +310,8 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   });
   contentLayout->addWidget(m_playFromSaveButton);
 
-  m_deleteButton = new IconButton(LucideIcons::trash);
-  connect(m_deleteButton, &IconButton::clicked, this, &ModInfoScreen::onDeleteButtonClicked);
+  m_deleteButton = new Button(LucideIcons::trash);
+  connect(m_deleteButton, &Button::clicked, this, &ModInfoScreen::onDeleteButtonClicked);
   contentLayout->addWidget(m_deleteButton);
 
   auto openMountDirButton = new IconButton(LucideIcons::folder_open_dot);
@@ -398,18 +398,12 @@ void ModInfoScreen::play(const QString& saveId) {
   if (m_displayingMod.has_value()) {
     ModsIndex::Mod currentMod = m_displayingMod.value();
     SessionManager::launch(m_displayingMod.value(), [this](){
-      m_playButton->setEnabled(false);
-      m_playFromSaveButton->setEnabled(false);
-      m_developerModeSwitch->setEnabled(false);
-      m_forceRecompileSwitch->setEnabled(false);
+      setMutationWidgetsEnabled(false); 
 
       setWindowTitle(QString::fromStdString(m_displayingMod->name)+" [Playing]");
     }, [this,currentMod](){
       if (currentMod != m_displayingMod.value()) return;
-      m_playButton->setEnabled(true);  
-      m_playFromSaveButton->setEnabled(true);
-      m_developerModeSwitch->setEnabled(true);
-      m_forceRecompileSwitch->setEnabled(true);
+      setMutationWidgetsEnabled(true);
 
       setWindowTitle(QString::fromStdString(m_displayingMod->name));
 
@@ -433,6 +427,14 @@ void ModInfoScreen::onDeleteButtonClicked() {
   }
 }
 
+void ModInfoScreen::setMutationWidgetsEnabled(bool enabled) {
+  m_playButton->setEnabled(enabled);
+  m_playFromSaveButton->setEnabled(enabled);
+  m_developerModeSwitch->setEnabled(enabled);
+  m_forceRecompileSwitch->setEnabled(enabled);
+  m_deleteButton->setEnabled(enabled);
+}
+
 void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
   bool isPlaying = SessionManager::isPlaying(mod.id);
   setWindowTitle(QString::fromStdString(mod.name) + (isPlaying ? " [Playing]" : ""));
@@ -447,17 +449,8 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
   m_forceRecompileSwitch->setChecked(m_displayingMod->forceRecompile);
 
 #ifdef MVC_VFS_AVAILABLE
-  if (isPlaying) {
-    m_playButton->setEnabled(false);
-    m_playFromSaveButton->setEnabled(false);
-    m_developerModeSwitch->setEnabled(false);
-    m_forceRecompileSwitch->setEnabled(false);
-  } else {
-    m_playButton->setEnabled(true);
-    m_playFromSaveButton->setEnabled(true);
-    m_developerModeSwitch->setEnabled(true);
-    m_forceRecompileSwitch->setEnabled(true);
-  }
+  
+  setMutationWidgetsEnabled(!isPlaying);
 
   updatePlaytimeLabel();
 #endif

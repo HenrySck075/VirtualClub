@@ -24,6 +24,8 @@ private:
   void onDeleteButtonClicked();
   void updatePlaytimeLabel();
 
+  void setMutationWidgetsEnabled(bool enabled);
+
   PixmapWidget* m_modIconLabel = nullptr;
   QLabel* m_modNameLabel = nullptr;
   QLabel* m_modVersionLabel = nullptr;
@@ -31,7 +33,7 @@ private:
 
   Button* m_playButton = nullptr;
   Button* m_playFromSaveButton = nullptr;
-  IconButton* m_deleteButton = nullptr;
+  Button* m_deleteButton = nullptr;
 
   Switch* m_developerModeSwitch = nullptr;
   Switch* m_forceRecompileSwitch = nullptr;
