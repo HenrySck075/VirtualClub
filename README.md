@@ -1,3 +1,6 @@
+> This section is mainly for developers. Regular users should skip straight to [the Releases page](https://github.com/HenrySck075/VirtualClub/releases).
+
+
 looks smth like this atm
 
 ![The nothing home screen](readme_assets/ss1.png)

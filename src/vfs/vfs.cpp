@@ -117,6 +117,23 @@ struct VFSStartupConfigs {
     const std::string mountpoint;
 };
 
+/*
+ * Manages a virtual folder that is used by Ren'Py for launching the game.
+ *
+ * --- nerdy corner i think ---
+ * 
+ * This is a delta VFS that stacks (at least) 3 different layer of folders.
+ * Specifically:
+ * Delta Layer (folder that store new writes)
+ *      ||
+ *      v
+ *  Mod Layer (the mod's folder) (Read-Only)
+ *      ||
+ *      v
+ * Base Layer (base game's folder) (Read-Only)
+ *
+ * the 4th "layer" is the launcher's .rpy hooks inserted into game/_launcher_patches/
+ */
 class LibbiVFS {
 private:
     fs::path baseFolder;
