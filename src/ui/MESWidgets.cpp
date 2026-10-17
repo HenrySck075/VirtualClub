@@ -217,7 +217,7 @@ Dialog::Dialog(const QString& title,
   setWindowTitle(title);
 
   setAttribute(Qt::WA_TranslucentBackground, false);
-  setFixedSize(450, 260);
+  setMinimumSize(450, 120);
 
 
   // Root layout
@@ -358,7 +358,6 @@ void Dialog::showEvent(QShowEvent* event) {
   QDialog::showEvent(event);
 }
 
-// Static function handling tinted background logic automatically
 bool Dialog::showActionDialog(QWidget* parent, 
                               const QString& title, 
                               const QString& message, 

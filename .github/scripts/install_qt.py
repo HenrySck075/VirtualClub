@@ -16,10 +16,10 @@ USER_AGENT = "Mozilla/5.0 (Linux; Android 11; SM-G970F) AppleWebKit/537.36 (KHTM
 
 def install_qt():
     if sys.platform == "win32":
-        base_url = "https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6112/qt6_6112_msvc2022_64/"
+        base_url = "https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6120/qt6_6120_msvc2022_64/"
         arch = "win64_msvc2022_64"
     else:
-        base_url = "https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6112/qt6_6112/"
+        base_url = "https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6120/qt6_6120/"
         arch = "linux_gcc_64"
 
     updates_url = base_url + "Updates.xml"
@@ -51,11 +51,11 @@ def install_qt():
         if not pkg_name.endswith(arch):
             continue
 
-        # 3. Determine if package is Core (qt.qt6.6112.<arch>) or a requested Module
+        # 3. Determine if package is Core (qt.qt6.6120.<arch>) or a requested Module
         clean_name = pkg_name[:-len(arch)].rstrip(".")
         parts = clean_name.split(".")
         
-        # Core packages have base structure (e.g., ['qt', 'qt6', '6112'])
+        # Core packages have base structure (e.g., ['qt', 'qt6', '6120'])
         is_core = len(parts) <= 3
         module_name = parts[-1] if not is_core else None
 
@@ -126,7 +126,7 @@ def install_qt():
         with open(github_path, "a", encoding="utf-8") as f:
             f.write(f"{bin_dir}\n")
 
-    print(f"Qt 6.11.2 successfully setup at {target_dir}")
+    print(f"Qt 6.12.0 successfully setup at {target_dir}")
 
     # Log the tree of the target_dir for debugging
     print("Directory structure of the installed Qt:")
