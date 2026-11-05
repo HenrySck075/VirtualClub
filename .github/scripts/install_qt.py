@@ -13,20 +13,22 @@ MODULES = [
 ]
 
 USER_AGENT = "Mozilla/5.0 (Linux; Android 11; SM-G970F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.105 Mobile Safari/537.36"
+VERSION = "6.11.2"
+VERSION_P = VERSION.replace(".", '')
 
 def install_qt():
     if sys.platform == "win32":
-        base_url = "https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_6120/qt6_6120_msvc2022_64/"
+        base_url = f"https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_{VERSION_P}/qt6_{VERSION_P}_msvc2022_64/"
         arch = "win64_msvc2022_64"
     else:
-        base_url = "https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6120/qt6_6120/"
+        base_url = f"https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_{VERSION_P}/qt6_{VERSION_P}/"
         arch = "linux_gcc_64"
 
     updates_url = base_url + "Updates.xml"
     target_dir = os.path.abspath("qt6")
     os.makedirs(target_dir, exist_ok=True)
 
-    print(f"Fetching metadata from {updates_url}...")
+    print(f"Fetching metadata from {updates_url}")
     req = urllib.request.Request(updates_url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req) as resp:
         xml_content = resp.read()
@@ -90,14 +92,14 @@ def install_qt():
             archive_url = base_url + package + "/" + archive_name
             archive_file = os.path.join(temp_dir, archive_name)
             
-            print(f"Downloading {archive_url}...")
+            print(f"Downloading {archive_url}")
             # dont ask me idk why
             req = urllib.request.Request(archive_url, headers={"User-Agent": USER_AGENT})
             with urllib.request.urlopen(req) as resp, open(archive_file, "wb") as out_file:
                 shutil.copyfileobj(resp, out_file)
 
-            print(f"Extracting {archive_name}...")
-            subprocess.run([seven_zip, "x", archive_file, f"-o{target_dir}", "-y", "-sns"], check=True)
+            print(f"Extracting {archive_name}")
+            subprocess.run([seven_zip, "x", archive_file, f"-o{target_dir}", "-y", "-snld20"], check=True)
             os.remove(archive_file)
 
     shutil.rmtree(temp_dir, ignore_errors=True)
@@ -126,17 +128,18 @@ def install_qt():
         with open(github_path, "a", encoding="utf-8") as f:
             f.write(f"{bin_dir}\n")
 
-    print(f"Qt 6.12.0 successfully setup at {target_dir}")
+    print(f"Qt {VERSION} successfully setup at {target_dir}")
 
-    # Log the tree of the target_dir for debugging
-    print("Directory structure of the installed Qt:")
-    for root_dir, dirs, files in os.walk(target_dir):
-        level = root_dir.replace(target_dir, "").count(os.sep)
-        indent = " " * 4 * level
-        print(f"{indent}{os.path.basename(root_dir)}/")
-        sub_indent = " " * 4 * (level + 1)
-        for f in files:
-            print(f"{sub_indent}{f}")
+    if False:
+        # Log the tree of the target_dir for debugging
+        print("Directory structure of the installed Qt:")
+        for root_dir, dirs, files in os.walk(target_dir):
+            level = root_dir.replace(target_dir, "").count(os.sep)
+            indent = " " * 4 * level
+            print(f"{indent}{os.path.basename(root_dir)}/")
+            sub_indent = " " * 4 * (level + 1)
+            for f in files:
+                print(f"{sub_indent}{f}")
 
 if __name__ == "__main__":
     install_qt()

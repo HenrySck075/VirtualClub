@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.1.4 LANGUAGES C CXX)
+project(VirtualClub VERSION 0.1.5 LANGUAGES C CXX)
 
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported (i used some clang-specific syntax for ease of development sorry abt that). Please use a different compiler.")
@@ -125,7 +125,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
-target_link_libraries(${PROJECT_NAME} PUBLIC yaml-cpp::yaml-cpp) # The library or executable that require yaml-cpp library
+target_link_libraries(${PROJECT_NAME} PRIVATE yaml-cpp::yaml-cpp) # The library or executable that require yaml-cpp library
 # Link Qt6 libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia pybind11::embed)
 
@@ -282,43 +282,82 @@ else()
     set(PY_STDLIB_DEST "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}")
 endif()
 
-# Core pure-Python modules required for sys, os, io, pickle, struct to function
-set(MINIMAL_PYTHON_MODULES
-    "os.py"
-    "pickle.py"
-    "io.py"
-    "_collections_abc.py"
-    "_sitebuiltins.py"
-    "codecs.py"
-    "copyreg.py"
-    "sre_compile.py"
-    "sre_constants.py"
-    "sre_parse.py"
-    "enum.py"
-    "stat.py"
-    "genericpath.py"
-    "posixpath.py"
-    "ntpath.py"
-    "_compat_pickle.py"
-    "struct.py"
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/${PY_STDLIB_DEST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${Python_STDLIB}" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/${PY_STDLIB_DEST}"
+    COMMENT "Copying full Python standard library..."
 )
-
-# Copy individual files into build directory during build
-foreach(PY_FILE ${MINIMAL_PYTHON_MODULES})
+set(PYTHON_UNWANTED_LIBS
+    "test"
+    "unittest"
+    "idlelib"
+    "turtledemo"
+    "ensurepip"
+    "venv"
+    "tkinter"
+    "sqlite3"
+    "email"
+    "html"
+    "http"
+    "xml"
+    "urllib"
+    "wsgiref"
+    "xmlrpc"
+    "multiprocessing"
+    "concurrent"
+    "asyncio"
+    "distutils"
+    "pydoc_data"
+    "lib2to3"
+    "ctypes"
+    "logging"
+    "json"
+    "imaplib.py"
+    "poplib.py"
+    "smtplib.py"
+    "telnetlib.py"
+    "webbrowser.py"
+    "pydoc.py"
+    "doctest.py"
+    "turtle.py"
+)
+foreach(LIB_ITEM ${PYTHON_UNWANTED_LIBS})
     add_custom_command(
         TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${Python_STDLIB}/${PY_FILE}"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/${PY_STDLIB_DEST}/${PY_FILE}"
-    )
-    
-    # Install step for final distribution
-    install(
-        FILES "${Python_STDLIB}/${PY_FILE}"
-        DESTINATION "${PY_STDLIB_DEST}"
-        OPTIONAL
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${PY_STDLIB_DEST}/${LIB_ITEM}"
     )
 endforeach()
+install(
+    DIRECTORY "${Python_STDLIB}/"
+    DESTINATION "${PY_STDLIB_DEST}"
+    USE_SOURCE_PERMISSIONS
+    #TODO: dont do a duplicate here
+    PATTERN "test" EXCLUDE
+    PATTERN "unittest" EXCLUDE
+    PATTERN "idlelib" EXCLUDE
+    PATTERN "turtledemo" EXCLUDE
+    PATTERN "ensurepip" EXCLUDE
+    PATTERN "venv" EXCLUDE
+    PATTERN "tkinter" EXCLUDE
+    PATTERN "sqlite3" EXCLUDE
+    PATTERN "email" EXCLUDE
+    PATTERN "html" EXCLUDE
+    PATTERN "http" EXCLUDE
+    PATTERN "xml" EXCLUDE
+    PATTERN "urllib" EXCLUDE
+    PATTERN "wsgiref" EXCLUDE
+    PATTERN "xmlrpc" EXCLUDE
+    PATTERN "multiprocessing" EXCLUDE
+    PATTERN "concurrent" EXCLUDE
+    PATTERN "asyncio" EXCLUDE
+    PATTERN "distutils" EXCLUDE
+    PATTERN "pydoc_data" EXCLUDE
+    PATTERN "lib2to3" EXCLUDE
+    PATTERN "ctypes" EXCLUDE
+    PATTERN "logging" EXCLUDE
+    PATTERN "json" EXCLUDE
+)
 
 # Install C-runtime DLL/SO only, skipping lib-dynload
 if(WIN32)
