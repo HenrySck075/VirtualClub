@@ -23,6 +23,7 @@
 
 #include <pybind11/embed.h>
 #include <QTranslator>
+#include <pylifecycle.h>
 #include <qsettings.h>
 
 #ifdef MVC_DEBUG
@@ -41,7 +42,6 @@ QString turkye(const QColor& color) {
 }
 
 int main(int argc, char *argv[]) {
-    py::scoped_interpreter guard{};
 
     ProfileSingleApp app(argc, argv);
 
@@ -86,6 +86,19 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    PyConfig config;
+    PyConfig_InitPythonConfig(&config);
+
+    if (PyStatus_Exception(PyConfig_SetString(&config, &config.home, QCoreApplication::applicationDirPath().toStdWString().c_str()))) {
+      throw std::runtime_error("Failed to set Python home directory");
+    };
+
+    if (PyStatus_Exception(Py_InitializeFromConfig(&config))) {
+      throw std::runtime_error("Failed to initialize Python interpreter");
+    }
+    PyConfig_Clear(&config);
+
+    py::scoped_interpreter guard{};
     QFontDatabase::addApplicationFont(":/Quicksand-Bold.ttf");
     QFontDatabase::addApplicationFont(":/Quicksand-Light.ttf");
     QFontDatabase::addApplicationFont(":/Quicksand-Medium.ttf");
