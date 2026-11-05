@@ -16,4 +16,7 @@ public:
 
   static bool hasMountedMod();
   static bool hasPlayingMod();
+
+  static size_t countMountedMods();
+  static size_t countPlayingMods();
 };

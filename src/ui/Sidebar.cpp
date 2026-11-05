@@ -38,7 +38,7 @@ void SidebarItem::mouseReleaseEvent(QMouseEvent* event) {
     // Pass the event to the base class if needed
     QPushButton::mouseReleaseEvent(event);
 } 
-SidebarItem::SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent) : QPushButton(QString::fromStdString(label), parent), m_switchable(switchable) {
+SidebarItem::SidebarItem(QIcon icon, QString label, bool switchable, QWidget *parent) : QPushButton(label, parent), m_switchable(switchable) {
   setFixedHeight(50); // Set a fixed height for each sidebar item
   setFixedWidth(Sidebar::WIDTH);
   // Setup animation (duration: 200 ms)
@@ -202,7 +202,7 @@ Sidebar::~Sidebar() {
   layout()->deleteLater();
 }
 
-SidebarItem* Sidebar::addSidebarItem(QIcon icon, std::string name, SidebarPosition position, bool selected, bool doSwitch) {
+SidebarItem* Sidebar::addSidebarItem(QIcon icon, QString name, SidebarPosition position, bool selected, bool doSwitch) {
   QLayout* targetLayout = nullptr;
 
   switch (position) {

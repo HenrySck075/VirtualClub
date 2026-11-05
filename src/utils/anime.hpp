@@ -1,12 +1,13 @@
 #ifndef WidgetAnimations_H
 #define WidgetAnimations_H
 
-#include <qwidget.h>
+#include <QWidget> 
+#include <QAbstractAnimation>
 namespace anime {
   enum class SlideDirection {
     Left, Right, Up, Down
   };
-  void slideFade(QWidget* widget, SlideDirection direction);
+  QAbstractAnimation* slideFade(QWidget* widget, SlideDirection direction);
 };
 
 #endif

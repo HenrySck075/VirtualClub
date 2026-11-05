@@ -70,7 +70,7 @@ public:
         emit selectedChanged();
     }
   }
-  explicit SidebarItem(QIcon icon, std::string label, bool switchable, QWidget *parent = nullptr);
+  explicit SidebarItem(QIcon icon, QString label, bool switchable, QWidget *parent = nullptr);
   void setTintIcon(bool enable) {m_tintIcon = enable;};
   void enterEvent(QEnterEvent *event) override;
   void leaveEvent(QEvent *event) override;
@@ -99,7 +99,7 @@ public:
     explicit Sidebar(QWidget *parent = nullptr);
     ~Sidebar();
 
-    SidebarItem* addSidebarItem(QIcon icon, std::string name, SidebarPosition position, bool selected = false, bool doSwitch = true);
+    SidebarItem* addSidebarItem(QIcon icon, QString name, SidebarPosition position, bool selected = false, bool doSwitch = true);
     int itemPositionOf(SidebarItem* item);
 private:
     void onSidebarItemClicked(SidebarItem* item);  

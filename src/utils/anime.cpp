@@ -6,7 +6,7 @@
 #include <QSettings>
 
 namespace anime {
-  void slideFade(QWidget* widget, SlideDirection direction) {
+  QAbstractAnimation* slideFade(QWidget* widget, SlideDirection direction) {
     static QSettings settings;
     if (settings.value("reducedMotion", false).toBool()) return;
 

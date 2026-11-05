@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <string>
+#include "MainWindow.hpp"
 #include "macros.h"
 #include "vfs/vfs.hpp"
 
@@ -51,6 +52,7 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
   instance->mount();
 
   QApplication::setQuitOnLastWindowClosed(false);
+  getMainWindow()->updateTrayTooltip();
 };
 
 bool SessionManager::isMounted(std::string modId) {
@@ -221,12 +223,13 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
       [modId, startedCallback](pid_t pid) {
           qDebug() << "Game launched with PID:" << pid;
           m_playingMods.insert(modId);
+          getMainWindow()->updateTrayTooltip();
           startedCallback();
       },
       [modId, exitedCallback](int exit_code) {
           qDebug() << "Game exited with code:" << exit_code;
-          if (exit_code == 0) SessionManager::unmount(modId);
           m_playingMods.erase(modId);
+          if (exit_code == 0) SessionManager::unmount(modId);
           exitedCallback();
       }
   );
@@ -240,12 +243,21 @@ void SessionManager::unmount(std::string modId) {
   if (m_mountedMods.size() == 0) {
     QApplication::setQuitOnLastWindowClosed(true);
   }
+
+  getMainWindow()->updateTrayTooltip();
 };
 bool SessionManager::hasMountedMod() {
   return !m_mountedMods.empty();
 }
 bool SessionManager::hasPlayingMod() {
   return !m_playingMods.empty();
+}
+
+size_t SessionManager::countMountedMods() {
+  return m_mountedMods.size();
+}
+size_t SessionManager::countPlayingMods() {
+  return m_playingMods.size();
 }
 
 #else

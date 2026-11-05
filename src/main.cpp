@@ -199,10 +199,9 @@ QComboBox {
         launchGame(initialGameId);
     }
 
-    std::unique_ptr<MainWindow> window;
+    std::unique_ptr<MainWindow> window = std::make_unique<MainWindow>();
+    window->setWindowIcon(QIcon(":/app-icon.png"));
     if (initialGameId.isEmpty()) {
-        window = std::make_unique<MainWindow>();
-        window->setWindowIcon(QIcon(":/app-icon.png"));
         window->show();
     }
 
@@ -218,7 +217,7 @@ QComboBox {
             launchGame(secondaryGameId);
         }
 
-        if (window) {
+        else if (window) {
             if (window->isMinimized()) {
               window->showNormal();
             }

@@ -9,9 +9,6 @@
 #include <QParallelAnimationGroup>
 #include <QMenu>
 
-#include <algorithm>
-#include <filesystem>
-#include <iostream>
 #include "MainWindow.hpp"
 #include "consts.hpp"
 #include "screens/Home.hpp"
@@ -73,18 +70,18 @@ void MainWindow::initUI() {
   contentLayout->setContentsMargins(0, 0, 0, 0);
   contentLayout->setSpacing(0);
 
-  m_stackedWidget = new QStackedWidget(m_mainContent);
-  contentLayout->addWidget(m_stackedWidget);
+  m_router = new Router();
+  contentLayout->addWidget(m_router);
 
   static_cast<CoverImageWidget*>(m_mainContent)->setImagePath(BackgroundLoader::getImage());
   // make m_mainContent expands to the remaining portion of the layout
   m_mainContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   mainLayout->addWidget(m_mainContent);
 
-  addNavigationItem(LucideIcons::house, translateNoop("Sidebar", "Home"), SidebarPosition::Top, new HomeScreen())->setSelected(true);
-  addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, new ModsScreen());
+  addNavigationItem(LucideIcons::house, translateNoop("Sidebar", "Home"), SidebarPosition::Top, "/", new HomeScreen())->setSelected(true);
+  addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, "/mods", new ModsScreen());
 
-  addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, new SettingsScreen());
+  addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen());
   addActionItem(LucideIcons::users, translateNoop("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
 
   connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
@@ -92,19 +89,22 @@ void MainWindow::initUI() {
   m_rootWidget->show();
 }
 
-void MainWindow::onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newItem) {
+void MainWindow::sidebarRouteTransitionHandler(QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished) {
+  SidebarItem* oldItem = outgoing ? outgoing->property("__sidebarItem").value<SidebarItem*>() : nullptr;
+  SidebarItem* newItem = incoming ? incoming->property("__sidebarItem").value<SidebarItem*>() : nullptr;
+ 
   int oidx = oldItem ? m_sidebar->itemPositionOf(oldItem) : -1;
   int nidx = m_sidebar->itemPositionOf(newItem);
 
   bool ttbDirection = oidx > nidx; // top-to-bottom if true (oldItem pos > newItem pos), else bottom-to-top
 
-  auto thisWidget = m_navigationMap[newItem];
-  if (!thisWidget) return;
-  m_stackedWidget->setCurrentWidget(thisWidget);
+  auto anim = anime::slideFade(incoming, ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up); 
 
-  anime::slideFade(thisWidget, ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up); 
+  connect(anim, &QAbstractAnimation::finished, this, [this, incoming, onFinished](){
+    if (onFinished) onFinished();
+  });
 
-  setPageTitleBar(thisWidget->windowTitle());
+  setPageTitleBar(incoming->windowTitle());
 }
 
 void addSidebarItemToRetranslate(SidebarItem* item) {
@@ -114,23 +114,25 @@ void addSidebarItemToRetranslate(SidebarItem* item) {
   addWidgetToRetranslateList(item);
 }
 
-SidebarItem* MainWindow::addNavigationItem(QIcon icon, std::string name, SidebarPosition position, QWidget* widget) {
+SidebarItem* MainWindow::addNavigationItem(QIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget) {
   auto item = m_sidebar->addSidebarItem(icon, name, position);
   addSidebarItemToRetranslate(item);
 
-  m_navigationMap[item] = widget;
-  m_stackedWidget->addWidget(widget);
+  m_navigationMap[item] = route;
+  widget->setProperty("__sidebarItem", QVariant::fromValue<void*>(item));
+  m_router->addRoute(route, [widget](const RouteParams&) {return widget;}, std::bind(&MainWindow::sidebarRouteTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
   connect(widget, &QWidget::windowTitleChanged, this, [this, widget](){
-    if (m_stackedWidget->currentWidget() == widget) {
+    if (widget->isVisible())
+    //if (m_stackedWidget->currentWidget() == widget) {
       setPageTitleBar(widget->windowTitle());
-    }
+    //}
   });
   widget->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 
   return item;
 };
 
-SidebarItem* MainWindow::addActionItem(QIcon icon, std::string name, SidebarPosition position, std::function<void()> onClicked) {
+SidebarItem* MainWindow::addActionItem(QIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked) {
   auto item = m_sidebar->addSidebarItem(icon, name, position, false, false);
   addSidebarItemToRetranslate(item);
 
@@ -178,28 +180,53 @@ bool MainWindow::confirmQuit() {
   );
 #undef trConfirmQuit
 }
+
+void MainWindow::updateTrayTooltip() {
+  if (!m_trayIcon) return;
+
+  QString sessionStatus;
+
+  if (SessionManager::hasMountedMod()) {
+    sessionStatus = QString("%1 mounted").arg(SessionManager::countMountedMods());
+
+    if (SessionManager::hasPlayingMod()) {
+      sessionStatus += QString(", %1 running").arg(SessionManager::countPlayingMods());
+    }
+  }
+
+  m_trayIcon->setToolTip(QString("VirtualClub - %1%2").arg(
+    ProfileSingleApp::instance()->profileName(),
+    sessionStatus
+  ));
+}
+
 void MainWindow::setupTrayIcon() {
-    m_trayIcon = new QSystemTrayIcon(QIcon(":/app-icon.png"), this);
-    m_trayIcon->setToolTip(QString("VirtualClub - %1").arg(
-      ProfileSingleApp::instance()->profileName()
-    ));
-    auto *trayMenu = new QMenu(this);
+  m_trayIcon = new QSystemTrayIcon(QIcon(":/app-icon.png"), this);
+  updateTrayTooltip();
+  auto *trayMenu = new QMenu(this);
 
-    // Option to bring window back to focus
-    QAction *showAction = trayMenu->addAction("Show Window");
-    QObject::connect(showAction, &QAction::triggered, this, [this]() {
-        this->show();
-        this->activateWindow();
-    });
+  // Option to bring window back to focus
+  QAction *showAction = trayMenu->addAction("Show Window");
+  QObject::connect(showAction, &QAction::triggered, this, [this]() {
+    this->show();
+    this->activateWindow();
+  });
 
-    // Option to truly exit the application
-    QAction *quitAction = trayMenu->addAction("Quit");
-    QObject::connect(quitAction, &QAction::triggered, qApp, [this](){
-      if (confirmQuit()) QCoreApplication::quit();
-    });
+  // Option to truly exit the application
+  QAction *quitAction = trayMenu->addAction("Quit");
+  QObject::connect(quitAction, &QAction::triggered, qApp, [this](){
+    if (confirmQuit()) QCoreApplication::quit();
+  });
 
-    m_trayIcon->setContextMenu(trayMenu);
-    m_trayIcon->show();
+  QObject::connect(m_trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+    if (reason == QSystemTrayIcon::Trigger) { // Left click
+      this->show();
+      this->activateWindow();
+    }
+  });
+
+  m_trayIcon->setContextMenu(trayMenu);
+  m_trayIcon->show();
 }
 void MainWindow::closeEvent(QCloseEvent *event) {
     // Check if the user is attempting to close via the window manager (or custom state)

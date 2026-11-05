@@ -1,5 +1,6 @@
 #pragma once
 #include "ui/Sidebar.hpp"
+#include "ui/Router.hpp"
 #include <QWidget>
 #include <QStackedWidget>
 #include <QMainWindow>
@@ -12,13 +13,13 @@ class MainWindow : public QWidget {
 
   QWidget* m_rootWidget;
   QWidget* m_mainContent;
-  QStackedWidget* m_stackedWidget;
+  Router* m_router;
   Sidebar* m_sidebar; // idk what i should use this for.
   
-  std::unordered_map<SidebarItem*, QWidget*> m_navigationMap;
+  std::unordered_map<SidebarItem*, QString> m_navigationMap;
   std::list<SidebarItem*> m_actionMap;
 
-  QSystemTrayIcon* m_trayIcon;
+  QSystemTrayIcon* m_trayIcon = nullptr;
   
   struct {
     std::string currentBackground = "tokyo"; // for now
@@ -31,7 +32,7 @@ public:
   }
 
   void setPageTitleBar(const QString& pageTitle);
-
+  void updateTrayTooltip();
 protected:
   void initUI();
 
@@ -41,9 +42,10 @@ protected:
   void closeEvent(QCloseEvent* event) override;
 
   void onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newItem);
+  void sidebarRouteTransitionHandler(QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished);
 
-  SidebarItem* addNavigationItem(QIcon icon, std::string name, SidebarPosition position, QWidget* widget);
-  SidebarItem* addActionItem(QIcon icon, std::string name, SidebarPosition position, std::function<void()> onClicked);
+  SidebarItem* addNavigationItem(QIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget);
+  SidebarItem* addActionItem(QIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked);
 
   void setupTrayIcon();
   bool confirmQuit();
