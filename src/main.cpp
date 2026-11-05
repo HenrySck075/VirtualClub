@@ -93,12 +93,8 @@ int main(int argc, char *argv[]) {
       throw std::runtime_error("Failed to set Python home directory");
     };
 
-    if (PyStatus_Exception(Py_InitializeFromConfig(&config))) {
-      throw std::runtime_error("Failed to initialize Python interpreter");
-    }
-    PyConfig_Clear(&config);
+    py::initialize_interpreter(&config);
 
-    py::scoped_interpreter guard{};
     QFontDatabase::addApplicationFont(":/Quicksand-Bold.ttf");
     QFontDatabase::addApplicationFont(":/Quicksand-Light.ttf");
     QFontDatabase::addApplicationFont(":/Quicksand-Medium.ttf");
@@ -246,4 +242,6 @@ QComboBox {
       cpptrace::from_current_exception().print();
     }
 #endif
+
+    py::finalize_interpreter();
 }
