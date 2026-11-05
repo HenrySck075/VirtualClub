@@ -10,9 +10,14 @@
 #include <QFileDialog>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
+#include <QSet>
+#include <algorithm>
+#include <memory>
 
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
+#include "utils/ModIndex.hpp"
+#include "utils/SessionManager.hpp"
 #include "utils/i18n.hpp"
 #include "utils/macros.h"
 
@@ -53,6 +58,12 @@ int main(int argc, char *argv[]) {
         "" // Default profile fallback
     );
     parser.addOption(profileOption);
+    QCommandLineOption gameOption(
+        "game",
+        "Launch a game in the background",
+        "gameid"
+    );
+    parser.addOption(gameOption);
     parser.addHelpOption();
     parser.process(app);
 
@@ -142,19 +153,70 @@ QComboBox {
     setLanguage(QLocale(settings->value(STK_LANGUAGE).toString()));
     setupReTLHandler();
 
-    MainWindow window;
-    window.setWindowIcon(QIcon(":/app-icon.png"));
-    window.show();
+    QSet<QString> launchedGames;
+    auto launchGame = [&launchedGames](const QString& gameId) {
+        const auto normalizedGameId = gameId.trimmed();
+        if (normalizedGameId.isEmpty() || launchedGames.contains(normalizedGameId)) {
+            return;
+        }
+
+        const auto& mods = ModsIndex::get()->getMods();
+        const auto mod = std::find_if(mods.begin(), mods.end(), [&normalizedGameId](const ModsIndex::Mod& candidate) {
+            return QString::fromStdString(candidate.id) == normalizedGameId;
+        });
+        if (mod == mods.end()) {
+            qWarning() << "Could not launch game; no installed game has ID:" << normalizedGameId;
+            return;
+        }
+
+        launchedGames.insert(normalizedGameId);
+        try {
+            auto modToLaunch = *mod;
+            SessionManager::launch(
+                modToLaunch,
+                []() {},
+                [normalizedGameId, &launchedGames]() {
+                    launchedGames.remove(normalizedGameId);
+                }
+            );
+        } catch (const std::exception& exception) {
+            launchedGames.remove(normalizedGameId);
+            qWarning() << "Could not launch game" << normalizedGameId << ":" << exception.what();
+        }
+    };
+
+    const auto initialGameId = parser.value(gameOption);
+    if (!initialGameId.isEmpty()) {
+        launchGame(initialGameId);
+    }
+
+    std::unique_ptr<MainWindow> window;
+    if (initialGameId.isEmpty()) {
+        window = std::make_unique<MainWindow>();
+        window->setWindowIcon(QIcon(":/app-icon.png"));
+        window->show();
+    }
 
     // Handle messages when a user attempts to re-open the app under this profile
     QObject::connect(&app, &ProfileSingleApp::messageReceivedFromSecondary, [&](const QStringList &args) {
         qDebug() << "Received focus request or arguments from secondary instance:" << args;
-        if (window.isMinimized()) {
-          window.showNormal();
+        QCommandLineParser secondaryParser;
+        secondaryParser.addOption(gameOption);
+        secondaryParser.process(args);
+
+        const auto secondaryGameId = secondaryParser.value(gameOption);
+        if (!secondaryGameId.isEmpty()) {
+            launchGame(secondaryGameId);
         }
-        window.show();
-        window.raise();
-        window.activateWindow();
+
+        if (window) {
+            if (window->isMinimized()) {
+              window->showNormal();
+            }
+            window->show();
+            window->raise();
+            window->activateWindow();
+        }
     });
     
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [selectedProfile]() {
@@ -172,5 +234,3 @@ QComboBox {
     }
 #endif
 }
-
-

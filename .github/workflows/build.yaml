@@ -169,7 +169,8 @@ jobs:
           tag_name: v${{ needs.build.outputs.app_version }}
           name: Release v${{ needs.build.outputs.app_version }}
           draft: false
-          prerelease: false
+          prerelease: true
+          body: This release is under testing. Do not download this except if you wanted to contribute into the development.
           files: |
             app-linux-x64.tar.gz
             app-windows-x64.zip
