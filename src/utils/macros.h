@@ -1,6 +1,9 @@
 #define EMPTY()
 #define DEFER1(m) m EMPTY()
 
+
+#include <QtSystemDetection>
+
 #define EVAL(...)     EVAL1024(__VA_ARGS__)
 #define EVAL1024(...) EVAL512(EVAL512(__VA_ARGS__))
 #define EVAL512(...)  EVAL256(EVAL256(__VA_ARGS__))
@@ -20,24 +23,21 @@
 #define MVC_DEBUG
 #endif
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(Q_OS_WIN)
 #define MVC_WIN(...) __VA_ARGS__
 #define MVC_MAC(...)
 #define MVC_LINUX(...)
 #define MVC_UNIX(...)
-#define MVC_IS_WINDOWS
-#elif defined(__APPLE__)
+#elif defined(Q_OS_MACOS)
 #define MVC_WIN(...) 
 #define MVC_MAC(...) __VA_ARGS__
 #define MVC_LINUX(...)
 #define MVC_UNIX(...) __VA_ARGS__
-#define MVC_IS_MAC
-#elif defined(__linux__)
+#elif defined(Q_OS_LINUX)
 #define MVC_WIN(...) 
 #define MVC_MAC(...)
 #define MVC_LINUX(...) __VA_ARGS__
 #define MVC_UNIX(...) __VA_ARGS__
-#define MVC_IS_LINUX
 #else
 #error "what"
 #endif

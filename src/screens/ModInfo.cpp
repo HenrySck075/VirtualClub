@@ -110,9 +110,9 @@ public:
   // Get the folder where Ren'Py store every game's save data.
   static std::filesystem::path getRenpySaveDirectory() {
 #if 0
-#ifdef MVC_IS_WINDOWNS
+#ifdef Q_OS_WIN
     return std::filesystem::path(std::getenv("APPDATA")) / "RenPy";
-#elif defined(MVC_IS_MAC)
+#elif defined(Q_OS_MACOS)
     return std::filesystem::path(std::getenv("HOME")) / "Library" / "Application Support" / "RenPy";
 #else
     return std::filesystem::path(std::getenv("HOME")) / ".renpy";
@@ -268,11 +268,10 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
 
   m_modVersionLabel = new QLabel();
   m_modVersionLabel->setFont(QFont("Quicksand", 16));
-  $setDynamicLabelTextAndRegisterAutoTL(m_modVersionLabel, "Version: %1");
   headerLayout2->addWidget(m_modVersionLabel);
 
   auto* openModDirButton = new Button(LucideIcons::folder);
-  $setLabelTextAndRegisterAutoTL(openModDirButton, "Open mod directory");
+  openModDirButton->setText(tr("Open mod directory"));
   connect(openModDirButton, &Button::clicked, this, &ModInfoScreen::onOpenModDirClicked);
   headerLayout2->addWidget(openModDirButton, 0, Qt::AlignLeft);
 
@@ -291,7 +290,7 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   auto* content = new GradientBackground(this);
   content->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
   layout->addWidget(content);
-  auto* contentLayout = new QHBoxLayout(content);
+  auto* contentLayout = new FlowLayout(content);
   contentLayout->setSpacing(8);
   contentLayout->setAlignment(Qt::AlignLeft);
 
@@ -312,12 +311,12 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   });
   contentLayout->addWidget(m_playFromSaveButton);
 
-  m_deleteButton = new Button("Uninstall", LucideIcons::trash);
+  m_deleteButton = new Button(tr("Uninstall"), LucideIcons::trash);
   connect(m_deleteButton, &Button::clicked, this, &ModInfoScreen::onDeleteButtonClicked);
   contentLayout->addWidget(m_deleteButton);
 
-  auto openMountDirButton = new IconButton(LucideIcons::folder_open_dot);
-  connect(openMountDirButton, &IconButton::clicked, this, [this](){
+  auto openMountDirButton = new Button(tr("Open mount folder"),LucideIcons::folder_open_dot);
+  connect(openMountDirButton, &Button::clicked, this, [this](){
     if (m_displayingMod.has_value()) {
       SessionManager::mount(m_displayingMod.value());
       auto path = SessionManager::mountPathOf(m_displayingMod->id);
@@ -328,11 +327,29 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   openMountDirButton->setToolTip("Open the mod's mount directory (where the mod is mounted to be used by Ren'Py)");
   contentLayout->addWidget(openMountDirButton);
 
+  auto createShortcutButton = new Button(tr("Create shortcut"), LucideIcons::file_symlink);
+  connect(createShortcutButton, &Button::clicked, this, [this](){
+    if (m_displayingMod.has_value()) {
+      auto mod = m_displayingMod.value();
+      auto launchArgument = QString("--game=%1").arg(QString::fromStdString(mod.id));
+      auto iconPath = QString::fromStdString(mod.getIconPath());
+      if (createDesktopShortcut(QString::fromStdString(mod.name), launchArgument, iconPath)) {
+        Dialog::showActionDialog(getMainWindow(), tr("Shortcut created"), tr("A desktop shortcut for this mod has been created."), "", Dialog::Confirm);
+      } else {
+        Dialog::showActionDialog(getMainWindow(), tr("Error"), tr("Failed to create a desktop shortcut for this mod. Please check your permissions and try again."), "", Dialog::Confirm);
+      }
+    }
+  });
+  contentLayout->addWidget(createShortcutButton);
+
 #ifndef MVC_VFS_AVAILABLE
-  m_playButton->setEnabled(false);
-  m_playButton->setToolTip("Playing is currently unsupported on this platform.");
-  m_playFromSaveButton->setEnabled(false);
-  m_playFromSaveButton->setToolTip("Playing is currently unsupported on this platform.");
+  {
+    auto tooltipText = tr("Playing is currently unsupported on this platform.");
+    m_playButton->setEnabled(false);
+    m_playButton->setToolTip(tooltipText);
+    m_playFromSaveButton->setEnabled(false);
+    m_playFromSaveButton->setToolTip(tooltipText);
+  }
 #endif
 
   auto* content2 = new GradientBackground(this);
@@ -349,16 +366,15 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
 
     tl->addWidget(actionWidget);
 
-    auto* label = new QLabel();
-    $setLabelTextAndRegisterAutoTL(label, name.toStdString().c_str());
+    auto* label = new QLabel(name.toStdString().c_str());
     tl->addWidget(label);
   };
 
   m_developerModeSwitch = new Switch();
-  addThing(trNoop("Developer Mode"), m_developerModeSwitch);
+  addThing(tr("Developer Mode"), m_developerModeSwitch);
 
   m_forceRecompileSwitch = new Switch();
-  addThing(trNoop("Force Recompile .rpyc"), m_forceRecompileSwitch);
+  addThing(tr("Force Recompile .rpyc"), m_forceRecompileSwitch);
 }
 
 void ModInfoScreen::updatePlaytimeLabel() {
@@ -367,14 +383,14 @@ void ModInfoScreen::updatePlaytimeLabel() {
     if (playtime.has_value()) {
       auto [playtimeRaw, playtimeActive] = playtime.value();
       // use the active time for display
-      $setLabelTextForAutoTL(
-        m_playtimeLabel,
-        "Playtime: %1 (Process runtime: %2)", 
-        QString::fromStdString(format_duration(playtimeActive)),
-        QString::fromStdString(format_duration(playtimeRaw))
+      m_playtimeLabel->setText(
+        tr("Playtime: %1 (Process runtime: %2)").arg(
+          QString::fromStdString(format_duration(playtimeActive)),
+          QString::fromStdString(format_duration(playtimeRaw))
+        )
       );
     } else {
-      $setLabelTextForAutoTL(m_playtimeLabel, "Not played yet!");
+      m_playtimeLabel->setText(tr("Not played yet!"));
     }
   }
 }
@@ -445,7 +461,7 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
   m_modIconLabel->setPixmap(pixmap);
 
   m_modNameLabel->setText(mod.name.c_str());
-  $changeLabelPlaceholderArgs(m_modVersionLabel, QString::fromStdString(mod.version));
+  m_modVersionLabel->setText(tr("Version: %1").arg(QString::fromStdString(mod.version)));
 
   m_developerModeSwitch->setChecked(m_displayingMod->enableDeveloper);
   m_forceRecompileSwitch->setChecked(m_displayingMod->forceRecompile);

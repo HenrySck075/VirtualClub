@@ -14,6 +14,11 @@ bool askForBasePathChange();
 bool askForProfilePictureChange();
 std::string generate_uuid_v4();
 
+
+bool createDesktopShortcut(const QString &shortcutName,
+                           const QString &launchArgument,
+                           const QString &iconPath);
+
 #include <chrono>
 template <typename Rep, typename Period>
 std::string format_duration(std::chrono::duration<Rep, Period> d) {

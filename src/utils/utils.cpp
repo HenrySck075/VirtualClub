@@ -4,6 +4,13 @@
 #include "utils/ProfileSettings.hpp"
 #include <QFileDialog>
 
+#include <QCoreApplication>
+#include <QFile>
+#include <QFileInfo>
+#include <QDir>
+#include <QProcess>
+#include <QStandardPaths>
+
 #include <random>
 #include <sstream>
 
@@ -109,3 +116,61 @@ std::string generate_uuid_v4() {
     return ss.str();
 }
 
+bool createDesktopShortcut(const QString &shortcutName,
+                           const QString &launchArgument,
+                           const QString &iconPath) {
+  QString executablePath = QCoreApplication::applicationFilePath();
+
+#if defined(Q_OS_WIN)
+  QString desktopPath =
+      QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+  QString linkPath = QDir(desktopPath).filePath(shortcutName + ".lnk");
+
+  // Construct PowerShell command to create a Windows shortcut (.lnk) via
+  // WScript.Shell
+  QString psCommand =
+      QString(
+          "$s = (New-Object -ComObject WScript.Shell).CreateShortcut('%1'); "
+          "$s.TargetPath = '%2'; "
+          "$s.Arguments = '%3'; "
+          "$s.IconLocation = '%4'; "
+          "$s.Save();")
+          .arg(linkPath, executablePath, launchArgument,
+               iconPath.isEmpty() ? executablePath : iconPath);
+
+  return QProcess::execute("powershell", {"-NoProfile", "-NonInteractive",
+                                          "-Command", psCommand}) == 0;
+
+#elif defined(Q_OS_LINUX)
+  QString desktopPath =
+      QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+  QString desktopFilePath =
+      QDir(desktopPath).filePath(shortcutName + ".desktop");
+
+  // Construct standard XDG desktop entry content
+  QString content =
+      QString("[Desktop Entry]\n"
+              "Type=Application\n"
+              "Name=%1\n"
+              "Exec=\"%2\" %3\n"
+              "Icon=%4\n"
+              "Terminal=false\n")
+          .arg(shortcutName, executablePath, launchArgument, iconPath);
+
+  QFile file(desktopFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    return false;
+  }
+
+  file.write(content.toUtf8());
+  file.close();
+
+  // Mark file as executable
+  return file.setPermissions(QFile::ExeUser | QFile::ReadUser |
+                             QFile::WriteUser | QFile::ReadGroup |
+                             QFile::ReadOther);
+
+#else
+  return false;
+#endif
+}

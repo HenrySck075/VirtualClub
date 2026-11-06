@@ -43,6 +43,7 @@ namespace LucideIcons {
     arrow_left,
     bug,
     clock,
+    file_symlink,
     folder,
     folder_open_dot,
     folder_pen,
