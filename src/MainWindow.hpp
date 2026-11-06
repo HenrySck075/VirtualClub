@@ -42,7 +42,7 @@ protected:
   void closeEvent(QCloseEvent* event) override;
 
   void onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newItem);
-  void sidebarRouteTransitionHandler(QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished);
+  void routeTransitionHandler(QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished);
 
   SidebarItem* addNavigationItem(QIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget);
   SidebarItem* addActionItem(QIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked);

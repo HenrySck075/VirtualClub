@@ -262,6 +262,7 @@ void Sidebar::onSidebarItemClicked(SidebarItem* item) {
 }
 
 int Sidebar::itemPositionOf(SidebarItem* item) {
+  if (!item) return -1;
   // find the layout this item belongs to, and return its index
   // (if its in any other layouts other than the top one, add the number of children from the previous layouts to the value)
   int index = -1;

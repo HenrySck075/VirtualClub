@@ -29,7 +29,8 @@ void IconButton::mouseReleaseEvent(QMouseEvent* event) {
     QPushButton::mouseReleaseEvent(event);
 }
 IconButton::IconButton(QIcon icon, QWidget *parent) : QPushButton(parent) {
-  setFixedSize({40,30}); // Set a fixed height for each sidebar item
+  setFixedWidth(40);
+  setMinimumHeight(36);
   // Setup animation (duration: 200 ms)
   m_fadeAnimation = new QPropertyAnimation(this, "hoverAlpha", this);
   //m_fadeAnimation->setDuration(200);
@@ -59,7 +60,7 @@ void IconButton::leaveEvent(QEvent *event) {
 void IconButton::paintEvent(QPaintEvent *event) {
     Q_UNUSED(event);
     QPainter painter(this);
-    static const int radius = 5;
+    static const int radius = 4;
     painter.setRenderHint(QPainter::Antialiasing);
 
     // Only paint the background when visible

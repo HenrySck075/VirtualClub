@@ -160,26 +160,20 @@ private:
 
 
 
-ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
+ModsScreen::ModsScreen(Router* router, QWidget *parent) 
+  : QWidget(parent), m_router(router) {
   setWindowTitle("Mods");
   // Set up the layout for the Mods screen
   auto *layout = new QVBoxLayout(this);
   static const int margin = 24;
   layout->setContentsMargins(0,0,0,0);
 
-  m_contentWrapper = new QStackedWidget(this);
-  layout->addWidget(m_contentWrapper);
-
-  m_modsListPage = new QWidget();
+  m_modsListPage = new QWidget(this);
 
   auto *modsListPageLayout = new QVBoxLayout(m_modsListPage);
   modsListPageLayout->setContentsMargins(margin, margin, margin, margin);
   modsListPageLayout->setSpacing(4);
   modsListPageLayout->setAlignment(Qt::AlignTop);
-
-  m_contentWrapper->addWidget(m_modsListPage);
-
-
 
 
   auto* hcs = new QStackedWidget(m_modsListPage);
@@ -303,27 +297,6 @@ ModsScreen::ModsScreen(QWidget *parent) : QWidget(parent) {
   }
 
   updateModsListDisplay();
-
-
-  m_modInfoPage = new ModInfoScreen();
-  m_contentWrapper->addWidget(m_modInfoPage);
-  auto backCb = [this](){
-    c_navigationSfx->play();
-    m_contentWrapper->setCurrentWidget(m_modsListPage);
-    setWindowTitle("Mods");
-    anime::slideFade(m_modsListPage, anime::SlideDirection::Right);
-  };
-  connect(m_modInfoPage, &ModInfoScreen::backButtonClicked, backCb);
-  connect(m_modInfoPage, &ModInfoScreen::modUninstalled, [this, backCb](std::string modId){
-    removeModItem(modId);
-    backCb();
-  });
-  connect(m_modInfoPage, &QWidget::windowTitleChanged, this, [this](const QString& title){
-    if (m_contentWrapper->currentWidget() == m_modInfoPage) {
-      setWindowTitle(title);
-    }
-  });
-
 }
 
 void ModsScreen::enableMultiselectToolbar(bool enable) {
@@ -400,10 +373,7 @@ void ModsScreen::removeModItem(std::string modId) {
 
 void ModsScreen::openModInfo(const ModsIndex::Mod& mod) {
   c_navigationSfx->play();
-  m_contentWrapper->setCurrentWidget(m_modInfoPage);
-  m_modInfoPage->setDisplayingMod(mod);
-  setWindowTitle(m_modInfoPage->windowTitle());
-  anime::slideFade(m_modInfoPage, anime::SlideDirection::Left);
+  m_router->navigate(QString("/mods/%1").arg(QString::fromStdString(mod.id)));
 }
 
 void ModsScreen::deselectOtherItems(DesktopIconWidget* selectedItem) {

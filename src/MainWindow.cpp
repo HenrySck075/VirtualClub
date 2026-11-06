@@ -12,6 +12,7 @@
 #include "MainWindow.hpp"
 #include "consts.hpp"
 #include "screens/Home.hpp"
+#include "screens/ModInfo.hpp"
 #include "screens/Mods.hpp"
 #include "screens/Settings.hpp"
 #include "screens/SwitchUserDialog.hpp"
@@ -79,7 +80,14 @@ void MainWindow::initUI() {
   mainLayout->addWidget(m_mainContent);
 
   addNavigationItem(LucideIcons::house, translateNoop("Sidebar", "Home"), SidebarPosition::Top, "/", new HomeScreen())->setSelected(true);
-  addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, "/mods", new ModsScreen());
+  addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, "/mods", new ModsScreen(m_router));
+  m_router->addRoute("/mods/:id", [this](const RouteParams& params) {
+    auto a = new ModInfoScreen(m_router);
+    a->setDisplayingMod(ModsIndex::get()->getModByID(
+      params["id"].toStdString()
+    ));
+    return a;
+  }, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
   addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen());
   addActionItem(LucideIcons::users, translateNoop("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
@@ -89,16 +97,26 @@ void MainWindow::initUI() {
   m_rootWidget->show();
 }
 
-void MainWindow::sidebarRouteTransitionHandler(QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished) {
-  SidebarItem* oldItem = outgoing ? outgoing->property("__sidebarItem").value<SidebarItem*>() : nullptr;
-  SidebarItem* newItem = incoming ? incoming->property("__sidebarItem").value<SidebarItem*>() : nullptr;
- 
-  int oidx = oldItem ? m_sidebar->itemPositionOf(oldItem) : -1;
-  int nidx = m_sidebar->itemPositionOf(newItem);
+void MainWindow::routeTransitionHandler(QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished) {
+  anime::SlideDirection direction;
 
-  bool ttbDirection = oidx > nidx; // top-to-bottom if true (oldItem pos > newItem pos), else bottom-to-top
+  if (qobject_cast<ModInfoScreen*>(outgoing)) {
+    direction = anime::SlideDirection::Right;
+  } else if (qobject_cast<ModInfoScreen*>(incoming)) {
+    direction = anime::SlideDirection::Left;
+  } else {
+    SidebarItem* oldItem = outgoing ? outgoing->property("__sidebarItem").value<SidebarItem*>() : nullptr;
+    SidebarItem* newItem = incoming ? incoming->property("__sidebarItem").value<SidebarItem*>() : nullptr;
+   
+    int oidx = oldItem ? m_sidebar->itemPositionOf(oldItem) : -1;
+    int nidx = m_sidebar->itemPositionOf(newItem);
 
-  auto anim = anime::slideFade(incoming, ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up); 
+    bool ttbDirection = oidx > nidx; // top-to-bottom if true (oldItem pos > newItem pos), else bottom-to-top
+    
+    direction = ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up;
+  }
+
+  auto anim = anime::slideFade(incoming, direction); 
 
   connect(anim, &QAbstractAnimation::finished, this, [this, incoming, onFinished](){
     if (onFinished) onFinished();
@@ -120,7 +138,7 @@ SidebarItem* MainWindow::addNavigationItem(QIcon icon, QString name, SidebarPosi
 
   m_navigationMap[item] = route;
   widget->setProperty("__sidebarItem", QVariant::fromValue<void*>(item));
-  m_router->addRoute(route, [widget](const RouteParams&) {return widget;}, std::bind(&MainWindow::sidebarRouteTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+  m_router->addFixedRoute(route, widget, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
   connect(widget, &QWidget::windowTitleChanged, this, [this, widget](){
     if (widget->isVisible())
     //if (m_stackedWidget->currentWidget() == widget) {

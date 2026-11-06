@@ -1,3 +1,5 @@
+#pragma once  
+
 #include <QMap>
 #include <QString>
 #include <functional>
@@ -15,11 +17,14 @@ using RouteFactory = std::function<QWidget* (const RouteParams&)>;
 class Router : public QWidget {
     Q_OBJECT
 public:
-  explicit Router(QWidget *parent = nullptr);
+  explicit Router(QWidget* parent = nullptr);
 
-  void addRoute(const QString &pattern,
+  void addRoute(const QString& pattern,
                 RouteFactory factory,
                 TransitionHandler transition = nullptr);
+  void addFixedRoute(const QString& path,
+                     QWidget* widget,
+                     TransitionHandler transition = nullptr);
 
 public slots:
   void navigate(const QString &path);
@@ -29,6 +34,9 @@ private:
         QString pattern;
         RouteFactory factory;
         TransitionHandler transition;
+        // this is just to determine if i should call deleteLater
+        // on outgoing transition finished
+        bool fixedPath = false;
     };
 
     struct RouteMatch {

@@ -6,12 +6,13 @@
 #include <optional>
 #include "utils/ModIndex.hpp"
 #include "ui/PixmapWidget.hpp"
-#include "ui/IconButton.hpp"
 #include "ui/MESWidgets.hpp"
+#include "ui/Router.hpp"
+
 class ModInfoScreen : public QWidget {
   Q_OBJECT
 public:
-  explicit ModInfoScreen(QWidget *parent = nullptr);
+  explicit ModInfoScreen(Router* router, QWidget *parent = nullptr);
 
   void setDisplayingMod(const ModsIndex::Mod& mod);
 signals:
@@ -37,6 +38,8 @@ private:
 
   Switch* m_developerModeSwitch = nullptr;
   Switch* m_forceRecompileSwitch = nullptr;
+
+  Router* m_router = nullptr;
 
   std::optional<ModsIndex::Mod> m_displayingMod;
 

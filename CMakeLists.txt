@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.1.5 LANGUAGES C CXX)
+project(VirtualClub VERSION 0.1.6 LANGUAGES C CXX)
 
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported (i used some clang-specific syntax for ease of development sorry abt that). Please use a different compiler.")

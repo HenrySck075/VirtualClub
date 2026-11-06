@@ -138,8 +138,6 @@ void Button::paintEvent(QPaintEvent* event) {
         startX += icSize.width() + spacing;
     }
 
-    // How to verify layout rendering: Check that icon and text remain centered as button width resizes
-
     // 6. Draw Text
     if (!text().isEmpty()) {
         int textY = paddedRect.center().y() - (fm.height() / 2);

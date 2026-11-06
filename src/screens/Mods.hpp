@@ -2,11 +2,11 @@
 #define SCREENS_Mods_H
 
 #include "../utils/ModIndex.hpp"
+#include "../ui/Router.hpp"
 #include <QWidget>
 #include <QStackedWidget>
 #include <QLabel>
 #include "../utils/FlowLayout.hpp"
-#include "ModInfo.hpp"
 #include <QSoundEffect>
 
 class DesktopIconWidget;
@@ -23,14 +23,10 @@ class ModsScreen : public QWidget {
   QWidget* m_headerContentMultiselect = nullptr;
   QLabel* m_modsCountLabel = nullptr;
 
-  /// Later on I did thought about making a map of ModInfoScreens instead 
-  /// However I decided against that to minimize the memory footprint of the launcher as much as possible.
-  ModInfoScreen* m_modInfoPage = nullptr;
-
-  QStackedWidget* m_contentWrapper = nullptr;
+  Router* m_router = nullptr;
 
 public:
-  explicit ModsScreen(QWidget *parent = nullptr);
+  explicit ModsScreen(Router* router, QWidget *parent = nullptr);
   void onAddModButtonClicked();
 private:
   void addModItem(ModsIndex::Mod mod);

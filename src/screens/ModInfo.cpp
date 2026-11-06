@@ -227,7 +227,7 @@ public:
   };
 };
 
-ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
+ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent), m_router(router) {
   // Set up the layout for the ModInfo screen
   auto* layout = new QVBoxLayout(this);
   static const int margin = 24;
@@ -237,7 +237,9 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
 
   auto* navigation = new IconButton(LucideIcons::arrow_left);
   navigation->setToolTip("Back");
-  connect(navigation, &IconButton::clicked, this, &ModInfoScreen::backButtonClicked);
+  connect(navigation, &IconButton::clicked, this, [this](){
+    m_router->navigate("/mods");
+  });
   layout->addWidget(navigation);
   auto* header = new GradientBackground(this);
   layout->addWidget(header);
@@ -310,7 +312,7 @@ ModInfoScreen::ModInfoScreen(QWidget* parent) : QWidget(parent) {
   });
   contentLayout->addWidget(m_playFromSaveButton);
 
-  m_deleteButton = new Button(LucideIcons::trash);
+  m_deleteButton = new Button("Uninstall", LucideIcons::trash);
   connect(m_deleteButton, &Button::clicked, this, &ModInfoScreen::onDeleteButtonClicked);
   contentLayout->addWidget(m_deleteButton);
 

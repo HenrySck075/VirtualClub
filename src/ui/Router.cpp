@@ -15,6 +15,12 @@ void Router::addRoute(const QString &pattern,
   m_routes.append({pattern, factory, transition});
 }
 
+void Router::addFixedRoute(const QString &path,
+                           QWidget *widget,
+                           TransitionHandler transition) {
+  m_routes.append({path, [widget](const RouteParams&) { return widget; }, transition, true});
+}
+
 void Router::navigate(const QString &path) {
   if (path == m_currentPath)
     return;
@@ -48,10 +54,12 @@ void Router::navigate(const QString &path) {
   }
 
   auto transitionHandler = match.definition.transition;
+  bool doDelete = !match.definition.fixedPath;
+  incomingWidget->setProperty("__mvcr_delete", doDelete);
   if (transitionHandler) {
     transitionHandler(outgoingWidget, incomingWidget, [this, outgoingWidget]() {
       m_stack->removeWidget(outgoingWidget);
-      outgoingWidget->deleteLater();
+      if (outgoingWidget->property("__mvcr_delete").toBool()) outgoingWidget->deleteLater();
     });
   }
 }
