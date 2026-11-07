@@ -231,7 +231,7 @@ public:
         modFolder = startupConfigs.mod.modPath;
 
         containsRenpyEngine = fs::exists(modFolder / "lib");
-        dbFolder = modFolder / ".vclubmgr";
+        dbFolder = get_appdata_dir() / "session_data";
         deltaFolder = dbFolder / "delta" / startupConfigs.mod.id;
         contentFolder = deltaFolder / "content";
         whiteoutFilePath = deltaFolder / ".whiteouts";

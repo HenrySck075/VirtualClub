@@ -4,11 +4,11 @@
     <name>ModInfoScreen</name>
     <message>
         <source>Version: %1</source>
-        <translation type="vanished">Phiên bản: %1</translation>
+        <translation>Phiên bản: %1</translation>
     </message>
     <message>
         <source>Open mod directory</source>
-        <translation type="vanished">Mở thư mục của mod</translation>
+        <translation>Mở thư mục của mod</translation>
     </message>
     <message>
         <location filename="/data/data/com.termux/files/home/VirtualClub/src/screens/ModInfo.cpp" line="300"></location>
@@ -33,7 +33,7 @@
     <message>
         <location filename="/data/data/com.termux/files/home/VirtualClub/src/screens/ModInfo.cpp" line="315"></location>
         <source>Uninstall</source>
-        <translation type="unfinished"></translation>
+        <translation>Gỡ cài đặt</translation>
     </message>
     <message>
         <location filename="/data/data/com.termux/files/home/VirtualClub/src/screens/ModInfo.cpp" line="319"></location>
@@ -53,17 +53,17 @@
     <message>
         <location filename="/data/data/com.termux/files/home/VirtualClub/src/screens/ModInfo.cpp" line="338"></location>
         <source>A desktop shortcut for this mod has been created.</source>
-        <translation type="unfinished"></translation>
+        <translation>Lối tắt trên màn hình cho mod này đã được tạo.</translation>
     </message>
     <message>
         <location filename="/data/data/com.termux/files/home/VirtualClub/src/screens/ModInfo.cpp" line="340"></location>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Lỗi</translation>
     </message>
     <message>
         <location filename="/data/data/com.termux/files/home/VirtualClub/src/screens/ModInfo.cpp" line="340"></location>
         <source>Failed to create a desktop shortcut for this mod. Please check your permissions and try again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Không thể tạo lối tắt trên màn hình cho mod này. Vui lòng kiểm tra quyền và thử lại.</translation>
     </message>
     <message>
         <location filename="/data/data/com.termux/files/home/VirtualClub/src/screens/ModInfo.cpp" line="348"></location>
