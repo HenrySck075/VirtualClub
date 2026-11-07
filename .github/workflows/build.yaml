@@ -164,13 +164,13 @@ jobs:
           merge-multiple: true
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: andelf/nightly-release@main
         with:
-          tag_name: v${{ needs.build.outputs.app_version }}
-          name: Release v${{ needs.build.outputs.app_version }}
+          tag_name: 'nightly'
+          name: Development release
           draft: false
           prerelease: true
-          body: This release is under testing. Do not download this except if you wanted to contribute into the development.
+          body: Build release for commit ${{ github.sha }}.
           files: |
             app-linux-x64.tar.gz
             app-windows-x64.zip
