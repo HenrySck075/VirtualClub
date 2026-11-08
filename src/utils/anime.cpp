@@ -8,7 +8,7 @@
 namespace anime {
   QAbstractAnimation* slideFade(QWidget* widget, SlideDirection direction) {
     static QSettings settings;
-    if (settings.value("reducedMotion", false).toBool()) return;
+    if (settings.value("reducedMotion", false).toBool()) return nullptr;
 
     static const float duration = 400;
     static const QEasingCurve curve = QEasingCurve::OutQuart;

@@ -153,8 +153,12 @@ public:
       auto* layout = new QVBoxLayout(this);
       layout->addWidget(label);
     } else {
-      auto* layout = new FlowLayout(this, 4);
+      auto* scrollArea = new QScrollArea(this);
+      scrollArea->setFrameShape(QFrame::NoFrame);
 
+      auto* savesList = new QWidget();
+      scrollArea->setWidget(savesList);
+      auto* layout = new FlowLayout(savesList, 4);
 
       for (const auto& savePath : saveFiles) {
         auto zip_filename = savePath.string();

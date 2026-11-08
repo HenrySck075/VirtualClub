@@ -118,9 +118,11 @@ void MainWindow::routeTransitionHandler(QWidget* outgoing, QWidget* incoming, st
 
   auto anim = anime::slideFade(incoming, direction); 
 
-  connect(anim, &QAbstractAnimation::finished, this, [this, incoming, onFinished](){
-    if (onFinished) onFinished();
-  });
+  if (anim) {
+    connect(anim, &QAbstractAnimation::finished, this, [this, incoming, onFinished](){
+      if (onFinished) onFinished();
+    });
+  }
 
   setPageTitleBar(incoming->windowTitle());
 }
