@@ -58,12 +58,12 @@ int main(int argc, char *argv[]) {
         "" // Default profile fallback
     );
     parser.addOption(profileOption);
-    QCommandLineOption gameOption(
-        "game",
-        "Launch a game in the background",
-        "gameid"
+    QCommandLineOption modOption(
+        "mod",
+        "Launch a mod in the background (modid is the launcher's internal ID assigned for the mod)",
+        "modid"
     );
-    parser.addOption(gameOption);
+    parser.addOption(modOption);
     parser.addHelpOption();
     parser.process(app);
 
@@ -180,46 +180,46 @@ QComboBox {
     setLanguage(QLocale(settings->value(STK_LANGUAGE).toString()));
     setupReTLHandler();
 
-    QSet<QString> launchedGames;
-    auto launchGame = [&launchedGames](const QString& gameId) {
-        const auto normalizedGameId = gameId.trimmed();
-        if (normalizedGameId.isEmpty() || launchedGames.contains(normalizedGameId)) {
+    QSet<QString> launchedMods;
+    auto launchMod = [&launchedMods](const QString& modId) {
+        const auto normalizedModId = modId.trimmed();
+        if (normalizedModId.isEmpty() || launchedMods.contains(normalizedModId)) {
             return;
         }
 
         const auto& mods = ModsIndex::get()->getMods();
-        const auto mod = std::find_if(mods.begin(), mods.end(), [&normalizedGameId](const ModsIndex::Mod& candidate) {
-            return QString::fromStdString(candidate.id) == normalizedGameId;
+        const auto mod = std::find_if(mods.begin(), mods.end(), [&normalizedModId](const ModsIndex::Mod& candidate) {
+            return QString::fromStdString(candidate.id) == normalizedModId;
         });
         if (mod == mods.end()) {
-            qWarning() << "Could not launch game; no installed game has ID:" << normalizedGameId;
+            qWarning() << "Could not launch mod; no installed mod has ID:" << normalizedModId;
             return;
         }
 
-        launchedGames.insert(normalizedGameId);
+        launchedMods.insert(normalizedModId);
         try {
             auto modToLaunch = *mod;
             SessionManager::launch(
                 modToLaunch,
                 []() {},
-                [normalizedGameId, &launchedGames]() {
-                    launchedGames.remove(normalizedGameId);
+                [normalizedModId, &launchedMods]() {
+                    launchedMods.remove(normalizedModId);
                 }
             );
         } catch (const std::exception& exception) {
-            launchedGames.remove(normalizedGameId);
-            qWarning() << "Could not launch game" << normalizedGameId << ":" << exception.what();
+            launchedMods.remove(normalizedModId);
+            qWarning() << "Could not launch mod" << normalizedModId << ":" << exception.what();
         }
     };
 
-    const auto initialGameId = parser.value(gameOption);
-    if (!initialGameId.isEmpty()) {
-        launchGame(initialGameId);
+    const auto initialModId = parser.value(modOption);
+    if (!initialModId.isEmpty()) {
+        launchMod(initialModId);
     }
 
     std::unique_ptr<MainWindow> window = std::make_unique<MainWindow>();
     window->setWindowIcon(QIcon(":/app-icon.png"));
-    if (initialGameId.isEmpty()) {
+    if (initialModId.isEmpty()) {
         window->show();
     }
 
@@ -227,12 +227,12 @@ QComboBox {
     QObject::connect(&app, &ProfileSingleApp::messageReceivedFromSecondary, [&](const QStringList &args) {
         qDebug() << "Received focus request or arguments from secondary instance:" << args;
         QCommandLineParser secondaryParser;
-        secondaryParser.addOption(gameOption);
+        secondaryParser.addOption(modOption);
         secondaryParser.process(args);
 
-        const auto secondaryGameId = secondaryParser.value(gameOption);
-        if (!secondaryGameId.isEmpty()) {
-            launchGame(secondaryGameId);
+        const auto secondaryModId = secondaryParser.value(modOption);
+        if (!secondaryModId.isEmpty()) {
+            launchMod(secondaryModId);
         }
 
         else if (window) {

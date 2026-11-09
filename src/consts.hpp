@@ -25,6 +25,7 @@ inline constexpr auto STK_DISPLAYNAME = "displayName";
 inline constexpr auto STK_PFP = "profileImage";
 inline constexpr auto STK_RECENTLIST = "recentList";
 inline constexpr auto STK_LANGUAGE = "lang";
-
+inline constexpr auto STK_DO_CENTRALIZED_DELTA = "doCentralizedDelta";
+inline constexpr auto STK_CENTRAL_DELTA_PATH = "centralDeltaPath";
 
 #endif

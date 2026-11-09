@@ -346,7 +346,7 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   connect(createShortcutButton, &Button::clicked, this, [this](){
     if (m_displayingMod.has_value()) {
       auto mod = m_displayingMod.value();
-      auto launchArgument = QString("--game=%1").arg(QString::fromStdString(mod.id));
+      auto launchArgument = QString("--mod %1").arg(QString::fromStdString(mod.id));
       auto iconPath = QString::fromStdString(mod.getIconPath());
       if (createDesktopShortcut(QString::fromStdString(mod.name), launchArgument, iconPath)) {
         Dialog::showActionDialog(getMainWindow(), tr("Shortcut created"), tr("A desktop shortcut for this mod has been created."), "", Dialog::Confirm);
