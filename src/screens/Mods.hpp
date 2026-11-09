@@ -50,7 +50,6 @@ private:
 
 class ModsScreen : public QWidget {
   Q_OBJECT
-  QWidget* m_modsListPage = nullptr;
   QWidget* m_listContent = nullptr;
   QWidget* m_listContentPlaceholder = nullptr;
   QStackedWidget* m_listContentStack = nullptr;

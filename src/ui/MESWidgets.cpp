@@ -297,16 +297,16 @@ Dialog::Dialog(const QString& title,
 }
 
 bool Dialog::eventFilter(QObject* watched, QEvent* event) {
-    if (event->type() == QEvent::MouseButtonPress) {
-        auto* mouseEvent = static_cast<QMouseEvent*>(event);
-        if (mouseEvent->button() == Qt::LeftButton) {
-            if (windowHandle()) {
-                windowHandle()->startSystemMove();
-                return true;
-            }
-        }
+  if (event->type() == QEvent::MouseButtonPress) {
+    auto* mouseEvent = static_cast<QMouseEvent*>(event);
+    if (mouseEvent->button() == Qt::LeftButton) {
+      if (windowHandle()) {
+        windowHandle()->startSystemMove();
+        return true;
+      }
     }
-    return QDialog::eventFilter(watched, event);
+  }
+  return QDialog::eventFilter(watched, event);
 }
 inline QColor editColor(QColor base, float a) {
   base.setAlphaF(a);
@@ -317,8 +317,12 @@ inline QColor editColor(QColor base, float a) {
 void Dialog::closeEvent(QCloseEvent* event) {
   if (m_content) {
     event->setAccepted(m_content->allowClosing());
+    if (m_content->allowClosing()) {
+      reject();
+    }
     return;
   }
+  reject();
 }
 void Dialog::paintEvent(QPaintEvent* /*event*/) {
   static const int titleBarHeight = TITLE_BAR_HEIGHT;

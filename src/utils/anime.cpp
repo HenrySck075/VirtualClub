@@ -58,5 +58,6 @@ namespace anime {
     animgroup->addAnimation(fadeAnim);
     animgroup->start(QAbstractAnimation::DeleteWhenStopped);
 
+    return animgroup;
   }
 }

@@ -89,9 +89,12 @@ int main(int argc, char *argv[]) {
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
 
-    if (PyStatus_Exception(PyConfig_SetString(&config, &config.home, QCoreApplication::applicationDirPath().toStdWString().c_str()))) {
-      throw std::runtime_error("Failed to set Python home directory");
-    };
+    auto appDir = QCoreApplication::applicationDirPath();
+    if (QDir(appDir + "/lib").exists() || QDir(appDir + "/Lib").exists()) {
+      if (PyStatus_Exception(PyConfig_SetString(&config, &config.home, appDir.toStdWString().c_str()))) {
+        throw std::runtime_error("Failed to set Python home directory");
+      };
+    }
 
     py::initialize_interpreter(&config);
 
@@ -122,8 +125,23 @@ QLineEdit {
   padding: 4px;
 }
 
+QScrollBar {
+  background-color: transparent;
+}
+QScrollBar:vertical {
+  width: 14px;
+  margin: 4px 7px 4px 0px;
+}
+QScrollBar:horizontal {
+  height: 14px;
+  margin: 0px 4px 7px 4px;
+}
 QScrollBar::handle {
-  background: %1;
+  background-color: %1;
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+  width: 0px;
+  height: 0px;
 }
 
 QComboBox {

@@ -91,6 +91,7 @@ void MainWindow::initUI() {
 
   addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen());
   addActionItem(LucideIcons::users, translateNoop("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
+  m_router->navigate("/");
 
   //connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
 
@@ -146,7 +147,7 @@ SidebarItem* MainWindow::addNavigationItem(QIcon icon, QString name, SidebarPosi
   addSidebarItemToRetranslate(item);
 
   m_navigationMap[item] = route;
-  widget->setProperty("__sidebarItem", QVariant::fromValue<void*>(item));
+  widget->setProperty("__sidebarItem", QVariant::fromValue<SidebarItem*>(item));
   m_router->addFixedRoute(route, widget, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
   connect(item, &SidebarItem::clicked, this, [this, route, item](){
     if (item->property("__mvcSkipNavigate").toBool()) return;

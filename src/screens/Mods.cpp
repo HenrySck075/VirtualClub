@@ -4,12 +4,10 @@
 #include "../ui/IconButton.hpp"
 #include "../ui/MESWidgets.hpp"
 #include "../utils/LucideIcons.hpp"
-#include "../utils/anime.hpp"
 #include "../MainWindow.hpp"
 
 #include "../utils/utils.hpp"
 #include "../utils/macros.h"
-#include "ModInfo.hpp"
 #include "utils/EventFilters.hpp"
 #include "utils/ModIndex.hpp"
 
@@ -22,6 +20,7 @@
 #include <QFileDialog>
 #include <QSharedPointer>
 #include <QLineEdit>
+#include <qtextlayout.h>
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current.hpp>
 #include <cpptrace/from_current_macros.hpp>
@@ -37,6 +36,8 @@ DesktopIconWidget::DesktopIconWidget(const QPixmap &icon, const QString &label,
 
   // Windows icons are typically fixed in size inside a grid
   setFixedSize(80, 90);
+
+  setToolTip(label);
 }
 bool DesktopIconWidget::isSelected() const { return m_isSelected; }
 void DesktopIconWidget::setSelected(bool selected) {
@@ -89,18 +90,70 @@ void DesktopIconWidget::paintEvent(QPaintEvent *event) {
   painter.drawPixmap(iconX, iconY, scaledIcon);
 
   // 3. Draw Label (Centered below icon, multi-line wrapping)
-  QRect labelRect(4, iconY + iconSize + 4, width() - 8,
+  QRect labelRect(4, iconY + iconSize + 12, width() - 8,
                   height() - (iconY + iconSize + 6));
+  QTextLayout textLayout(m_label, painter.font());
+  QTextOption textOption;
+  textOption.setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+  textOption.setWrapMode(QTextOption::WordWrap);
+  textLayout.setTextOption(textOption);
 
-  // Windows desktop labels typically have white text with a soft shadow over
-  // dynamic backgrounds
-  painter.setPen(QColor(0, 0, 0, 160)); // Text shadow
-  painter.drawText(labelRect.translated(1, 1),
-                   Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap, m_label);
+  textLayout.beginLayout();
+  qreal currentY = 0;
 
-  painter.setPen(Qt::white); // Main text
-  painter.drawText(labelRect,
-                   Qt::AlignHCenter | Qt::AlignTop | Qt::TextWordWrap, m_label);
+  struct LineData {
+    QTextLine line;
+    qreal yPos;
+    qreal xPos;
+  };
+  QVector<LineData> visibleLines;
+
+  while (true) {
+    QTextLine line = textLayout.createLine();
+    if (!line.isValid())
+      break;
+
+    line.setLineWidth(labelRect.width());
+
+    // Check if this line fits within the allowed label height
+    if (currentY + line.height() > labelRect.height() + 7) {
+      break; 
+    }
+
+    qreal x = (labelRect.width() - line.naturalTextWidth()) / 2;
+
+    visibleLines.append({line, currentY, x});
+    currentY += line.height();
+  }
+  textLayout.endLayout();
+
+  // Draw each visible line
+  for (int i = 0; i < visibleLines.size(); ++i) {
+    const auto &data = visibleLines[i];
+    QTextLine line = data.line;
+    QString lineText = m_label.mid(line.textStart(), line.textLength());
+    qreal lineX = data.xPos;
+
+    // If this is the last visible line and there is still text remaining, elide it
+    if (i == visibleLines.size() - 1 && (line.textStart() + line.textLength() < m_label.length())) {
+      QFontMetrics metrics(painter.font());
+      lineText = metrics.elidedText(lineText, Qt::ElideRight, labelRect.width());
+      if (!lineText.endsWith("...")) {
+        lineText = lineText.trimmed() + "...";
+      }
+      lineX = (labelRect.width() - metrics.horizontalAdvance(lineText)) / 2.0; // Recalculate xPos for elided text
+    }
+
+    QPointF linePos(labelRect.left() + lineX, labelRect.top() + data.yPos);
+
+    // Draw text shadow
+    painter.setPen(QColor(0, 0, 0, 160));
+    painter.drawText(linePos + QPointF(1, 1), lineText);
+
+    // Draw main text
+    painter.setPen(Qt::white);
+    painter.drawText(linePos, lineText);
+  }
 }
 void DesktopIconWidget::enterEvent(QEnterEvent *event) {
   m_isHovered = true;
@@ -145,17 +198,13 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
   // Set up the layout for the Mods screen
   auto *layout = new QVBoxLayout(this);
   static const int margin = 24;
-  layout->setContentsMargins(0,0,0,0);
 
-  m_modsListPage = new QWidget(this);
-
-  auto *modsListPageLayout = new QVBoxLayout(m_modsListPage);
-  modsListPageLayout->setContentsMargins(margin, margin, margin, margin);
-  modsListPageLayout->setSpacing(4);
-  modsListPageLayout->setAlignment(Qt::AlignTop);
+  layout->setContentsMargins(margin, margin, margin, margin);
+  layout->setSpacing(4);
+  layout->setAlignment(Qt::AlignTop);
 
 
-  auto* hcs = new QStackedWidget(m_modsListPage);
+  auto* hcs = new QStackedWidget(this);
   m_headerContentStack = hcs;
   m_headerContentStack->setObjectName("header");
   m_headerContentStack->setStyleSheet(
@@ -163,7 +212,7 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
   );
   m_headerContentStack->setFixedHeight(40);
   m_headerContentStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-  modsListPageLayout->addWidget(m_headerContentStack);
+  layout->addWidget(m_headerContentStack);
 
   m_headerContent = new QWidget();
   m_headerContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -237,7 +286,7 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
 
   m_listContentStack = new QStackedWidget();
   m_listContentStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  modsListPageLayout->addWidget(m_listContentStack);
+  layout->addWidget(m_listContentStack);
 
 
   QLabel* lcp = new QLabel(tr("Install new mods by pressing the + button"));

@@ -42,6 +42,10 @@ class SaveSelectDialogContent : public DialogContent {
   ModsIndex::Mod m_mod;
 
   QPointer<::ModInfoScreen> m_modInfoScreen;
+protected:
+  void resizeEvent(QResizeEvent *event) override;
+signals:
+  void resized();
 public:
   // Get the folder where Ren'Py store every game's save data.
   static std::filesystem::path getRenpySaveDirectory();

@@ -134,32 +134,43 @@ SaveSelectDialogContent::SaveSelectDialogContent(const ModsIndex::Mod &mod,
     }
   }
 
+  std::sort(saveFiles.begin(), saveFiles.end(),
+            [](const std::filesystem::path &a, const std::filesystem::path &b) {
+              return a.filename() < b.filename();
+            });
+
   if (saveFiles.empty()) {
-    auto *label = new QLabel(tr("No saves found. Remember to create some on "
+    auto* label = new QLabel(tr("No saves found. Remember to create some on "
                                 "your playthroughs, it will be helpful :)"));
     label->setAlignment(Qt::AlignCenter);
     label->setWordWrap(true);
-    auto *layout = new QVBoxLayout(this);
+    auto* layout = new QVBoxLayout(this);
     layout->addWidget(label);
   } else {
-    auto *scrollArea = new QScrollArea(this);
+    auto* scrollArea = new QScrollArea(this);
     scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setWidgetResizable(true);
 
-    auto *savesList = new QWidget();
+    auto* savesList = new QWidget();
     scrollArea->setWidget(savesList);
-    auto *layout = new FlowLayout(savesList, 4);
+    connect(this, &SaveSelectDialogContent::resized, this, [this, savesList, scrollArea]() {
+      scrollArea->setFixedSize(size());
+    });
+
+    //scrollArea->setWidgetResizable(true);
+    auto* layout = new FlowLayout(savesList, 4);
 
     for (const auto &savePath : saveFiles) {
       auto zip_filename = savePath.string();
 
-      auto *zip_archive = zip_open(zip_filename.c_str(), 0, 'r');
+      auto* zip_archive = zip_open(zip_filename.c_str(), 0, 'r');
 
-      auto *thumbnailWidget = new PixmapWidget();
+      auto* thumbnailWidget = new PixmapWidget();
       thumbnailWidget->setFixedSize({256, 144});
 
       std::string saveName = savePath.filename().string();
       {
-        void *buffer;
+        void* buffer;
         size_t bufsize;
 
         zip_entry_open(zip_archive, "screenshot.png");
@@ -174,7 +185,7 @@ SaveSelectDialogContent::SaveSelectDialogContent(const ModsIndex::Mod &mod,
       }
 
       {
-        void *buffer;
+        void* buffer;
         size_t bufsize;
 
         // Get additional data just in case
@@ -225,6 +236,10 @@ SaveSelectDialogContent::SaveSelectDialogContent(const ModsIndex::Mod &mod,
     }
   }
 };
+
+void SaveSelectDialogContent::resizeEvent(QResizeEvent *event) {
+  emit resized();
+}
 } // namespace detail
 
 ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent), m_router(router) {
@@ -307,7 +322,7 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
     m_playFromSaveButton->setToolTip(tr("Start the mod from save file"));
   });
   connect(m_playFromSaveButton, &Button::clicked, [this](){
-    Dialog::showContentDialog(getMainWindow(), tr("Select save"), new detail::SaveSelectDialogContent(m_displayingMod.value(), this), {900,600});
+    Dialog::showContentDialog(getMainWindow(), tr("Select save"), new detail::SaveSelectDialogContent(m_displayingMod.value(), this), {860,600});
   });
   contentLayout->addWidget(m_playFromSaveButton);
 
