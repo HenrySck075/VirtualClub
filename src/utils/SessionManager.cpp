@@ -283,5 +283,11 @@ bool SessionManager::hasMountedMod() {
 bool SessionManager::hasPlayingMod() {
   return false;
 }
+size_t SessionManager::countMountedMods() {
+  return 0;
+}
+size_t SessionManager::countPlayingMods() {
+  return 0;
+}
 #endif
 

@@ -92,7 +92,7 @@ void MainWindow::initUI() {
   addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen());
   addActionItem(LucideIcons::users, translateNoop("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
 
-  connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
+  //connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
 
   m_rootWidget->show();
 }
@@ -110,10 +110,17 @@ void MainWindow::routeTransitionHandler(QWidget* outgoing, QWidget* incoming, st
    
     int oidx = oldItem ? m_sidebar->itemPositionOf(oldItem) : -1;
     int nidx = m_sidebar->itemPositionOf(newItem);
+    if (oidx == nidx) return;
 
     bool ttbDirection = oidx > nidx; // top-to-bottom if true (oldItem pos > newItem pos), else bottom-to-top
     
     direction = ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up;
+
+    if (newItem) {
+      newItem->setProperty("__mvcSkipNavigate", true);
+      newItem->click();
+      newItem->setProperty("__mvcSkipNavigate", false);
+    }
   }
 
   auto anim = anime::slideFade(incoming, direction); 
@@ -141,6 +148,10 @@ SidebarItem* MainWindow::addNavigationItem(QIcon icon, QString name, SidebarPosi
   m_navigationMap[item] = route;
   widget->setProperty("__sidebarItem", QVariant::fromValue<void*>(item));
   m_router->addFixedRoute(route, widget, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+  connect(item, &SidebarItem::clicked, this, [this, route, item](){
+    if (item->property("__mvcSkipNavigate").toBool()) return;
+    m_router->navigate(route);
+  });
   connect(widget, &QWidget::windowTitleChanged, this, [this, widget](){
     if (widget->isVisible())
     //if (m_stackedWidget->currentWidget() == widget) {

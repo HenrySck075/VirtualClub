@@ -22,93 +22,74 @@
 
 #include <QVariantAnimation>
 
-class SSDCItem : public QWidget {
-  Q_OBJECT
-signals:
-  void clicked();
-private:
-  QPointer<PixmapWidget> m_thumbnail;
-  QString m_name;
-  QString m_dateTimeStr;
+namespace detail {
+SSDCItem::SSDCItem(PixmapWidget *thumbnail, const QString &name,
+                           const QString &dateTimeStr, QWidget *parent)
+    : QWidget(parent), m_thumbnail(thumbnail), m_name(name),
+      m_dateTimeStr(dateTimeStr) {
+  m_hoverAnimation = new QVariantAnimation(this);
+  m_hoverAnimation->setStartValue(0.0);
+  m_hoverAnimation->setEndValue(1.0);
+  m_hoverAnimation->setDuration(100);
 
-  float m_hoverAnimationTimer = 0.0;
-  QVariantAnimation* m_hoverAnimation;
-public:
-  explicit SSDCItem(PixmapWidget* thumbnail, const QString& name, const QString& dateTimeStr, QWidget* parent = nullptr)
-    : QWidget(parent), m_thumbnail(thumbnail), m_name(name), m_dateTimeStr(dateTimeStr) {
-      m_hoverAnimation = new QVariantAnimation(this);
-      m_hoverAnimation->setStartValue(0.0);
-      m_hoverAnimation->setEndValue(1.0);
-      m_hoverAnimation->setDuration(100);
+  connect(m_hoverAnimation, &QVariantAnimation::valueChanged, this,
+          [this](const QVariant &value) {
+            m_hoverAnimationTimer = value.toFloat();
+            update();
+          });
 
-      connect(m_hoverAnimation, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
-        m_hoverAnimationTimer = value.toFloat();
-        update();
-      });
+  auto *layout = new QVBoxLayout(this);
+  layout->setContentsMargins(8, 8, 8, 8);
+  layout->setSpacing(2);
+  layout->setAlignment(Qt::AlignTop);
+  m_thumbnail->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  layout->addWidget(m_thumbnail);
+  auto *nameLabel = new QLabel(name);
+  nameLabel->setFont(QFont("Quicksand", 10, QFont::DemiBold));
+  nameLabel->setAlignment(Qt::AlignCenter);
+  layout->addWidget(nameLabel);
+  auto *dateTimeLabel = new QLabel(dateTimeStr);
+  dateTimeLabel->setFont(QFont("Quicksand", 9));
+  dateTimeLabel->setAlignment(Qt::AlignCenter);
+  layout->addWidget(dateTimeLabel);
 
-      auto* layout = new QVBoxLayout(this);
-      layout->setContentsMargins(8,8,8,8);
-      layout->setSpacing(2);
-      layout->setAlignment(Qt::AlignTop);
-      m_thumbnail->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-      layout->addWidget(m_thumbnail);
-      auto* nameLabel = new QLabel(name);
-      nameLabel->setFont(QFont("Quicksand", 10, QFont::DemiBold));
-      nameLabel->setAlignment(Qt::AlignCenter);
-      layout->addWidget(nameLabel);
-      auto* dateTimeLabel = new QLabel(dateTimeStr);
-      dateTimeLabel->setFont(QFont("Quicksand", 9));
-      dateTimeLabel->setAlignment(Qt::AlignCenter);
-      layout->addWidget(dateTimeLabel);
-
-      // lazy bum
-      for (QWidget *child : findChildren<QWidget*>()) {
-        child->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-      }
-    };
-protected:
-  void mouseReleaseEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
-      qDebug() << "balls";
-      emit clicked();
-    }
-
-    QWidget::mouseReleaseEvent(event);
-  }
-  void enterEvent(QEnterEvent* event) override {
-    m_hoverAnimation->setDirection(QAbstractAnimation::Forward);
-    m_hoverAnimation->start();
-    QWidget::enterEvent(event);
-  }
-  void leaveEvent(QEvent* event) override {
-    m_hoverAnimation->setDirection(QAbstractAnimation::Backward);
-    m_hoverAnimation->start();
-    QWidget::leaveEvent(event);
-  }
-
-  // only need to paint a pink background.
-  // except this rectangle is 8px bigger than the widget
-  void paintEvent(QPaintEvent* event) override {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    if (m_hoverAnimationTimer > 0.0) {
-      QColor hoverColor = QColor(241, 126, 187, static_cast<int>(m_hoverAnimationTimer * 100));
-      painter.fillRect(rect(), hoverColor);
-    }
+  // lazy bum
+  for (QWidget *child : findChildren<QWidget *>()) {
+    child->setAttribute(Qt::WA_TransparentForMouseEvents, true);
   }
 };
+void SSDCItem::mouseReleaseEvent(QMouseEvent *event) {
+  if (event->button() == Qt::LeftButton) {
+    qDebug() << "balls";
+    emit clicked();
+  }
 
-class ModInfoScreen;
-class SaveSelectDialogContent : public DialogContent {
-  Q_OBJECT
-  ModsIndex::Mod m_mod;
+  QWidget::mouseReleaseEvent(event);
+}
+void SSDCItem::enterEvent(QEnterEvent *event) {
+  m_hoverAnimation->setDirection(QAbstractAnimation::Forward);
+  m_hoverAnimation->start();
+  QWidget::enterEvent(event);
+}
+void SSDCItem::leaveEvent(QEvent *event) {
+  m_hoverAnimation->setDirection(QAbstractAnimation::Backward);
+  m_hoverAnimation->start();
+  QWidget::leaveEvent(event);
+}
+void SSDCItem::paintEvent(QPaintEvent *event) {
+  Q_UNUSED(event);
+  QPainter painter(this);
+  painter.setRenderHint(QPainter::Antialiasing);
 
-  QPointer<ModInfoScreen> m_modInfoScreen;
-public:
-  // Get the folder where Ren'Py store every game's save data.
-  static std::filesystem::path getRenpySaveDirectory() {
+  if (m_hoverAnimationTimer > 0.0) {
+    QColor hoverColor =
+        QColor(241, 126, 187, static_cast<int>(m_hoverAnimationTimer * 100));
+    painter.fillRect(rect(), hoverColor);
+  }
+}
+
+
+std::filesystem::path SaveSelectDialogContent::getRenpySaveDirectory() {
 #if 0
 #ifdef Q_OS_WIN
     return std::filesystem::path(std::getenv("APPDATA")) / "RenPy";
@@ -118,118 +99,133 @@ public:
     return std::filesystem::path(std::getenv("HOME")) / ".renpy";
 #endif
 #endif
-    return std::filesystem::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()) / "saves";
+  return std::filesystem::path(
+             QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                 .toStdString()) /
+         "saves";
+}
+SaveSelectDialogContent::SaveSelectDialogContent(const ModsIndex::Mod &mod,
+                                                 ModInfoScreen *mic)
+    : m_mod(mod), m_modInfoScreen(mic) {
+  auto saveDir = getRenpySaveDirectory() / mod.id;
+  auto fallbackSaveDir = std::filesystem::path(mod.modPath) / "game" / "saves";
+
+  // collect every "\d-\d-LT1.save" files in both folders (sorted)
+  std::vector<std::filesystem::path> saveFiles;
+  if (std::filesystem::exists(saveDir)) {
+    for (const auto &entry : std::filesystem::directory_iterator(saveDir)) {
+      if (entry.is_regular_file() && entry.path().extension() == ".save") {
+        saveFiles.push_back(entry.path());
+      }
+    }
   }
-  explicit SaveSelectDialogContent(const ModsIndex::Mod& mod, ModInfoScreen* mic) : m_mod(mod), m_modInfoScreen(mic) {
-    auto saveDir = getRenpySaveDirectory() / mod.id;
-    auto fallbackSaveDir = std::filesystem::path(mod.modPath) / "game" / "saves";
-
-    // collect every "\d-\d-LT1.save" files in both folders (sorted)
-    std::vector<std::filesystem::path> saveFiles;
-    if (std::filesystem::exists(saveDir)) {
-      for (const auto& entry : std::filesystem::directory_iterator(saveDir)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".save") {
-          saveFiles.push_back(entry.path());
-        }
+  if (std::filesystem::exists(fallbackSaveDir)) {
+    for (const auto &entry :
+         std::filesystem::directory_iterator(fallbackSaveDir)) {
+      // same check, plus if the exact same filename is already in saveFiles
+      // (remember, entry.path() returns a whole path)
+      if (entry.is_regular_file() && entry.path().extension() == ".save" &&
+          std::find_if(saveFiles.begin(), saveFiles.end(),
+                       [&](const std::filesystem::path &p) {
+                         return p.filename() == entry.path().filename();
+                       }) == saveFiles.end()) {
+        saveFiles.push_back(entry.path());
       }
     }
-    if (std::filesystem::exists(fallbackSaveDir)) {
-      for (const auto& entry : std::filesystem::directory_iterator(fallbackSaveDir)) {
-        // same check, plus if the exact same filename is already in saveFiles
-        // (remember, entry.path() returns a whole path)
-        if (entry.is_regular_file() && entry.path().extension() == ".save" &&
-            std::find_if(saveFiles.begin(), saveFiles.end(), [&](const std::filesystem::path& p) {
-              return p.filename() == entry.path().filename();
-            }) == saveFiles.end()) {
-          saveFiles.push_back(entry.path());
+  }
+
+  if (saveFiles.empty()) {
+    auto *label = new QLabel(tr("No saves found. Remember to create some on "
+                                "your playthroughs, it will be helpful :)"));
+    label->setAlignment(Qt::AlignCenter);
+    label->setWordWrap(true);
+    auto *layout = new QVBoxLayout(this);
+    layout->addWidget(label);
+  } else {
+    auto *scrollArea = new QScrollArea(this);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+
+    auto *savesList = new QWidget();
+    scrollArea->setWidget(savesList);
+    auto *layout = new FlowLayout(savesList, 4);
+
+    for (const auto &savePath : saveFiles) {
+      auto zip_filename = savePath.string();
+
+      auto *zip_archive = zip_open(zip_filename.c_str(), 0, 'r');
+
+      auto *thumbnailWidget = new PixmapWidget();
+      thumbnailWidget->setFixedSize({256, 144});
+
+      std::string saveName = savePath.filename().string();
+      {
+        void *buffer;
+        size_t bufsize;
+
+        zip_entry_open(zip_archive, "screenshot.png");
+        zip_entry_read(zip_archive, &buffer, &bufsize);
+        zip_entry_close(zip_archive);
+        QPixmap pixmap;
+        if (pixmap.loadFromData((unsigned char *)buffer,
+                                static_cast<int>(bufsize))) {
+          // renpy save screenshots is 256x144 i checked
+          thumbnailWidget->setPixmap(pixmap);
         }
       }
-    }
 
-    if (saveFiles.empty()) {
-      auto* label = new QLabel(tr("No saves found. Remember to create some on your playthroughs, it will be helpful :)"));
-      label->setAlignment(Qt::AlignCenter);
-      label->setWordWrap(true);
-      auto* layout = new QVBoxLayout(this);
-      layout->addWidget(label);
-    } else {
-      auto* scrollArea = new QScrollArea(this);
-      scrollArea->setFrameShape(QFrame::NoFrame);
+      {
+        void *buffer;
+        size_t bufsize;
 
-      auto* savesList = new QWidget();
-      scrollArea->setWidget(savesList);
-      auto* layout = new FlowLayout(savesList, 4);
+        // Get additional data just in case
+        // we just need to load this file (as json) for ["_save_name"]
+        zip_entry_open(zip_archive, "json");
+        zip_entry_read(zip_archive, &buffer, &bufsize);
+        zip_entry_close(zip_archive);
 
-      for (const auto& savePath : saveFiles) {
-        auto zip_filename = savePath.string();
-
-        auto* zip_archive = zip_open(zip_filename.c_str(), 0, 'r'); 
-
-        auto* thumbnailWidget = new PixmapWidget();
-        thumbnailWidget->setFixedSize({256, 144});
-
-        std::string saveName = savePath.filename().string();
-        {
-          void* buffer;
-          size_t bufsize;
-
-          zip_entry_open(zip_archive, "screenshot.png");
-          zip_entry_read(zip_archive, &buffer, &bufsize);
-          zip_entry_close(zip_archive);
-          QPixmap pixmap;
-          if (pixmap.loadFromData((unsigned char*)buffer, static_cast<int>(bufsize))) {
-            // renpy save screenshots is 256x144 i checked
-            thumbnailWidget->setPixmap(pixmap);
+        try {
+          std::vector<unsigned char> bufferVec(
+              (unsigned char *)buffer, (unsigned char *)buffer + bufsize);
+          auto jsonData = nlohmann::json::parse(bufferVec);
+          if (jsonData.contains("_save_name") &&
+              jsonData["_save_name"].is_string()) {
+            auto maybeSaveName = jsonData["_save_name"].get<std::string>();
+            if (!maybeSaveName.empty())
+              saveName = maybeSaveName;
           }
+        } catch (const std::exception &e) {
+          qDebug() << "Failed to parse JSON metadata in save file"
+                   << QString::fromStdString(zip_filename)
+                   << "because:" << e.what();
         }
-
-        {
-          void* buffer;
-          size_t bufsize;
-
-          // Get additional data just in case
-          // we just need to load this file (as json) for ["_save_name"]
-          zip_entry_open(zip_archive, "json");
-          zip_entry_read(zip_archive, &buffer, &bufsize);
-          zip_entry_close(zip_archive);
-
-          try {
-            std::vector<unsigned char> bufferVec((unsigned char*)buffer, (unsigned char*)buffer + bufsize);
-            auto jsonData = nlohmann::json::parse(bufferVec);
-            if (jsonData.contains("_save_name") && jsonData["_save_name"].is_string()) {
-              auto maybeSaveName = jsonData["_save_name"].get<std::string>();
-              if (!maybeSaveName.empty()) 
-                saveName = maybeSaveName;
-
-            }
-          } catch (const std::exception& e) {
-            qDebug() << "Failed to parse JSON metadata in save file" << QString::fromStdString(zip_filename) << "because:" << e.what();
-          }
-        }
-
-        zip_close(zip_archive);
-
-
-        QFileInfo fileInfo(QString::fromStdString(savePath.string()));
-        QString dateTimeStr = fileInfo.lastModified().toString("yyyy-MM-dd HH:mm:ss");
-
-        // saveId is the (numerical) part around the first dash of the save filename
-        const std::string suffix = "-LT1.save"; // presumably unchanged 
-        auto saveFilename = savePath.filename().string();
-        auto saveId = saveFilename.substr(0, saveFilename.size() - suffix.length());
-
-        auto* item = new SSDCItem(thumbnailWidget, QString::fromStdString(saveName), dateTimeStr);
-        connect(item, &SSDCItem::clicked, this, [this, saveId](){
-          if (m_modInfoScreen) {
-            m_modInfoScreen->play(QString::fromStdString(saveId));
-            closeDialog();
-          }
-        });
-        layout->addWidget(item);
       }
+
+      zip_close(zip_archive);
+
+      QFileInfo fileInfo(QString::fromStdString(savePath.string()));
+      QString dateTimeStr =
+          fileInfo.lastModified().toString("yyyy-MM-dd HH:mm:ss");
+
+      // saveId is the (numerical) part around the first dash of the save
+      // filename
+      const std::string suffix = "-LT1.save"; // presumably unchanged
+      auto saveFilename = savePath.filename().string();
+      auto saveId =
+          saveFilename.substr(0, saveFilename.size() - suffix.length());
+
+      auto *item = new SSDCItem(thumbnailWidget,
+                                QString::fromStdString(saveName), dateTimeStr);
+      connect(item, &SSDCItem::clicked, this, [this, saveId]() {
+        if (m_modInfoScreen) {
+          m_modInfoScreen->play(QString::fromStdString(saveId));
+          closeDialog();
+        }
+      });
+      layout->addWidget(item);
     }
-  };
+  }
 };
+} // namespace detail
 
 ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent), m_router(router) {
   // Set up the layout for the ModInfo screen
@@ -311,7 +307,7 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
     m_playFromSaveButton->setToolTip(tr("Start the mod from save file"));
   });
   connect(m_playFromSaveButton, &Button::clicked, [this](){
-    Dialog::showContentDialog(getMainWindow(), tr("Select save"), new SaveSelectDialogContent(m_displayingMod.value(), this), {900,600});
+    Dialog::showContentDialog(getMainWindow(), tr("Select save"), new detail::SaveSelectDialogContent(m_displayingMod.value(), this), {900,600});
   });
   contentLayout->addWidget(m_playFromSaveButton);
 
@@ -478,4 +474,4 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
 #endif
 }
 
-#include "ModInfo.moc"
+

@@ -9,7 +9,45 @@
 #include "../utils/FlowLayout.hpp"
 #include <QSoundEffect>
 
-class DesktopIconWidget;
+namespace detail {
+class DesktopIconWidget : public QWidget {
+    Q_OBJECT
+
+public:
+  explicit DesktopIconWidget(const QPixmap &icon, const QString &label,
+                             QWidget *parent = nullptr);
+
+  bool isSelected() const;
+  void setSelected(bool selected);
+
+  QString label() const;
+signals:
+  void clicked();
+  void doubleClicked();
+  void deselectOtherIconsEvent(DesktopIconWidget* icon);
+  void multiselectStart();
+  void multiselectEnd();
+  void selected(bool s);
+
+protected:
+  void paintEvent(QPaintEvent *event) override;
+  void enterEvent(QEnterEvent *event) override;
+  void leaveEvent(QEvent *event) override;
+  void mousePressEvent(QMouseEvent *event) override;
+  void mouseDoubleClickEvent(QMouseEvent *event) override;
+  QSize sizeHint() const override;
+
+private:
+  QPixmap m_icon;
+  QString m_label;
+  bool m_isHovered = false;
+  bool m_isSelected = false;
+
+  // putting this here for now
+  const bool m_doubleClickToOpen = true;
+};
+}
+
 class ModsScreen : public QWidget {
   Q_OBJECT
   QWidget* m_modsListPage = nullptr;
@@ -31,7 +69,7 @@ public:
 private:
   void addModItem(ModsIndex::Mod mod);
   void removeModItem(std::string modId);
-  void deselectOtherItems(DesktopIconWidget* selectedItem);
+  void deselectOtherItems(detail::DesktopIconWidget* selectedItem);
   void openModInfo(const ModsIndex::Mod& mod);
 
   void updateModsListDisplay();

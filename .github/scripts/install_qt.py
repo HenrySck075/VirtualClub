@@ -13,7 +13,7 @@ MODULES = [
 ]
 
 USER_AGENT = "Mozilla/5.0 (Linux; Android 11; SM-G970F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.105 Mobile Safari/537.36"
-VERSION = "6.11.2"
+VERSION = "6.12.0"
 VERSION_P = VERSION.replace(".", '')
 
 def install_qt():

@@ -282,57 +282,13 @@ else()
     set(PY_STDLIB_DEST "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}")
 endif()
 
-add_custom_command(
-    TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E remove_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/${PY_STDLIB_DEST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${Python_STDLIB}" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/${PY_STDLIB_DEST}"
-    COMMENT "Copying full Python standard library..."
-)
-set(PYTHON_UNWANTED_LIBS
-    "test"
-    "unittest"
-    "idlelib"
-    "turtledemo"
-    "ensurepip"
-    "venv"
-    "tkinter"
-    "sqlite3"
-    "email"
-    "html"
-    "http"
-    "xml"
-    "urllib"
-    "wsgiref"
-    "xmlrpc"
-    "multiprocessing"
-    "concurrent"
-    "asyncio"
-    "distutils"
-    "pydoc_data"
-    "lib2to3"
-    "ctypes"
-    "logging"
-    "json"
-    "imaplib.py"
-    "poplib.py"
-    "smtplib.py"
-    "telnetlib.py"
-    "webbrowser.py"
-    "pydoc.py"
-    "doctest.py"
-    "turtle.py"
-)
-foreach(LIB_ITEM ${PYTHON_UNWANTED_LIBS})
-    add_custom_command(
-        TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${PY_STDLIB_DEST}/${LIB_ITEM}"
-    )
-endforeach()
 install(
     DIRECTORY "${Python_STDLIB}/"
     DESTINATION "${PY_STDLIB_DEST}"
     USE_SOURCE_PERMISSIONS
     #TODO: dont do a duplicate here
+    PATTERN "__pycache__" EXCLUDE
+    PATTERN "site-packages" EXCLUDE
     PATTERN "test" EXCLUDE
     PATTERN "unittest" EXCLUDE
     PATTERN "idlelib" EXCLUDE
@@ -357,6 +313,14 @@ install(
     PATTERN "ctypes" EXCLUDE
     PATTERN "logging" EXCLUDE
     PATTERN "json" EXCLUDE
+    PATTERN "imaplib.py" EXCLUDE
+    PATTERN "poplib.py" EXCLUDE
+    PATTERN "smtplib.py" EXCLUDE
+    PATTERN "telnetlib.py" EXCLUDE
+    PATTERN "webbrowser.py" EXCLUDE
+    PATTERN "pydoc.py" EXCLUDE
+    PATTERN "doctest.py" EXCLUDE
+    PATTERN "turtle.py" EXCLUDE
 )
 
 # Install C-runtime DLL/SO only, skipping lib-dynload

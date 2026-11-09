@@ -75,6 +75,18 @@ const std::vector<ModsIndex::Mod>& ModsIndex::getMods() {
   return m_modsList;
 }
 
+const ModsIndex::Mod& ModsIndex::getModByID(std::string id) {
+  auto it = std::find_if(m_modsList.begin(), m_modsList.end(), [&id](const Mod& mod) {
+    return mod.id == id;
+  });
+
+  if (it != m_modsList.end()) {
+    return *it;
+  } else {
+    throw std::runtime_error("Mod with ID " + id + " not found.");
+  }
+}
+
 
 ModsIndex::~ModsIndex() { 
   QMap<QString, QVariant> mods;
