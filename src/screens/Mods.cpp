@@ -192,6 +192,9 @@ void DesktopIconWidget::mouseDoubleClickEvent(QMouseEvent *event) {
 QSize DesktopIconWidget::sizeHint() const { return {80, 90}; }
 } // namespace detail
 
+
+
+
 ModsScreen::ModsScreen(Router* router, QWidget *parent) 
   : QWidget(parent), m_router(router) {
   setWindowTitle("Mods");
@@ -227,9 +230,16 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
   connect(addModIcon, &IconButton::clicked, this, &ModsScreen::onAddModButtonClicked);
   headerLayout->addWidget(addModIcon);
 
+  auto* browseIcon = new IconButton(LucideIcons::globe);
+  browseIcon->setToolTip(tr("Browse mods"));
+  connect(browseIcon, &IconButton::clicked, this, [this](){
+    m_router->navigate("/mods/online");
+  });
+  headerLayout->addWidget(browseIcon);
+
   // headerLayout->addStretch();
   auto* searchBar = new QLineEdit();
-  searchBar->setPlaceholderText("Search mod (by name)");
+  searchBar->setPlaceholderText("Search mod");
   // on text edited (not submitted), filter mods grid by hidiing unmatched DesktopIconWidgets
   connect(searchBar, &QLineEdit::textEdited, this, [this](const QString& text){
     findChildWidgetBy(m_contentLayout, [this, text](QWidget* w){
@@ -336,22 +346,22 @@ void ModsScreen::enableMultiselectToolbar(bool enable) {
 }
 
 void ModsScreen::onItemSelected(bool s) {
-    if (!s) {
-      // check if any other icons are still selected
-      bool anySelected = false;
-      findChildWidgetBy(m_contentLayout, [&anySelected](QWidget* w){
-        if (auto icon = qobject_cast<detail::DesktopIconWidget*>(w)) {
-          if (icon->isSelected()) {
-            anySelected = true;
-            return true; // break the loop
-          }
+  if (!s) {
+    // check if any other icons are still selected
+    bool anySelected = false;
+    findChildWidgetBy(m_contentLayout, [&anySelected](QWidget* w){
+      if (auto icon = qobject_cast<detail::DesktopIconWidget*>(w)) {
+        if (icon->isSelected()) {
+          anySelected = true;
+          return true; // break the loop
         }
-        return false;
-      });
-      if (!anySelected) {
-        enableMultiselectToolbar(false);
       }
+      return false;
+    });
+    if (!anySelected) {
+      enableMultiselectToolbar(false);
     }
+  }
 
 }
 

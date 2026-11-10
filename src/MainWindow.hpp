@@ -20,6 +20,8 @@ class MainWindow : public QWidget {
   std::list<SidebarItem*> m_actionMap;
 
   QSystemTrayIcon* m_trayIcon = nullptr;
+
+  QString m_currentPath = "/home";
   
   struct {
     std::string currentBackground = "tokyo"; // for now
@@ -42,7 +44,8 @@ protected:
   void closeEvent(QCloseEvent* event) override;
 
   void onSelectedItemChanged(SidebarItem* oldItem, SidebarItem* newItem);
-  void routeTransitionHandler(QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished);
+  void routeTransitionHandler(QString path, QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished);
+  SidebarItem* sidebarItemForPath(QString& path);
 
   SidebarItem* addNavigationItem(QIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget);
   SidebarItem* addActionItem(QIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked);

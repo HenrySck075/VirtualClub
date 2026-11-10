@@ -383,7 +383,7 @@ bool Dialog::showActionDialog(QWidget* parent,
     if (!detailText.isEmpty()) {
         contentLayout->addSpacing(8);
         QLabel* detailLabel = new QLabel(detailText);
-        detailLabel->setFont(QFont("Quicksand", 11, QFont::Bold));
+        detailLabel->setFont(QFont("Quicksand", 11, QFont::Normal));
         detailLabel->setAlignment(Qt::AlignCenter);
         detailLabel->setWordWrap(true);
         contentLayout->addWidget(detailLabel);

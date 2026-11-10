@@ -9,7 +9,7 @@
 using RouteParams = QMap<QString, QString>;
 
 // Transition signature: takes outgoing widget, incoming widget, and a completion callback
-using TransitionHandler = std::function<void(QWidget *outgoing, QWidget *incoming, std::function<void()> onFinished)>;
+using TransitionHandler = std::function<void(QString path, QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished)>;
 using RouteFactory = std::function<QWidget* (const RouteParams&)>;
 
 /// Mininal enough router widget to display and "navigate between" multiple widgets.

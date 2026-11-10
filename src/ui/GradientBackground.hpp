@@ -14,4 +14,13 @@ protected:
     void paintEvent(QPaintEvent *event) override; 
 };
 
+class GradientBackgroundFilter : public QObject {
+protected:
+  bool eventFilter(QObject *obj, QEvent *event) override;
+};
+
+inline void setupGradientWidget(QWidget* widget) {
+  widget->installEventFilter(new GradientBackgroundFilter());
+}
+
 #endif

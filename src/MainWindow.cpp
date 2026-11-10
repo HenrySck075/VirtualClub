@@ -14,6 +14,7 @@
 #include "screens/Home.hpp"
 #include "screens/ModInfo.hpp"
 #include "screens/Mods.hpp"
+#include "screens/OnlineModsIndex.hpp"
 #include "screens/Settings.hpp"
 #include "screens/SwitchUserDialog.hpp"
 #include "ui/MESWidgets.hpp"
@@ -39,7 +40,7 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 }
 
 void MainWindow::setPageTitleBar(const QString& pageTitle) {
-  auto title = QString("VirtualClub Ren'Py Mod Manager - %1").arg(
+  auto title = QString("VirtualClub DDLC Mod Manager - %1").arg(
     ProfileSettings::get()->value(STK_DISPLAYNAME, ProfileSingleApp::instance()->profileId()).toString()
   );
 
@@ -79,35 +80,62 @@ void MainWindow::initUI() {
   m_mainContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   mainLayout->addWidget(m_mainContent);
 
-  addNavigationItem(LucideIcons::house, translateNoop("Sidebar", "Home"), SidebarPosition::Top, "/", new HomeScreen())->setSelected(true);
+  addNavigationItem(LucideIcons::house, translateNoop("Sidebar", "Home"), SidebarPosition::Top, "/home", new HomeScreen())->setSelected(true);
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, "/mods", new ModsScreen(m_router));
+  m_router->addFixedRoute("/mods/online", new OnlineModsIndexScreen(m_router), std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   m_router->addRoute("/mods/:id", [this](const RouteParams& params) {
     auto a = new ModInfoScreen(m_router);
     a->setDisplayingMod(ModsIndex::get()->getModByID(
       params["id"].toStdString()
     ));
     return a;
-  }, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+  }, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 
   addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen());
   addActionItem(LucideIcons::users, translateNoop("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
-  m_router->navigate("/");
+  m_router->navigate("/home");
 
   //connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
 
   m_rootWidget->show();
 }
 
-void MainWindow::routeTransitionHandler(QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished) {
+QString removeSuffix(const QString& str, const QString& suffix) {
+  if (str.endsWith(suffix)) {
+    return str.left(str.length() - suffix.length());
+  }
+  return str;
+}
+
+SidebarItem* MainWindow::sidebarItemForPath(QString& path) {
+  // check against only the top-level path segment
+  QString topLevelPath = "/" + path.split("/").value(1, "");
+
+  for (auto& [item, route] : m_navigationMap) {
+    if (route == topLevelPath) {
+      return item;
+    }
+  }
+  return nullptr;
+}
+
+void MainWindow::routeTransitionHandler(QString path, QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished) {
   anime::SlideDirection direction;
 
-  if (qobject_cast<ModInfoScreen*>(outgoing)) {
+  QString lastPath = removeSuffix(m_currentPath, "/");
+  m_currentPath = removeSuffix(path, "/");
+
+  if (m_currentPath == lastPath) return; 
+
+  // since lastPath and path are guaranteed not to be equal here, 
+  // these checks can be used safely without implementing more guards
+  if (lastPath.startsWith(path)) {
     direction = anime::SlideDirection::Right;
-  } else if (qobject_cast<ModInfoScreen*>(incoming)) {
+  } else if (path.startsWith(lastPath)) {
     direction = anime::SlideDirection::Left;
   } else {
-    SidebarItem* oldItem = outgoing ? outgoing->property("__sidebarItem").value<SidebarItem*>() : nullptr;
-    SidebarItem* newItem = incoming ? incoming->property("__sidebarItem").value<SidebarItem*>() : nullptr;
+    SidebarItem* oldItem = sidebarItemForPath(lastPath);
+    SidebarItem* newItem = sidebarItemForPath(path);
    
     int oidx = oldItem ? m_sidebar->itemPositionOf(oldItem) : -1;
     int nidx = m_sidebar->itemPositionOf(newItem);
@@ -118,8 +146,9 @@ void MainWindow::routeTransitionHandler(QWidget* outgoing, QWidget* incoming, st
     direction = ttbDirection ? anime::SlideDirection::Down : anime::SlideDirection::Up;
 
     if (newItem) {
+      oldItem->setSelected(false);
       newItem->setProperty("__mvcSkipNavigate", true);
-      newItem->click();
+      newItem->setSelected(true);
       newItem->setProperty("__mvcSkipNavigate", false);
     }
   }
@@ -129,6 +158,7 @@ void MainWindow::routeTransitionHandler(QWidget* outgoing, QWidget* incoming, st
   if (anim) {
     connect(anim, &QAbstractAnimation::finished, this, [this, incoming, onFinished](){
       if (onFinished) onFinished();
+      setPageTitleBar(incoming->windowTitle());
     });
   }
 
@@ -148,7 +178,7 @@ SidebarItem* MainWindow::addNavigationItem(QIcon icon, QString name, SidebarPosi
 
   m_navigationMap[item] = route;
   widget->setProperty("__sidebarItem", QVariant::fromValue<SidebarItem*>(item));
-  m_router->addFixedRoute(route, widget, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+  m_router->addFixedRoute(route, widget, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   connect(item, &SidebarItem::clicked, this, [this, route, item](){
     if (item->property("__mvcSkipNavigate").toBool()) return;
     m_router->navigate(route);

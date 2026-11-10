@@ -22,7 +22,7 @@ find_package(Python REQUIRED COMPONENTS Interpreter Development)
 message(STATUS "Python binary path: ${Python_EXECUTABLE}")
 
 # Find Qt6 components
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Svg LinguistTools)
 
 find_package(pybind11 REQUIRED CONFIG)
 
@@ -61,7 +61,7 @@ set_target_properties(${QT_CMAKE_EXPORT_NAMESPACE}::lupdate PROPERTIES
 
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES vi)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c") 
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp" "src/*.c" "src/*.hpp") 
 qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     #resources.qrc
@@ -127,7 +127,7 @@ FetchContent_MakeAvailable(yaml-cpp)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE yaml-cpp::yaml-cpp) # The library or executable that require yaml-cpp library
 # Link Qt6 libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia pybind11::embed)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::Svg pybind11::embed)
 
 set(IS_ANDROID FALSE)
 set(IS_TERMUX FALSE)

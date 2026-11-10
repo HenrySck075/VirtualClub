@@ -256,7 +256,8 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
     m_router->navigate("/mods");
   });
   layout->addWidget(navigation);
-  auto* header = new GradientBackground(this);
+  auto* header = new QWidget(this);
+  setupGradientWidget(header);
   layout->addWidget(header);
   static const int contentMargin = 16;
 
@@ -302,7 +303,8 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   updatePlaytimeLabel();
 #endif
 
-  auto* content = new GradientBackground(this);
+  auto* content = new QWidget(this);
+  setupGradientWidget(content);
   content->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
   layout->addWidget(content);
   auto* contentLayout = new FlowLayout(content);
@@ -367,7 +369,8 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   }
 #endif
 
-  auto* content2 = new GradientBackground(this);
+  auto* content2 = new QWidget(this);
+  setupGradientWidget(content2);
   content2->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
   layout->addWidget(content2);
   auto* contentLayout2 = new QVBoxLayout(content2);
@@ -488,5 +491,4 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
   updatePlaytimeLabel();
 #endif
 }
-
 

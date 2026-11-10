@@ -121,15 +121,24 @@ QSize FlowLayout::minimumSize() const
 //! [9]
 int FlowLayout::doLayout(const QRect &rect, bool testOnly) const
 {
+    struct LayoutItem {
+        QLayoutItem *item;
+        QSize size;
+        int spacing;
+    };
+
+    struct LayoutLine {
+        QList<LayoutItem> items;
+        int spacingBefore = 0;
+        int width = 0;
+        int height = 0;
+    };
+
     int left, top, right, bottom;
     getContentsMargins(&left, &top, &right, &bottom);
     QRect effectiveRect = rect.adjusted(+left, +top, -right, -bottom);
-    int x = effectiveRect.x();
-    int y = effectiveRect.y();
-    int lineHeight = 0;
-//! [9]
+    QList<LayoutLine> lines;
 
-//! [10]
     for (QLayoutItem *item : std::as_const(itemList)) {
         const QWidget *wid = item->widget();
         if (wid && wid->isHidden())
@@ -143,23 +152,61 @@ int FlowLayout::doLayout(const QRect &rect, bool testOnly) const
         if (spaceY == -1)
             spaceY = wid->style()->layoutSpacing(
                 QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Vertical);
-//! [10]
-//! [11]
-        int nextX = x + item->sizeHint().width() + spaceX;
-        if (nextX - spaceX > effectiveRect.right() && lineHeight > 0) {
-            x = effectiveRect.x();
-            y = y + lineHeight + spaceY;
-            nextX = x + item->sizeHint().width() + spaceX;
-            lineHeight = 0;
+
+        const QSize size = item->sizeHint();
+        if (lines.isEmpty())
+            lines.append(LayoutLine{});
+
+        LayoutLine *line = &lines.last();
+        const int gap = line->items.isEmpty() ? 0 : line->items.last().spacing;
+        if (!line->items.isEmpty() && line->width + gap + size.width() > effectiveRect.width()) {
+            lines.append(LayoutLine{});
+            lines.last().spacingBefore = spaceY;
+            line = &lines.last();
         }
 
-        if (!testOnly)
-            item->setGeometry(QRect(QPoint(x, y), item->sizeHint()));
-
-        x = nextX;
-        lineHeight = qMax(lineHeight, item->sizeHint().height());
+        if (!line->items.isEmpty())
+            line->width += line->items.last().spacing;
+        line->items.append({item, size, spaceX});
+        line->width += size.width();
+        line->height = qMax(line->height, size.height());
     }
-    return y + lineHeight - rect.y() + bottom;
+
+    int totalHeight = 0;
+    for (const LayoutLine &line : std::as_const(lines))
+        totalHeight += line.spacingBefore + line.height;
+
+    int y = effectiveRect.y();
+    if (!testOnly) {
+        const int extraHeight = effectiveRect.height() - totalHeight;
+        const Qt::Alignment verticalAlignment = alignment() & Qt::AlignVertical_Mask;
+        if (verticalAlignment.testFlag(Qt::AlignVCenter))
+            y += qMax(0, extraHeight / 2);
+        else if (verticalAlignment.testFlag(Qt::AlignBottom))
+            y += qMax(0, extraHeight);
+    }
+
+    for (const LayoutLine &line : std::as_const(lines)) {
+        y += line.spacingBefore;
+        int x = effectiveRect.x();
+        if (!testOnly) {
+            const int extraWidth = effectiveRect.width() - line.width;
+            const Qt::Alignment horizontalAlignment = alignment() & Qt::AlignHorizontal_Mask;
+            if (horizontalAlignment.testFlag(Qt::AlignHCenter))
+                x += qMax(0, extraWidth / 2);
+            else if (horizontalAlignment.testFlag(Qt::AlignRight))
+                x += qMax(0, extraWidth);
+        }
+
+        for (const LayoutItem &layoutItem : line.items) {
+            if (!testOnly)
+                layoutItem.item->setGeometry(QRect(QPoint(x, y), layoutItem.size));
+            x += layoutItem.size.width() + layoutItem.spacing;
+        }
+        y += line.height;
+    }
+
+    return totalHeight + top + bottom;
 }
 //! [11]
 //! [12]

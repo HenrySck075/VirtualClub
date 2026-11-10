@@ -1,6 +1,11 @@
 #pragma once
 #include <QLayout>
 #include <QWidget>
+#include <QNetworkAccessManager>
+
+#include <QFuture>
+#include <QPromise>
+#include <nlohmann/json.hpp>
 
 int findChildWidgetIndex(QLayout* layout, QWidget* child); 
 QWidget* findChildWidgetBy(QLayout* layout, std::function<bool(QWidget*)> predicate); 
@@ -18,7 +23,7 @@ std::string generate_uuid_v4();
 bool createDesktopShortcut(const QString &shortcutName,
                            const QString &launchArgument,
                            const QString &iconPath);
-
+QNetworkAccessManager* createNetworkAccessManager(QObject *context);
 #include <chrono>
 template <typename Rep, typename Period>
 std::string format_duration(std::chrono::duration<Rep, Period> d) {
@@ -52,3 +57,7 @@ std::string format_duration(std::chrono::duration<Rep, Period> d) {
 
     return result;
 }
+
+
+QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& url);
+QFuture<nlohmann::json> fetchJsonAsync(QNetworkAccessManager* manager, const QUrl& url);

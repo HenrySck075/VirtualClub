@@ -25,7 +25,8 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
   layout->setContentsMargins(margin, margin, margin, margin);
   layout->setSpacing(0);
 
-  auto* content = new GradientBackground(this);
+  auto* content = new QWidget(this);
+  setupGradientWidget(content);
   layout->addWidget(content);
   auto* contentLayout = new QVBoxLayout(content);
   static const int contentMargin = 16;

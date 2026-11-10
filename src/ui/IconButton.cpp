@@ -29,8 +29,7 @@ void IconButton::mouseReleaseEvent(QMouseEvent* event) {
     QPushButton::mouseReleaseEvent(event);
 }
 IconButton::IconButton(QIcon icon, QWidget *parent) : QPushButton(parent) {
-  setFixedWidth(40);
-  setMinimumHeight(36);
+  setFixedSize(40,32);
   // Setup animation (duration: 200 ms)
   m_fadeAnimation = new QPropertyAnimation(this, "hoverAlpha", this);
   //m_fadeAnimation->setDuration(200);
@@ -63,25 +62,34 @@ void IconButton::paintEvent(QPaintEvent *event) {
     static const int radius = 4;
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Only paint the background when visible
-    if (m_selected || m_hoverAnimationValue > 0) {
+    bool enabled = isEnabled();
+
+    // Only paint the background when visible and enabled
+    if (enabled && (m_selected || m_hoverAnimationValue > 0)) {
         QPainterPath path;
         path.addRoundedRect(rect(), radius+1, radius+1);
         painter.fillPath(path, QBrush(sm_iconHoverColor));
     }
 
-    // icons and the text. color is the interpolation between its default color and white with the value of the hover animation
+    // Determine icon color based on enabled state, selection, and animation
     QColor iconColor = sm_iconColor;
-    if (!m_selected) {
-      iconColor.setRedF(iconColor.redF() + (1.0 - iconColor.redF()) * (m_hoverAnimationValue / 255.0));
-      iconColor.setGreenF(iconColor.greenF() + (1.0 - iconColor.greenF()) * (m_hoverAnimationValue / 255.0));
-      iconColor.setBlueF(iconColor.blueF() + (1.0 - iconColor.blueF()) * (m_hoverAnimationValue / 255.0));
+    if (enabled) {
+        if (!m_selected) {
+          iconColor.setRedF(iconColor.redF() + (1.0 - iconColor.redF()) * (m_hoverAnimationValue / 255.0));
+          iconColor.setGreenF(iconColor.greenF() + (1.0 - iconColor.greenF()) * (m_hoverAnimationValue / 255.0));
+          iconColor.setBlueF(iconColor.blueF() + (1.0 - iconColor.blueF()) * (m_hoverAnimationValue / 255.0));
+        } else {
+          iconColor = QColorConstants::White;
+        }
     } else {
-      iconColor = QColorConstants::White;
+        // Convert to grayscale for disabled state
+        int gray = qGray(iconColor.rgb());
+        iconColor = QColor(gray, gray, gray, iconColor.alpha());
     }
+
     // Draw the icon
     if (!m_icon.isNull()) {
-        static const int iconSize = 20;
+        static const int iconSize = 18;
         QPixmap pixmap = m_icon.pixmap(iconSize, iconSize); // Adjust size
         QPixmap coloredPixmap(pixmap.size());
         coloredPixmap.fill(Qt::transparent);
@@ -94,13 +102,16 @@ void IconButton::paintEvent(QPaintEvent *event) {
         painter.drawPixmap((width() - iconSize) / 2, (height() - iconSize) / 2, coloredPixmap); // Adjust position
     }
 
-    // Draw a rounded border
-    QPen pen(m_hoverAnimationValue > 0 ? sm_iconHoverColor : sm_borderColor);
+    // Draw a rounded border (use a muted grayscale color when disabled)
+    QColor borderColor = enabled ? (m_hoverAnimationValue > 0 ? sm_iconHoverColor : sm_borderColor) 
+                                 : QColor(180, 180, 180, 120);
+    QPen pen(borderColor);
     pen.setWidth(2);
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
     painter.drawRoundedRect(rect().adjusted(1, 1, -1, -1), radius, radius); // Adjust for pen width
 }
+
 
 bool IconButton::event(QEvent *event) {
   if (event->type() == QEvent::ToolTip) {

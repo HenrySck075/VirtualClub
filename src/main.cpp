@@ -10,6 +10,7 @@
 #include <QFileDialog>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
+#include <QImageReader>
 #include <QSet>
 #include <algorithm>
 #include <memory>
@@ -66,7 +67,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(modOption);
     parser.addHelpOption();
     parser.process(app);
-
+qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
     QSettings qsettings;
 
     QString selectedProfile = parser.value(profileOption).trimmed();

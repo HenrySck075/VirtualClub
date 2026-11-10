@@ -57,7 +57,7 @@ void Router::navigate(const QString &path) {
   bool doDelete = !match.definition.fixedPath;
   incomingWidget->setProperty("__mvcr_delete", doDelete);
   if (transitionHandler) {
-    transitionHandler(outgoingWidget, incomingWidget, [this, outgoingWidget]() {
+    transitionHandler(path, outgoingWidget, incomingWidget, [this, outgoingWidget]() {
       m_stack->removeWidget(outgoingWidget);
       if (outgoingWidget->property("__mvcr_delete").toBool()) outgoingWidget->deleteLater();
     });

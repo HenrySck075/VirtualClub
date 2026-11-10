@@ -21,7 +21,8 @@ HomeScreen::HomeScreen(QWidget* parent) : QWidget(parent) {
   header->setStyleSheet("color: white; font-size: 25px; font-weight: bold;");
   header->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
   layout->addWidget(header);
-  auto* content = new GradientBackground(this);
+  auto* content = new QWidget(this);
+  setupGradientWidget(content);
   layout->addWidget(content);
 
   auto* contentLayout = new QVBoxLayout(content);

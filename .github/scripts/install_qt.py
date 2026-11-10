@@ -5,10 +5,9 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import subprocess
 
-# Define additional modules to fetch alongside core Qt (e.g., ["qtwebsockets", "qtsvg"])
 MODULES = [
     # "qtwebsockets",
-    # "qtsvg",
+    "qtimageformats",
     "qtmultimedia",
 ]
 
@@ -53,7 +52,7 @@ def install_qt():
         if not pkg_name.endswith(arch):
             continue
 
-        # 3. Determine if package is Core (qt.qt6.6120.<arch>) or a requested Module
+        # 3. Determine if package is Core or a requested Module
         clean_name = pkg_name[:-len(arch)].rstrip(".")
         parts = clean_name.split(".")
         
