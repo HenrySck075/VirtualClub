@@ -172,7 +172,7 @@ void addSidebarItemToRetranslate(SidebarItem* item) {
   addWidgetToRetranslateList(item);
 }
 
-SidebarItem* MainWindow::addNavigationItem(QIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget) {
+SidebarItem* MainWindow::addNavigationItem(LucideIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget) {
   auto item = m_sidebar->addSidebarItem(icon, name, position);
   addSidebarItemToRetranslate(item);
 
@@ -194,7 +194,7 @@ SidebarItem* MainWindow::addNavigationItem(QIcon icon, QString name, SidebarPosi
   return item;
 };
 
-SidebarItem* MainWindow::addActionItem(QIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked) {
+SidebarItem* MainWindow::addActionItem(LucideIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked) {
   auto item = m_sidebar->addSidebarItem(icon, name, position, false, false);
   addSidebarItemToRetranslate(item);
 

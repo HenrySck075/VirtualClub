@@ -114,7 +114,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
     initGlobalSfx();
 
     app.setStyleSheet(QString(R"(
-QLabel {
+QLabel, ElidedLabel {
   font-family: Quicksand, Segoe UI;
   color: %1;
 }

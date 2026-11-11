@@ -40,6 +40,11 @@ IconButton::IconButton(QIcon icon, QWidget *parent) : QPushButton(parent) {
 
   setCursor(Qt::PointingHandCursor);
 }
+
+IconButton::IconButton(LucideIcon icon, QWidget *parent)
+    : IconButton(icon.icon(), parent) {
+  m_lucideIcon = std::move(icon);
+}
 void IconButton::enterEvent(QEnterEvent *event) {
     Q_UNUSED(event);
     m_fadeAnimation->stop();
@@ -90,15 +95,21 @@ void IconButton::paintEvent(QPaintEvent *event) {
     // Draw the icon
     if (!m_icon.isNull()) {
         static const int iconSize = 18;
-        QPixmap pixmap = m_icon.pixmap(iconSize, iconSize); // Adjust size
+        QPixmap pixmap = m_lucideIcon
+            ? m_lucideIcon->pixmap(QSize(iconSize, iconSize), iconColor)
+            : m_icon.pixmap(iconSize, iconSize); // Adjust size
         QPixmap coloredPixmap(pixmap.size());
         coloredPixmap.fill(Qt::transparent);
-        QPainter iconPainter(&coloredPixmap);
-        iconPainter.setCompositionMode(QPainter::CompositionMode_Source);
-        iconPainter.drawPixmap(0, 0, pixmap);
-        iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        iconPainter.fillRect(coloredPixmap.rect(), iconColor);
-        iconPainter.end();
+        if (m_lucideIcon) {
+          coloredPixmap = pixmap;
+        } else {
+          QPainter iconPainter(&coloredPixmap);
+          iconPainter.setCompositionMode(QPainter::CompositionMode_Source);
+          iconPainter.drawPixmap(0, 0, pixmap);
+          iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+          iconPainter.fillRect(coloredPixmap.rect(), iconColor);
+          iconPainter.end();
+        }
         painter.drawPixmap((width() - iconSize) / 2, (height() - iconSize) / 2, coloredPixmap); // Adjust position
     }
 

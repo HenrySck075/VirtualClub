@@ -37,8 +37,18 @@ Button::Button(const QIcon& icon, QWidget* parent) : Button("", parent) {
   setIcon(icon);
 }
 
+Button::Button(const LucideIcon& icon, QWidget* parent) : Button("", parent) {
+  m_lucideIcon = icon;
+  setIcon(icon.icon());
+}
+
 Button::Button(const QString& text, const QIcon& icon, QWidget* parent) : Button(text, parent) {
   setIcon(icon);
+}
+
+Button::Button(const QString& text, const LucideIcon& icon, QWidget* parent) : Button(text, parent) {
+  m_lucideIcon = icon;
+  setIcon(icon.icon());
 }
 
 void Button::setTextColor(const QColor& color) {
@@ -125,14 +135,15 @@ void Button::paintEvent(QPaintEvent* event) {
                                            : QIcon::Disabled;
         QIcon::State iconState = isChecked() ? QIcon::On : QIcon::Off;
 
-        QPixmap px = btnIcon.pixmap(icSize, painter.device()->devicePixelRatio(), iconMode, iconState);
-
-        // Tint Icon
         QColor targetIconColor = isEnabled() ? c_secondaryColor : c_disabledColor;
-        QPainter pxPainter(&px);
-        pxPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        pxPainter.fillRect(px.rect(), targetIconColor);
-        pxPainter.end();
+        QPixmap px = m_lucideIcon
+            ? m_lucideIcon->pixmap(icSize, targetIconColor)
+            : btnIcon.pixmap(icSize, painter.device()->devicePixelRatio(), iconMode, iconState);
+        if (!m_lucideIcon) {
+            QPainter pxPainter(&px);
+            pxPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            pxPainter.fillRect(px.rect(), targetIconColor);
+        }
 
         painter.drawPixmap(iconRect, px);
         startX += icSize.width() + spacing;
@@ -239,7 +250,7 @@ Dialog::Dialog(const QString& title,
   titleLayout->addSpacing(1);
 
   QLabel* closeButton = new QLabel(titleBar);
-  closeButton->setPixmap(LucideIcons::x.pixmap({16, 16}));
+  closeButton->setPixmap(LucideIcons::x.pixmap({16, 16}, c_primaryColor));
   closeButton->setCursor(Qt::PointingHandCursor);
   auto* eventFilter = new ClickEventFilter(closeButton);
   connect(eventFilter, &ClickEventFilter::clicked, this, [this](QWidget*) {

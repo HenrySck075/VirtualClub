@@ -34,7 +34,7 @@ void LoadingCircle::paintEvent(QPaintEvent *) {
   painter.translate((width() / 2.0), (height() / 2.0));
   painter.rotate(m_angle);
 
-  QPixmap pixmap = LucideIcons::loader_circle.pixmap(QSize(side, side));
+  QPixmap pixmap = LucideIcons::loader_circle.pixmap(QSize(side, side), m_color);
   painter.drawPixmap(-pixmap.width() / 2, -pixmap.height() / 2, pixmap);
 }
 QSize LoadingCircle::sizeHint() const { return QSize(24*m_scale, 24*m_scale); }

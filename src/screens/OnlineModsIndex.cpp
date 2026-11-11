@@ -4,6 +4,7 @@
 #include <QPainterPath>
 #include <QLabel>
 #include <QLineEdit>
+#include "ui/ElidedLabel.hpp"
 #include "ui/GradientBackground.hpp"
 #include "ui/IconButton.hpp"
 #include "ui/PixmapWidget.hpp"
@@ -27,7 +28,7 @@ OMIThumbnail::OMIThumbnail(QString imageUrl, QSize displaySize, QNetworkAccessMa
   m_child = container;
   // gray background with `new LoadingCircle()` in the center
   auto* placeholderWidget = new QWidget();
-  placeholderWidget->setStyleSheet("background-color: #999999;");
+  placeholderWidget->setStyleSheet("background-color: #dddddd;");
   container->addWidget(placeholderWidget);
 
   auto* placeholderLayout = new QVBoxLayout(placeholderWidget);
@@ -41,7 +42,7 @@ OMIThumbnail::OMIThumbnail(QString imageUrl, QSize displaySize, QNetworkAccessMa
     placeholderLayout->addWidget(loadingCircle, 0, Qt::AlignCenter);
 
 
-    fetchUrlAsync(m_nm, QUrl(imageUrl)).then([this, container](QByteArray data) {
+    fetchUrlAsync(m_nm, QUrl(imageUrl)).then(this, [this, container](QByteArray data) {
       QPixmap pixmap;
       if (pixmap.loadFromData(data)) {
         auto* pixmapWidget = new PixmapWidget(this);
@@ -115,9 +116,10 @@ OnlineModItem::OnlineModItem(QNetworkAccessManager* networkManager, OnlineMod mo
   m_thumbnail = new OMIThumbnail(QString::fromStdString(mod.imageUrl), QSize(250, 140), m_nm, this);
   layout->addWidget(m_thumbnail);
 
-  auto* titleLabel = new QLabel(QString::fromStdString(mod.name), this);
-  titleLabel->setWordWrap(true);
+  auto* titleLabel = new ElidedLabel(QString::fromStdString(mod.name), this);
+  //titleLabel->setWordWrap(true);
   titleLabel->setFont(QFont("Quicksand", 12, QFont::Weight::DemiBold));
+  titleLabel->setMaxLines(2);
   layout->addWidget(titleLabel);
 
   auto* authorLabel = new QLabel(QString::fromStdString(mod.author), this);
@@ -294,7 +296,7 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
 
 
 
-  connect(this, &OnlineModsIndexScreen::pageNumberUpdated, [&](){
+  connect(this, &OnlineModsIndexScreen::pageNumberUpdated, [pageInput, firstPageBtn, prevPageBtn, nextPageBtn, lastPageBtn, this](){
     auto nv = m_page;
     pageInput->setText(QString::number(nv + 1));
     queryIndex();
@@ -321,12 +323,16 @@ void OnlineModsIndexScreen::queryIndex() {
     if (m_container) m_container->setCurrentWidget(m_placeholderWidget);
     if (m_footer) m_footer->hide();
     m_currentIndex->getMods({.page = m_page, .perPage = m_perPage}).then(this, [this](std::vector<OnlineMod> list){
-      // remove all widgets in m_contentLayout
-      findChildWidgetBy(m_contentLayout, [this](QWidget* w){ m_contentLayout->removeWidget(w); return false; });
+      for (auto* item : m_whar) {
+        m_contentLayout->removeWidget(item);
+        item->deleteLater();
+      }
+      m_whar.clear();
 
       for (const auto& mod : list) {
         auto* item = new detail::OnlineModItem(m_nm, mod, m_content);
         m_contentLayout->addWidget(item);
+        m_whar.push_back(item);
       }
 
       setTotalItems(m_currentIndex->getTotalMods());

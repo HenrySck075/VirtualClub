@@ -72,6 +72,8 @@ private:
 
   bool m_firstShown = false;
 
+  std::vector<detail::OnlineModItem*> m_whar;
+
 public:
   explicit OnlineModsIndexScreen(Router* router, QWidget* parent = nullptr);
 

@@ -4,6 +4,7 @@
 #include <QPropertyAnimation>
 #include <QPushButton>
 #include "../consts.hpp"
+#include "../utils/LucideIcons.hpp"
 
 class IconButton : public QPushButton {
   Q_OBJECT 
@@ -15,6 +16,7 @@ private:
   QPropertyAnimation *m_fadeAnimation = nullptr;
 
   QIcon m_icon;
+  std::optional<LucideIcon> m_lucideIcon;
 
   const QColor sm_borderColor = c_primaryColor; 
   const QColor sm_iconColor = c_secondaryColor;
@@ -34,6 +36,7 @@ public:
   void setSelected(bool selected);
   void setSelectable(bool selectable);
   explicit IconButton(QIcon icon, QWidget *parent = nullptr);
+  explicit IconButton(LucideIcon icon, QWidget *parent = nullptr);
   void enterEvent(QEnterEvent *event) override;
   void leaveEvent(QEvent *event) override;
   void paintEvent(QPaintEvent *event) override; 

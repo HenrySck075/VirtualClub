@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QStackedWidget>
 #include <QMainWindow>
+#include "utils/LucideIcons.hpp"
 #include <QSystemTrayIcon>
 
 class MainWindow : public QWidget {
@@ -47,8 +48,8 @@ protected:
   void routeTransitionHandler(QString path, QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished);
   SidebarItem* sidebarItemForPath(QString& path);
 
-  SidebarItem* addNavigationItem(QIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget);
-  SidebarItem* addActionItem(QIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked);
+  SidebarItem* addNavigationItem(LucideIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget);
+  SidebarItem* addActionItem(LucideIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked);
 
   void setupTrayIcon();
   bool confirmQuit();

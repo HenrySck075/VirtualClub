@@ -9,6 +9,7 @@
 #include <QParallelAnimationGroup>
 #include <QSoundEffect>
 #include "../consts.hpp"
+#include "../utils/LucideIcons.hpp"
 
 
 class GradientBackground2 : public GradientBackground {
@@ -32,6 +33,7 @@ private:
   QParallelAnimationGroup *m_hoverAnimation = nullptr;
 
   QIcon m_icon;
+  std::optional<LucideIcon> m_lucideIcon;
 
   const QColor sm_textColor = c_primaryColor; 
   const QColor sm_iconColor = c_secondaryColor;
@@ -71,6 +73,7 @@ public:
     }
   }
   explicit SidebarItem(QIcon icon, QString label, bool switchable, QWidget *parent = nullptr);
+  explicit SidebarItem(LucideIcon icon, QString label, bool switchable, QWidget *parent = nullptr);
   void setTintIcon(bool enable) {m_tintIcon = enable;};
   void enterEvent(QEnterEvent *event) override;
   void leaveEvent(QEvent *event) override;
@@ -99,7 +102,7 @@ public:
     explicit Sidebar(QWidget *parent = nullptr);
     ~Sidebar();
 
-    SidebarItem* addSidebarItem(QIcon icon, QString name, SidebarPosition position, bool selected = false, bool doSwitch = true);
+    SidebarItem* addSidebarItem(LucideIcon icon, QString name, SidebarPosition position, bool selected = false, bool doSwitch = true);
     int itemPositionOf(SidebarItem* item);
 private:
     void onSidebarItemClicked(SidebarItem* item);  

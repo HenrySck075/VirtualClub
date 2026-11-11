@@ -14,6 +14,7 @@
 #include <QCheckBox>
 #include <QColor>
 #include <QPointer>
+#include "../utils/LucideIcons.hpp"
 
 
 //  Button Class
@@ -25,7 +26,9 @@ class Button : public QPushButton {
 public:
     explicit Button(const QString& text, QWidget* parent = nullptr);
     Button(const QIcon& icon, QWidget* parent = nullptr);
+    Button(const LucideIcon& icon, QWidget* parent = nullptr);
     Button(const QString& text, const QIcon& icon, QWidget* parent = nullptr);
+    Button(const QString& text, const LucideIcon& icon, QWidget* parent = nullptr);
 
     QColor textColor() const { return m_currentColor; }
     void setTextColor(const QColor& color);
@@ -46,6 +49,7 @@ private:
     QColor m_secondaryColor;
     QColor m_currentColor;
     QVariantAnimation m_colorAnimation;
+    std::optional<LucideIcon> m_lucideIcon;
 };
 
 // Overlay widget for tinting the background when the dialog is open

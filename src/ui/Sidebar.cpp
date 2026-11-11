@@ -62,6 +62,11 @@ SidebarItem::SidebarItem(QIcon icon, QString label, bool switchable, QWidget *pa
 
   m_icon = icon;
 }
+
+SidebarItem::SidebarItem(LucideIcon icon, QString label, bool switchable, QWidget *parent)
+    : SidebarItem(icon.icon(), std::move(label), switchable, parent) {
+  m_lucideIcon = std::move(icon);
+}
 void SidebarItem::enterEvent(QEnterEvent *event) {
     Q_UNUSED(event);
     m_hovered = true;
@@ -117,17 +122,22 @@ void SidebarItem::paintEvent(QPaintEvent *event) {
     auto xOffsetA = m_hovered && !m_selected ? xOffset-xOffset*m_slideAnimValue : 0.f;
     // Draw the icon
     if (!m_icon.isNull()) {
-        QPixmap pixmap = m_icon.pixmap(24, 24); // Adjust size
-        QPixmap coloredPixmap = pixmap;
-        if (m_tintIcon) {
-            coloredPixmap = QPixmap(pixmap.size());
-            coloredPixmap.fill(Qt::transparent);
-            QPainter iconPainter(&coloredPixmap);
-            iconPainter.setCompositionMode(QPainter::CompositionMode_Source);
-            iconPainter.drawPixmap(0, 0, pixmap);
-            iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-            iconPainter.fillRect(coloredPixmap.rect(), iconColor);
-            iconPainter.end();
+        QPixmap coloredPixmap;
+        if (m_lucideIcon) {
+            coloredPixmap = m_lucideIcon->pixmap(QSize(24, 24), m_tintIcon ? iconColor : Qt::black);
+        } else {
+            QPixmap pixmap = m_icon.pixmap(24, 24); // Adjust size
+            coloredPixmap = pixmap;
+            if (m_tintIcon) {
+                coloredPixmap = QPixmap(pixmap.size());
+                coloredPixmap.fill(Qt::transparent);
+                QPainter iconPainter(&coloredPixmap);
+                iconPainter.setCompositionMode(QPainter::CompositionMode_Source);
+                iconPainter.drawPixmap(0, 0, pixmap);
+                iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+                iconPainter.fillRect(coloredPixmap.rect(), iconColor);
+                iconPainter.end();
+            }
         }
         painter.drawPixmap(xOffsetA+10, (height() - 24) / 2, coloredPixmap); // Adjust position
     }
@@ -202,7 +212,7 @@ Sidebar::~Sidebar() {
   layout()->deleteLater();
 }
 
-SidebarItem* Sidebar::addSidebarItem(QIcon icon, QString name, SidebarPosition position, bool selected, bool doSwitch) {
+SidebarItem* Sidebar::addSidebarItem(LucideIcon icon, QString name, SidebarPosition position, bool selected, bool doSwitch) {
   QLayout* targetLayout = nullptr;
 
   switch (position) {
@@ -223,7 +233,7 @@ SidebarItem* Sidebar::addSidebarItem(QIcon icon, QString name, SidebarPosition p
   auto layoutedWidget = targetLayout->parentWidget();
 
   if (targetLayout) {
-    auto* item = new SidebarItem(icon, name, doSwitch, layoutedWidget);
+    auto* item = new SidebarItem(std::move(icon), name, doSwitch, layoutedWidget);
     targetLayout->addWidget(item);
     connect(item, &SidebarItem::selectedChanged, this, std::bind(&Sidebar::onSidebarItemClicked, this, item));
     connect(item, &SidebarItem::clicked, this, [this](){
