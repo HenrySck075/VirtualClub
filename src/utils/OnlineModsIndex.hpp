@@ -26,6 +26,8 @@ public:
     int page = 0;
     int perPage = 18;
     ListSorting sorting = ListSorting::Newest;
+
+    std::string searchQuery;
   };
   virtual QFuture<std::vector<OnlineMod>> getMods(QueryConfig config) = 0;
   virtual int getTotalMods() = 0;

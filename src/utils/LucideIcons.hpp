@@ -57,6 +57,7 @@ inline static const LucideIcon chevron_right{":/icons/chevron_right.svg"};
 inline static const LucideIcon chevrons_left{":/icons/chevrons_left.svg"};
 inline static const LucideIcon chevrons_right{":/icons/chevrons_right.svg"};
 inline static const LucideIcon clock{":/icons/clock.svg"};
+inline static const LucideIcon download{":/icons/download.svg"};
 inline static const LucideIcon file_symlink{":/icons/file_symlink.svg"};
 inline static const LucideIcon folder{":/icons/folder.svg"};
 inline static const LucideIcon folder_open_dot{":/icons/folder_open_dot.svg"};

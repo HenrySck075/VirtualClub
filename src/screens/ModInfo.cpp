@@ -184,10 +184,10 @@ public:
       auto* savesList = new QWidget();
       scrollArea->setWidget(savesList);
       connect(this, &SaveSelectDialogContent::resized, this, [this, savesList, scrollArea]() {
+        qDebug() << size();
         scrollArea->setFixedSize(size());
       });
 
-      //scrollArea->setWidgetResizable(true);
       auto* layout = new FlowLayout(savesList, 4);
 
       for (const auto &savePath : saveFiles) {

@@ -11,7 +11,7 @@
 ImageLoadingWidget::ImageLoadingWidget(const QString& imageUrl,
                                        QNetworkAccessManager* networkManager,
                                        QWidget* parent)
-    : QWidget(parent) {
+    : QWidget(parent), m_nm(networkManager), m_imageUrl(imageUrl) {
   m_container = new QStackedWidget(this);
   m_container->setGeometry(rect());
 
@@ -26,8 +26,19 @@ ImageLoadingWidget::ImageLoadingWidget(const QString& imageUrl,
     auto* loadingCircle = new LoadingCircle(placeholderWidget);
     loadingCircle->setColor(Qt::white);
     placeholderLayout->addWidget(loadingCircle, 0, Qt::AlignCenter);
+  }
+}
 
-    fetchUrlAsync(networkManager, QUrl(imageUrl)).then(this, [this](QByteArray data) {
+void ImageLoadingWidget::resizeEvent(QResizeEvent* event) {
+  QWidget::resizeEvent(event);
+  m_container->setGeometry(rect());
+}
+
+
+void ImageLoadingWidget::showEvent(QShowEvent* event) {
+  QWidget::showEvent(event);
+  if (!m_imageUrl.isEmpty()) {
+    fetchUrlAsync(m_nm, QUrl(m_imageUrl)).then(this, [this](QByteArray data) {
       QPixmap pixmap;
       if (pixmap.loadFromData(data)) {
         auto* pixmapWidget = new PixmapWidget(this);
@@ -39,9 +50,4 @@ ImageLoadingWidget::ImageLoadingWidget(const QString& imageUrl,
       }
     });
   }
-}
-
-void ImageLoadingWidget::resizeEvent(QResizeEvent* event) {
-  QWidget::resizeEvent(event);
-  m_container->setGeometry(rect());
 }

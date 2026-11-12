@@ -21,6 +21,17 @@
 #include <QComboBox>
 #include <QMouseEvent>
 #include <QPointer>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFileInfo>
+#include <QProgressBar>
+#include <QSettings>
+#include "consts.hpp"
+#include "third_party/kubazip/zip.h"
+#include "utils/FileDownloader.hpp"
+
+class DownloadDialogContent;
+static void showDownloadDialog(const OnlineMod& mod);
 
 class OnlineModInfoDC : public DialogContent {
   Q_OBJECT
@@ -30,8 +41,9 @@ private:
 public:
   explicit OnlineModInfoDC(QNetworkAccessManager* networkManager, OnlineMod mod, QWidget* parent = nullptr)
     : DialogContent(parent), m_nm(networkManager), m_mod(mod) {
-    setFixedWidth(800);
-    setMaximumHeight(580);
+    setMinimumWidth(800);
+    setMaximumWidth(1720);
+    setMaximumHeight(680);
 
     auto* layout = new QVBoxLayout(this);
     layout->setSpacing(4);
@@ -47,63 +59,88 @@ public:
       imageUrls.emplace_back();
     }
 
+    QSize imageCarouselSize = {500, 281};
+
     auto* carouselLayout = new QHBoxLayout();
     carouselLayout->setContentsMargins(0, 0, 0, 0);
     carouselLayout->setSpacing(8);
 
     auto* previousImageButton = new IconButton(LucideIcons::arrow_left, this);
-    auto* imageScrollArea = new QScrollArea(this);
-    imageScrollArea->setFixedSize(580, 320);
-    imageScrollArea->setFrameShape(QFrame::NoFrame);
-    imageScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    imageScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    imageScrollArea->setWidgetResizable(false);
-
-    auto* imageContainer = new QWidget();
-    auto* imageLayout = new QHBoxLayout(imageContainer);
-    imageLayout->setContentsMargins(0, 0, 0, 0);
-    imageLayout->setSpacing(0);
+    auto* imageStack = new QStackedWidget(this);
+    imageStack->setFixedSize(imageCarouselSize);
+    std::vector<QWidget*> imageDots;
     for (const auto& imageUrl : imageUrls) {
-      auto* image = new ImageLoadingWidget(QString::fromStdString(imageUrl), m_nm, imageContainer);
-      image->setFixedSize(580, 320);
-      imageLayout->addWidget(image);
+      auto* image = new ImageLoadingWidget(QString::fromStdString(imageUrl), m_nm, imageStack);
+      image->setFixedSize(imageCarouselSize);
+      imageStack->addWidget(image);
+
+      auto* dot = new QWidget(this);
+      dot->setFixedSize(8, 8);
+      imageDots.push_back(dot);
     }
-    imageScrollArea->setWidget(imageContainer);
 
     auto* nextImageButton = new IconButton(LucideIcons::arrow_right, this);
     carouselLayout->addWidget(previousImageButton);
-    carouselLayout->addWidget(imageScrollArea);
+    carouselLayout->addWidget(imageStack);
     carouselLayout->addWidget(nextImageButton);
     layout->addLayout(carouselLayout);
 
-    auto* imageScrollBar = imageScrollArea->horizontalScrollBar();
-    auto updateImageButtons = [imageScrollBar, previousImageButton, nextImageButton]() {
-      previousImageButton->setEnabled(imageScrollBar->value() > 0);
-      nextImageButton->setEnabled(
-        imageScrollBar->value() < imageScrollBar->maximum()
-      );
+    auto* dotsLayout = new QHBoxLayout();
+    dotsLayout->setContentsMargins(0, 4, 0, 0);
+    dotsLayout->setSpacing(6);
+    dotsLayout->setAlignment(Qt::AlignCenter);
+    for (auto* dot : imageDots) {
+      dotsLayout->addWidget(dot);
+    }
+    layout->addLayout(dotsLayout);
+
+    auto updateCarousel = [imageStack, imageDots, previousImageButton, nextImageButton]() {
+      const auto currentIndex = imageStack->currentIndex();
+      previousImageButton->setEnabled(currentIndex > 0);
+      nextImageButton->setEnabled(currentIndex + 1 < imageStack->count());
+      for (int i = 0; i < static_cast<int>(imageDots.size()); ++i) {
+        imageDots[i]->setStyleSheet(
+          i == currentIndex
+            ? "background-color: #ec50a3; border-radius: 4px;"
+            : "background-color: #d0d0d0; border-radius: 4px;"
+        );
+      }
     };
-    connect(previousImageButton, &QPushButton::clicked, this, [imageScrollArea, imageScrollBar, updateImageButtons]() {
-      imageScrollBar->setValue(imageScrollBar->value() - imageScrollArea->viewport()->width());
-      updateImageButtons();
+    connect(previousImageButton, &QPushButton::clicked, this, [imageStack, updateCarousel]() {
+      imageStack->setCurrentIndex(imageStack->currentIndex() - 1);
+      updateCarousel();
     });
-    connect(nextImageButton, &QPushButton::clicked, this, [imageScrollArea, imageScrollBar, updateImageButtons]() {
-      imageScrollBar->setValue(imageScrollBar->value() + imageScrollArea->viewport()->width());
-      updateImageButtons();
+    connect(nextImageButton, &QPushButton::clicked, this, [imageStack, updateCarousel]() {
+      imageStack->setCurrentIndex(imageStack->currentIndex() + 1);
+      updateCarousel();
     });
-    connect(imageScrollBar, &QScrollBar::valueChanged, this, [updateImageButtons]() {
-      updateImageButtons();
-    });
-    updateImageButtons();
+    updateCarousel();
 
     auto* titleLabel = new ElidedLabel(QString::fromStdString(mod.name), this);
     titleLabel->setFont(QFont("Quicksand", 18, QFont::Weight::Bold));
     titleLabel->setMaxLines(2);
-    layout->addWidget(titleLabel);
 
     auto* authorLabel = new QLabel(QString::fromStdString(mod.author), this);
     authorLabel->setFont(QFont("Quicksand", 15, QFont::Weight::DemiBold));
-    layout->addWidget(authorLabel);
+
+    auto* metadata = new QWidget(this);
+    auto* metadataLayout = new QVBoxLayout(metadata);
+    metadataLayout->setContentsMargins(0, 0, 0, 0);
+    metadataLayout->setSpacing(4);
+    metadataLayout->addWidget(titleLabel);
+    metadataLayout->addWidget(authorLabel);
+
+    auto* downloadButton = new Button("Download", LucideIcons::download, this);
+    connect(downloadButton, &QPushButton::clicked, this, [mod]() {
+      showDownloadDialog(mod);
+    });
+
+    auto* metadataRow = new QHBoxLayout();
+    metadataRow->setContentsMargins(0, 0, 0, 0);
+    metadataRow->setSpacing(12);
+    metadataRow->addWidget(metadata);
+    metadataRow->addWidget(downloadButton, 0, Qt::AlignVCenter);
+    layout->addLayout(metadataRow);
 
     layout->addSpacing(12);
 
@@ -116,6 +153,129 @@ public:
     layout->addWidget(descriptionScroll);
   }
 };
+
+class DownloadDialogContent : public DialogContent {
+  Q_OBJECT
+private:
+  OnlineMod m_mod;
+  FileDownloader* m_downloader = nullptr;
+  QProgressBar* m_progressBar = nullptr;
+  QLabel* m_statusLabel = nullptr;
+
+  static QString downloadFileName(const OnlineMod& mod) {
+    auto fileName = QFileInfo(QUrl(QString::fromStdString(mod.url)).path()).fileName();
+    if (fileName.isEmpty()) {
+      fileName = QString::fromStdString(mod.name).trimmed();
+      fileName.replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_");
+      if (fileName.isEmpty()) {
+        fileName = "mod-download";
+      }
+    }
+    if (QFileInfo(fileName).suffix().isEmpty()) {
+      fileName += ".zip";
+    }
+    return fileName;
+  }
+
+public:
+  explicit DownloadDialogContent(OnlineMod mod, QWidget* parent = nullptr)
+    : DialogContent(parent), m_mod(std::move(mod)) {
+    setFixedWidth(420);
+
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(25, 20, 25, 20);
+    layout->setSpacing(12);
+
+    auto* titleLabel = new QLabel(QString("Downloading %1").arg(QString::fromStdString(m_mod.name)), this);
+    titleLabel->setWordWrap(true);
+    titleLabel->setFont(QFont("Quicksand", 12, QFont::Weight::Bold));
+    layout->addWidget(titleLabel);
+
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setRange(0, 100);
+    m_progressBar->setValue(0);
+    layout->addWidget(m_progressBar);
+
+    m_statusLabel = new QLabel("Starting download...", this);
+    m_statusLabel->setWordWrap(true);
+    layout->addWidget(m_statusLabel);
+
+    m_downloader = new FileDownloader(this);
+    connect(m_downloader, &FileDownloader::progress, this,
+            [this](qint64 bytesReceived, qint64 bytesTotal) {
+              if (bytesTotal > 0) {
+                m_progressBar->setValue(static_cast<int>((bytesReceived * 100) / bytesTotal));
+                m_statusLabel->setText(QString("Downloading... %1 / %2")
+                                         .arg(bytesReceived)
+                                         .arg(bytesTotal));
+              } else {
+                m_progressBar->setRange(0, 0);
+                m_statusLabel->setText(QString("Downloaded %1 bytes").arg(bytesReceived));
+              }
+            });
+    connect(m_downloader, &FileDownloader::finished, this,
+            [this](const QString& filePath) {
+              m_statusLabel->setText("Extracting mod...");
+              const auto storagePath = QSettings().value(GSTK_MOD_STORAGE_PATH).toString();
+              QDir storageDir(storagePath);
+              if (storagePath.isEmpty() || !storageDir.mkpath(".")) {
+                m_statusLabel->setText("Could not access the mod storage path.");
+                QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+                closeDialog();
+                return;
+              }
+
+              const auto result = zip_extract(filePath.toUtf8().constData(),
+                                              storagePath.toUtf8().constData(),
+                                              nullptr, nullptr);
+              if (result != 0) {
+                m_statusLabel->setText(
+                  QString("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
+                QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+                closeDialog();
+                return;
+              }
+
+              QFile::remove(filePath);
+              m_progressBar->setRange(0, 100);
+              m_progressBar->setValue(100);
+              m_statusLabel->setText("Download complete.");
+              closeDialog();
+            });
+    connect(m_downloader, &FileDownloader::failed, this,
+            [this](const QString&) {
+              QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+              closeDialog();
+            });
+
+    const auto storagePath = QSettings().value(GSTK_MOD_STORAGE_PATH).toString();
+            if (storagePath.isEmpty()) {
+              QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+              closeDialog();
+              return;
+            }
+    const auto tempPath = QDir(storagePath).filePath("tempdl");
+    if (!QDir().mkpath(tempPath)) {
+      m_statusLabel->setText("Could not create the temporary download directory.");
+      QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+      closeDialog();
+      return;
+    }
+
+    m_downloader->download(
+      QString::fromStdString(m_mod.url),
+      QDir(tempPath).filePath(downloadFileName(m_mod))
+    );
+  }
+};
+
+static void showDownloadDialog(const OnlineMod& mod) {
+  Dialog::showContentDialog(
+    getMainWindow(),
+    "Download mod",
+    new DownloadDialogContent(mod)
+  );
+}
 
 class OMIThumbnail : public QWidget {
   Q_OBJECT

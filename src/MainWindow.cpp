@@ -32,7 +32,7 @@
 MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
   setPageTitleBar("");
   setMinimumSize(QSize(600,400));
-  resize(1020, 600); // Set default starting size (Width, Height)
+  resize(1140, 600); // Set default starting size (Width, Height)
 
   //m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
   initUI();

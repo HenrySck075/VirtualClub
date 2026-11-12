@@ -262,6 +262,7 @@ Dialog::Dialog(const QString& title,
 
   mainLayout->addWidget(titleBar);
 
+  content->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   mainLayout->addWidget(content);
 
   m_openSfx.setSource(QUrl(openSfx));
@@ -443,8 +444,12 @@ void Dialog::showContentDialog(QWidget* parent,
                        QSize size,
                        QString openSfx) {
   Dialog dlg(title, content, openSfx, true, parent);
-  if (size.isValid() && !size.isEmpty()) {
+  if (size.isValid()) {
     dlg.setFixedSize(size);
+  } else {
+    // copy size constraints from content
+    dlg.setMinimumSize(content->minimumSize());
+    dlg.setMaximumSize(content->maximumSize());
   }
 
   content->m_dialog = &dlg;

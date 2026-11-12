@@ -14,7 +14,10 @@ public:
 
 private:
   QStackedWidget* m_container = nullptr;
+  QNetworkAccessManager* m_nm = nullptr; 
 
+  QString m_imageUrl;
 protected:
   void resizeEvent(QResizeEvent* event) override;
+  void showEvent(QShowEvent* event) override;
 };
