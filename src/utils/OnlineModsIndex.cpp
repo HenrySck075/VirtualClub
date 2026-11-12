@@ -45,17 +45,24 @@ QFuture<std::vector<OnlineMod>> DokiModsDotMeIndex::getMods(OnlineIndex::QueryCo
               authors = al[0].get<std::string>();
             }
           }
+          std::string baseImageUrl = "https://dokimods.me/pocketbase//api/files/"
+                        +item["collectionId"].get<std::string>()
+                        +"/"
+                        +item["id"].get<std::string>()
+                        +"/";
+          
+          std::vector<std::string> screenshots;
+          for (auto& s : item["screenshots"]) {
+            screenshots.push_back(baseImageUrl + s.get<std::string>());
+          }
           list.push_back({
             .name = item["title"],
             .description = item["description"],
             .author = authors,
             .version = "",
-            .imageUrl = "https://dokimods.me/pocketbase//api/files/"
-                        +item["collectionId"].get<std::string>()
-                        +"/"
-                        +item["id"].get<std::string>()
-                        +"/"
+            .imageUrl = baseImageUrl
                         +item["thumbnail"].get<std::string>(),
+            .screenshotImageUrls = screenshots,
             .url = item["download_link"]
           });
         }

@@ -11,6 +11,7 @@ struct OnlineMod {
   std::string version;
 
   std::string imageUrl;
+  std::vector<std::string> screenshotImageUrls;
   std::string url;
 };
 
@@ -58,3 +59,7 @@ public:
 
   explicit DokiModsDotMeIndex(QObject* parent = nullptr);
 };
+
+///////////////////////////////////////
+/// Subclass for Elysium Team (upcoming)
+class ElysiumIndex : public OnlineIndex {};

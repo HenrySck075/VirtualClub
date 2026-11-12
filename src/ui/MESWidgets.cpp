@@ -233,6 +233,7 @@ Dialog::Dialog(const QString& title,
   QVBoxLayout* mainLayout = new QVBoxLayout(this);
   mainLayout->setContentsMargins(0, 0, 0, BOTTOM_BAR_HEIGHT);
   mainLayout->setSpacing(0);
+  mainLayout->setAlignment(Qt::AlignTop);
 
   // 1. Title Bar
   QWidget* titleBar = new QWidget(this);
@@ -247,7 +248,7 @@ Dialog::Dialog(const QString& title,
   titleLabel->setStyleSheet("color: rgb(137, 35, 137); background: transparent;");
   titleLayout->addWidget(titleLabel);
 
-  titleLayout->addSpacing(1);
+  titleLayout->addStretch(1);
 
   QLabel* closeButton = new QLabel(titleBar);
   closeButton->setPixmap(LucideIcons::x.pixmap({16, 16}, c_primaryColor));
@@ -257,7 +258,7 @@ Dialog::Dialog(const QString& title,
       this->reject();
   });
   closeButton->installEventFilter(eventFilter);
-  titleLayout->addWidget(closeButton, 0, Qt::AlignRight);
+  titleLayout->addWidget(closeButton);
 
   mainLayout->addWidget(titleBar);
 
@@ -442,7 +443,7 @@ void Dialog::showContentDialog(QWidget* parent,
                        QSize size,
                        QString openSfx) {
   Dialog dlg(title, content, openSfx, true, parent);
-  if (size.isValid()) {
+  if (size.isValid() && !size.isEmpty()) {
     dlg.setFixedSize(size);
   }
 

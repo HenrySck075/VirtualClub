@@ -80,6 +80,8 @@ public:
 
   // called when the dialog is about to close.
   virtual bool allowClosing() {return true;};
+  
+  explicit DialogContent(QWidget* parent = nullptr) : QWidget(parent) {};
 };
 
 //  Dialog Class
@@ -109,7 +111,7 @@ public:
     static void showContentDialog(QWidget* parent, 
                            const QString& title, 
                            DialogContent* content,
-                           QSize size,
+                           QSize size = {0,0},
                            QString openSfx = "qrc:/audio/sidebar_click.wav");
 
 protected:

@@ -50,6 +50,7 @@ public:
 
 namespace LucideIcons {
 inline static const LucideIcon arrow_left{":/icons/arrow_left.svg"};
+inline static const LucideIcon arrow_right{":/icons/arrow_right.svg"};
 inline static const LucideIcon bug{":/icons/bug.svg"};
 inline static const LucideIcon chevron_left{":/icons/chevron_left.svg"};
 inline static const LucideIcon chevron_right{":/icons/chevron_right.svg"};
