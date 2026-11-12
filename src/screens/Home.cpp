@@ -1,7 +1,8 @@
 #include "Home.hpp"
 #include <QLayout>
 #include <QLabel>
-#include "../ui/GradientBackground.hpp"
+#include <QProgressBar>
+#include "ui/GradientBackground.hpp"
 #include "consts.hpp"
 #include "utils/ProfileSettings.hpp"
 
@@ -40,5 +41,11 @@ HomeScreen::HomeScreen(QWidget* parent) : QWidget(parent) {
     auto* label = new QLabel("not implemented atm :(", content);
     label->setFont(QFont("Quicksand", 15));
     contentLayout->addWidget(label);
+  }
+  {
+    auto* progbar = new QProgressBar(content);
+    progbar->setRange(0, 100);
+    progbar->setValue(50);
+    contentLayout->addWidget(progbar);
   }
 }

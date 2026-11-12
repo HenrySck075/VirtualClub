@@ -30,7 +30,7 @@ public:
     std::string searchQuery;
   };
   virtual QFuture<std::vector<OnlineMod>> getMods(QueryConfig config) = 0;
-  virtual int getTotalMods() = 0;
+  virtual int getTotalMods(QueryConfig config) = 0;
 
   virtual QString displayName() = 0;
 
@@ -50,10 +50,14 @@ class DokiModsDotMeIndex : public OnlineIndex {
   QNetworkAccessManager* m_nm = nullptr;
   std::unordered_map<ListSorting, std::vector<OnlineMod>> m_modsList;
   void createSortedListIfAbsent(ListSorting sorting);
+  std::vector<OnlineMod> filterList(
+    const std::vector<OnlineMod>& list,
+    const std::string& searchQuery
+  ) const;
   std::vector<OnlineMod> selectList(QueryConfig config);
 public:
   QFuture<std::vector<OnlineMod>> getMods(QueryConfig config) override;
-  int getTotalMods() override;
+  int getTotalMods(QueryConfig config) override;
 
   QString displayName() override {
     return "dokimods.me";
@@ -61,6 +65,13 @@ public:
 
   explicit DokiModsDotMeIndex(QObject* parent = nullptr);
 };
+
+
+///////////////////////////////////////
+/// Subclass for DDMC Mods List 
+///
+/// sourced from Reddit and mods list spreadsheet snapshot generated as JSON
+class DDMCIndex : public OnlineIndex {};
 
 ///////////////////////////////////////
 /// Subclass for Elysium Team (upcoming)

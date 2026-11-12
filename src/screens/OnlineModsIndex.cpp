@@ -30,129 +30,6 @@
 #include "third_party/kubazip/zip.h"
 #include "utils/FileDownloader.hpp"
 
-class DownloadDialogContent;
-static void showDownloadDialog(const OnlineMod& mod);
-
-class OnlineModInfoDC : public DialogContent {
-  Q_OBJECT
-private:
-  OnlineMod m_mod;
-  QNetworkAccessManager* m_nm = nullptr;
-public:
-  explicit OnlineModInfoDC(QNetworkAccessManager* networkManager, OnlineMod mod, QWidget* parent = nullptr)
-    : DialogContent(parent), m_nm(networkManager), m_mod(mod) {
-    setMinimumWidth(800);
-    setMaximumWidth(1720);
-    setMaximumHeight(680);
-
-    auto* layout = new QVBoxLayout(this);
-    layout->setSpacing(4);
-    layout->setContentsMargins(8, 8, 8, 8);
-    layout->setAlignment(Qt::AlignTop);
-
-    std::vector<std::string> imageUrls;
-    if (!mod.imageUrl.empty()) {
-      imageUrls.push_back(mod.imageUrl);
-    }
-    imageUrls.insert(imageUrls.end(), mod.screenshotImageUrls.begin(), mod.screenshotImageUrls.end());
-    if (imageUrls.empty()) {
-      imageUrls.emplace_back();
-    }
-
-    QSize imageCarouselSize = {500, 281};
-
-    auto* carouselLayout = new QHBoxLayout();
-    carouselLayout->setContentsMargins(0, 0, 0, 0);
-    carouselLayout->setSpacing(8);
-
-    auto* previousImageButton = new IconButton(LucideIcons::arrow_left, this);
-    auto* imageStack = new QStackedWidget(this);
-    imageStack->setFixedSize(imageCarouselSize);
-    std::vector<QWidget*> imageDots;
-    for (const auto& imageUrl : imageUrls) {
-      auto* image = new ImageLoadingWidget(QString::fromStdString(imageUrl), m_nm, imageStack);
-      image->setFixedSize(imageCarouselSize);
-      imageStack->addWidget(image);
-
-      auto* dot = new QWidget(this);
-      dot->setFixedSize(8, 8);
-      imageDots.push_back(dot);
-    }
-
-    auto* nextImageButton = new IconButton(LucideIcons::arrow_right, this);
-    carouselLayout->addWidget(previousImageButton);
-    carouselLayout->addWidget(imageStack);
-    carouselLayout->addWidget(nextImageButton);
-    layout->addLayout(carouselLayout);
-
-    auto* dotsLayout = new QHBoxLayout();
-    dotsLayout->setContentsMargins(0, 4, 0, 0);
-    dotsLayout->setSpacing(6);
-    dotsLayout->setAlignment(Qt::AlignCenter);
-    for (auto* dot : imageDots) {
-      dotsLayout->addWidget(dot);
-    }
-    layout->addLayout(dotsLayout);
-
-    auto updateCarousel = [imageStack, imageDots, previousImageButton, nextImageButton]() {
-      const auto currentIndex = imageStack->currentIndex();
-      previousImageButton->setEnabled(currentIndex > 0);
-      nextImageButton->setEnabled(currentIndex + 1 < imageStack->count());
-      for (int i = 0; i < static_cast<int>(imageDots.size()); ++i) {
-        imageDots[i]->setStyleSheet(
-          i == currentIndex
-            ? "background-color: #ec50a3; border-radius: 4px;"
-            : "background-color: #d0d0d0; border-radius: 4px;"
-        );
-      }
-    };
-    connect(previousImageButton, &QPushButton::clicked, this, [imageStack, updateCarousel]() {
-      imageStack->setCurrentIndex(imageStack->currentIndex() - 1);
-      updateCarousel();
-    });
-    connect(nextImageButton, &QPushButton::clicked, this, [imageStack, updateCarousel]() {
-      imageStack->setCurrentIndex(imageStack->currentIndex() + 1);
-      updateCarousel();
-    });
-    updateCarousel();
-
-    auto* titleLabel = new ElidedLabel(QString::fromStdString(mod.name), this);
-    titleLabel->setFont(QFont("Quicksand", 18, QFont::Weight::Bold));
-    titleLabel->setMaxLines(2);
-
-    auto* authorLabel = new QLabel(QString::fromStdString(mod.author), this);
-    authorLabel->setFont(QFont("Quicksand", 15, QFont::Weight::DemiBold));
-
-    auto* metadata = new QWidget(this);
-    auto* metadataLayout = new QVBoxLayout(metadata);
-    metadataLayout->setContentsMargins(0, 0, 0, 0);
-    metadataLayout->setSpacing(4);
-    metadataLayout->addWidget(titleLabel);
-    metadataLayout->addWidget(authorLabel);
-
-    auto* downloadButton = new Button("Download", LucideIcons::download, this);
-    connect(downloadButton, &QPushButton::clicked, this, [mod]() {
-      showDownloadDialog(mod);
-    });
-
-    auto* metadataRow = new QHBoxLayout();
-    metadataRow->setContentsMargins(0, 0, 0, 0);
-    metadataRow->setSpacing(12);
-    metadataRow->addWidget(metadata);
-    metadataRow->addWidget(downloadButton, 0, Qt::AlignVCenter);
-    layout->addLayout(metadataRow);
-
-    layout->addSpacing(12);
-
-    auto* descriptionScroll = new QScrollArea(this);
-    auto* descriptionLabel = new QLabel(QString::fromStdString(mod.description), this);
-    descriptionLabel->setWordWrap(true);
-    descriptionLabel->setFont(QFont("Quicksand", 12));
-    descriptionScroll->setWidget(descriptionLabel);
-    descriptionScroll->setWidgetResizable(true);
-    layout->addWidget(descriptionScroll);
-  }
-};
 
 class DownloadDialogContent : public DialogContent {
   Q_OBJECT
@@ -244,6 +121,7 @@ public:
             });
     connect(m_downloader, &FileDownloader::failed, this,
             [this](const QString&) {
+              m_statusLabel->setText("Download failed. Please download & install the mod manually.");
               QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
               closeDialog();
             });
@@ -269,13 +147,131 @@ public:
   }
 };
 
-static void showDownloadDialog(const OnlineMod& mod) {
-  Dialog::showContentDialog(
-    getMainWindow(),
-    "Download mod",
-    new DownloadDialogContent(mod)
-  );
-}
+class OnlineModInfoDC : public DialogContent {
+  Q_OBJECT
+private:
+  OnlineMod m_mod;
+  QNetworkAccessManager* m_nm = nullptr;
+public:
+  explicit OnlineModInfoDC(QNetworkAccessManager* networkManager, OnlineMod mod, QWidget* parent = nullptr)
+    : DialogContent(parent), m_nm(networkManager), m_mod(mod) {
+    setMinimumWidth(800);
+    setMaximumWidth(1720);
+    setMaximumHeight(680);
+    setBaseSize({800, 580});
+
+    auto* layout = new QVBoxLayout(this);
+    layout->setSpacing(4);
+    layout->setContentsMargins(12, 8, 8, 12);
+    layout->setAlignment(Qt::AlignTop);
+
+    std::vector<std::string> imageUrls;
+    if (!mod.imageUrl.empty()) {
+      imageUrls.push_back(mod.imageUrl);
+    }
+    imageUrls.insert(imageUrls.end(), mod.screenshotImageUrls.begin(), mod.screenshotImageUrls.end());
+    if (imageUrls.empty()) {
+      imageUrls.emplace_back();
+    }
+
+    QSize imageCarouselSize = {500, 281};
+
+    auto* carouselLayout = new QHBoxLayout();
+    carouselLayout->setContentsMargins(0, 0, 0, 0);
+    carouselLayout->setSpacing(8);
+
+    auto* previousImageButton = new IconButton(LucideIcons::arrow_left, this);
+    auto* imageStack = new QStackedWidget(this);
+    imageStack->setFixedSize(imageCarouselSize);
+    std::vector<QWidget*> imageDots;
+    for (const auto& imageUrl : imageUrls) {
+      auto* image = new ImageLoadingWidget(QString::fromStdString(imageUrl), m_nm, imageStack);
+      image->setFixedSize(imageCarouselSize);
+      imageStack->addWidget(image);
+
+      auto* dot = new QWidget(this);
+      dot->setFixedSize(8, 8);
+      imageDots.push_back(dot);
+    }
+
+    auto* nextImageButton = new IconButton(LucideIcons::arrow_right, this);
+    carouselLayout->addWidget(previousImageButton);
+    carouselLayout->addWidget(imageStack);
+    carouselLayout->addWidget(nextImageButton);
+    layout->addLayout(carouselLayout);
+
+    auto* dotsLayout = new QHBoxLayout();
+    dotsLayout->setContentsMargins(0, 4, 0, 0);
+    dotsLayout->setSpacing(6);
+    dotsLayout->setAlignment(Qt::AlignCenter);
+    for (auto* dot : imageDots) {
+      dotsLayout->addWidget(dot);
+    }
+    layout->addLayout(dotsLayout);
+
+    auto updateCarousel = [imageStack, imageDots, previousImageButton, nextImageButton]() {
+      const auto currentIndex = imageStack->currentIndex();
+      previousImageButton->setEnabled(currentIndex > 0);
+      nextImageButton->setEnabled(currentIndex + 1 < imageStack->count());
+      for (int i = 0; i < static_cast<int>(imageDots.size()); ++i) {
+        imageDots[i]->setStyleSheet(
+          i == currentIndex
+            ? "background-color: #ec50a3; border-radius: 4px;"
+            : "background-color: #d0d0d0; border-radius: 4px;"
+        );
+      }
+    };
+    connect(previousImageButton, &QPushButton::clicked, this, [imageStack, updateCarousel]() {
+      imageStack->setCurrentIndex(imageStack->currentIndex() - 1);
+      updateCarousel();
+    });
+    connect(nextImageButton, &QPushButton::clicked, this, [imageStack, updateCarousel]() {
+      imageStack->setCurrentIndex(imageStack->currentIndex() + 1);
+      updateCarousel();
+    });
+    updateCarousel();
+
+    auto* titleLabel = new ElidedLabel(QString::fromStdString(mod.name), this);
+    titleLabel->setFont(QFont("Quicksand", 18, QFont::Weight::Bold));
+    titleLabel->setMaxLines(2);
+
+    auto* authorLabel = new QLabel(QString::fromStdString(mod.author), this);
+    authorLabel->setFont(QFont("Quicksand", 15, QFont::Weight::DemiBold));
+
+    auto* metadata = new QWidget(this);
+    auto* metadataLayout = new QVBoxLayout(metadata);
+    metadataLayout->setContentsMargins(0, 0, 0, 0);
+    metadataLayout->setSpacing(4);
+    metadataLayout->addWidget(titleLabel);
+    metadataLayout->addWidget(authorLabel);
+
+    auto* downloadButton = new Button("Download", LucideIcons::download, this);
+    connect(downloadButton, &QPushButton::clicked, this, [mod, this]() {
+      Dialog::showContentDialog(
+        this,
+        "Download mod",
+        new DownloadDialogContent(mod)
+      );
+    });
+
+    auto* metadataRow = new QHBoxLayout();
+    metadataRow->setContentsMargins(0, 0, 0, 0);
+    metadataRow->setSpacing(12);
+    metadataRow->addWidget(metadata);
+    metadataRow->addWidget(downloadButton, 0, Qt::AlignVCenter);
+    layout->addLayout(metadataRow);
+
+    layout->addSpacing(12);
+
+    auto* descriptionScroll = new QScrollArea(this);
+    auto* descriptionLabel = new QLabel(QString::fromStdString(mod.description), this);
+    descriptionLabel->setWordWrap(true);
+    descriptionLabel->setFont(QFont("Quicksand", 12));
+    descriptionScroll->setWidget(descriptionLabel);
+    descriptionScroll->setWidgetResizable(true);
+    layout->addWidget(descriptionScroll);
+  }
+};
 
 class OMIThumbnail : public QWidget {
   Q_OBJECT
@@ -435,7 +431,15 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   });
   headerLayout->addWidget(backButton);
 
-  headerLayout->addStretch(1);
+  auto* searchBar = new QLineEdit(header);
+  searchBar->setPlaceholderText("Search mods");
+  searchBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  connect(searchBar, &QLineEdit::textEdited, this, [this](const QString& text){
+    m_searchQuery = text.toStdString();
+    m_page = 0;
+    queryIndex();
+  });
+  headerLayout->addWidget(searchBar, 1);
 
   auto* modsCountLabel = new QLabel();
   headerLayout->addWidget(modsCountLabel);
@@ -623,7 +627,7 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   });
 
   connect(this, &OnlineModsIndexScreen::perPageNumberUpdated, [this](){
-    m_totalPages = ceil(m_totalItems / m_perPage);
+    m_totalPages = std::max(1, (m_totalItems + m_perPage - 1) / m_perPage);
     setPage(m_page >= m_totalPages ? m_totalPages - 1 : m_page);
     queryIndex();
   });
@@ -632,7 +636,7 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   prevPageBtn->setEnabled(false);
 
   connect(this, &OnlineModsIndexScreen::totalItemsUpdated, [this, totalPagesLabel, updateModsCountLabel](){
-    m_totalPages = ceil(m_totalItems / m_perPage);
+    m_totalPages = std::max(1, (m_totalItems + m_perPage - 1) / m_perPage);
     totalPagesLabel->setText(QString("of %1, showing").arg(m_totalPages));
     updateModsCountLabel();
   });
@@ -643,7 +647,8 @@ void OnlineModsIndexScreen::queryIndex() {
     if (m_container) m_container->setCurrentWidget(m_placeholderWidget);
     if (m_footer) m_footer->hide();
     m_currentIndex->getMods({
-      .page = m_page, .perPage = m_perPage, .sorting = m_sort
+      .page = m_page, .perPage = m_perPage, .sorting = m_sort,
+      .searchQuery = m_searchQuery
     }).then(this, [this](std::vector<OnlineMod> list){
       for (auto* item : m_whar) {
         m_contentLayout->removeWidget(item);
@@ -657,7 +662,10 @@ void OnlineModsIndexScreen::queryIndex() {
         m_whar.push_back(item);
       }
 
-      setTotalItems(m_currentIndex->getTotalMods());
+      setTotalItems(m_currentIndex->getTotalMods({
+        .sorting = m_sort,
+        .searchQuery = m_searchQuery
+      }));
 
       if (m_container) m_container->setCurrentWidget(m_scrollArea);
       if (m_footer && m_totalItems > m_perPage) m_footer->show();

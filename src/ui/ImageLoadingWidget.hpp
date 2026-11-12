@@ -17,6 +17,7 @@ private:
   QNetworkAccessManager* m_nm = nullptr; 
 
   QString m_imageUrl;
+  bool m_requestMade = false;
 protected:
   void resizeEvent(QResizeEvent* event) override;
   void showEvent(QShowEvent* event) override;

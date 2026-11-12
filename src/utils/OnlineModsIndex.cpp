@@ -3,6 +3,8 @@
 #include "utils/utils.hpp"
 #include "utils/macros.h"
 
+#include <QRegularExpression>
+
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current_macros.hpp>
 #include <cpptrace/from_current.hpp>
@@ -82,16 +84,74 @@ QFuture<std::vector<OnlineMod>> DokiModsDotMeIndex::getMods(OnlineIndex::QueryCo
     return QtFuture::makeReadyValueFuture(selectList(config));
   }
 }
-int DokiModsDotMeIndex::getTotalMods() {
-  if (m_modsList.contains(ListSorting::Oldest)) {
-    return m_modsList[ListSorting::Oldest].size();
+int DokiModsDotMeIndex::getTotalMods(QueryConfig config) {
+  if (!m_modsList.contains(ListSorting::Oldest)) {
+    return 0;
   }
-  return 0;
+
+  createSortedListIfAbsent(config.sorting);
+  return filterList(m_modsList[config.sorting], config.searchQuery).size();
+}
+std::vector<OnlineMod> DokiModsDotMeIndex::filterList(
+  const std::vector<OnlineMod>& list,
+  const std::string& searchQuery
+) const {
+  if (searchQuery.empty()) {
+    return list;
+  }
+
+  const auto tokens = QString::fromStdString(searchQuery)
+    .split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+  if (tokens.empty()) {
+    return list;
+  }
+
+  struct Match {
+    OnlineMod mod;
+    int titleMatches;
+  };
+  std::vector<Match> matches;
+  matches.reserve(list.size());
+
+  for (const auto& mod : list) {
+    const auto title = QString::fromStdString(mod.name);
+    const auto author = QString::fromStdString(mod.author);
+    const auto description = QString::fromStdString(mod.description);
+    int titleMatches = 0;
+    bool matchesAllTokens = true;
+
+    for (const auto& token : tokens) {
+      const bool titleMatch = title.contains(token, Qt::CaseInsensitive);
+      const bool fieldMatch = titleMatch
+        || author.contains(token, Qt::CaseInsensitive)
+        || description.contains(token, Qt::CaseInsensitive);
+      if (!fieldMatch) {
+        matchesAllTokens = false;
+        break;
+      }
+      titleMatches += titleMatch;
+    }
+
+    if (matchesAllTokens) {
+      matches.push_back({mod, titleMatches});
+    }
+  }
+
+  std::stable_sort(matches.begin(), matches.end(), [](const Match& a, const Match& b) {
+    return a.titleMatches > b.titleMatches;
+  });
+
+  std::vector<OnlineMod> filtered;
+  filtered.reserve(matches.size());
+  for (auto& match : matches) {
+    filtered.push_back(std::move(match.mod));
+  }
+  return filtered;
 }
 std::vector<OnlineMod> DokiModsDotMeIndex::selectList(QueryConfig config) {
   auto sort = config.sorting;
 
-  auto& list = m_modsList[sort];
+  auto list = filterList(m_modsList[sort], config.searchQuery);
 
   int startIndex = config.page * config.perPage;
   int endIndex = std::min(startIndex + config.perPage, static_cast<int>(list.size()));

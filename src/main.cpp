@@ -91,6 +91,10 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
       QString defaultPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/storage";
       qsettings.setValue(GSTK_MOD_STORAGE_PATH, defaultPath);
     }
+    // create storage folder 
+    if (!QDir(qsettings.value(GSTK_MOD_STORAGE_PATH).toString()).exists()) {
+      QDir().mkpath(qsettings.value(GSTK_MOD_STORAGE_PATH).toString());
+    }
 
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
@@ -158,6 +162,19 @@ QComboBox {
   padding: 4px 8px;
 }
 
+QProgressBar {
+  border: 2px solid %1;
+  border-radius: 14px;
+  text-align: center;
+  height: 24px;
+  color: transparent;
+  background-color: transparent;
+}
+QProgressBar::chunk {
+  background-color: %2;
+  border-radius: 8px;
+  margin: 4px;
+}
 )").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
 
 

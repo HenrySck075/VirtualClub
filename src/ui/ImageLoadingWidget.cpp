@@ -37,7 +37,8 @@ void ImageLoadingWidget::resizeEvent(QResizeEvent* event) {
 
 void ImageLoadingWidget::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
-  if (!m_imageUrl.isEmpty()) {
+  if (!m_imageUrl.isEmpty() && !m_requestMade) {
+    m_requestMade = true;
     fetchUrlAsync(m_nm, QUrl(m_imageUrl)).then(this, [this](QByteArray data) {
       QPixmap pixmap;
       if (pixmap.loadFromData(data)) {

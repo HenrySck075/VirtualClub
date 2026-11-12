@@ -34,6 +34,7 @@ private:
   int m_totalItems = 0;
   int m_totalPages = 1;
   ListSorting m_sort = ListSorting::Newest;
+  std::string m_searchQuery;
 
   bool m_firstShown = false;
 

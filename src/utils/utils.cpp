@@ -209,8 +209,6 @@ QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& ur
   QNetworkRequest request(url);
   QNetworkReply* reply = manager->get(request);
 
-  qDebug() << "Fetching URL:" << url.toString();
-
   QObject::connect(reply, &QNetworkReply::finished, [url, reply, promise]() {
     promise->start();
     if (reply->error() == QNetworkReply::NoError) {
