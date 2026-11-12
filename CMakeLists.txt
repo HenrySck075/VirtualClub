@@ -17,6 +17,11 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
+# assume Debug if unset
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
+
 find_package(Python REQUIRED COMPONENTS Interpreter Development)
 
 message(STATUS "Python binary path: ${Python_EXECUTABLE}")

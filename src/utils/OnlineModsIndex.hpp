@@ -35,38 +35,19 @@ public:
 };
 
 ///////////////////////////////////////
-
-/// Subclass for Doki Doki Modding Central
-///
-/// also site so slopped that they send all 600 mod entries in one single json lmao
-class ModdingCentralIndex : public OnlineIndex {
-private:
-  bool m_fetched = false;
-  /// Everything. 
-  ///
-  /// Initially m_modsList[ListSorting::Oldest] will be populated (order sent by the server), 
-  /// then requested sorting types will be built based on this
-  std::unordered_map<ListSorting, std::vector<OnlineMod>> m_modsList;
-
-  void createSortedListIfAbsent(ListSorting sorting);
-  std::vector<OnlineMod> selectList(QueryConfig config);
-public:
-  QFuture<std::vector<OnlineMod>> getMods(QueryConfig config) override;
-  int getTotalMods() override;
-
-  QString displayName() override {
-    return "Doki Doki Modding Central";
-  }
-
-  explicit ModdingCentralIndex(QObject* parent = nullptr) : OnlineIndex(parent) {}
-};
-
 /// Subclass for dokimods.me
 ///
 /// This one has support for server-side perPage limit but the site sets ?perPage=500 
 /// so it basically sends everything anyway and does pagination client-side
+///
+/// Update: the reason was because the list was sent in TitleZA order... split into several "chunks". or in other words, semi-arbitrary.
+/// This endpoint also DOES NOT CACHE. whrer should i report this?
 class DokiModsDotMeIndex : public OnlineIndex {
-  int m_total = 0;
+  bool m_fetched = false;
+  QNetworkAccessManager* m_nm = nullptr;
+  std::unordered_map<ListSorting, std::vector<OnlineMod>> m_modsList;
+  void createSortedListIfAbsent(ListSorting sorting);
+  std::vector<OnlineMod> selectList(QueryConfig config);
 public:
   QFuture<std::vector<OnlineMod>> getMods(QueryConfig config) override;
   int getTotalMods() override;
@@ -75,5 +56,5 @@ public:
     return "dokimods.me";
   }
 
-  explicit DokiModsDotMeIndex(QObject* parent = nullptr) : OnlineIndex(parent) {}
+  explicit DokiModsDotMeIndex(QObject* parent = nullptr);
 };

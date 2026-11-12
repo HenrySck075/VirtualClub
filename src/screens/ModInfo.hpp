@@ -9,56 +9,9 @@
 #include "ui/MESWidgets.hpp"
 #include "ui/Router.hpp"
 
-class ModInfoScreen;
-
-namespace detail {
-class SSDCItem : public QWidget {
-  Q_OBJECT
-signals:
-  void clicked();
-private:
-  QPointer<PixmapWidget> m_thumbnail;
-  QString m_name;
-  QString m_dateTimeStr;
-
-  float m_hoverAnimationTimer = 0.0;
-  QVariantAnimation* m_hoverAnimation;
-public:
-  explicit SSDCItem(PixmapWidget *thumbnail, const QString &name,
-                    const QString &dateTimeStr, QWidget *parent = nullptr);
-
-protected:
-  void mouseReleaseEvent(QMouseEvent *event) override;
-  void enterEvent(QEnterEvent *event) override;
-  void leaveEvent(QEvent *event) override;
-
-  // only need to paint a pink background.
-  // except this rectangle is 8px bigger than the widget
-  void paintEvent(QPaintEvent *event) override;
-};
-
-class SaveSelectDialogContent : public DialogContent {
-  Q_OBJECT
-  ModsIndex::Mod m_mod;
-
-  QPointer<::ModInfoScreen> m_modInfoScreen;
-protected:
-  void resizeEvent(QResizeEvent *event) override;
-signals:
-  void resized();
-public:
-  // Get the folder where Ren'Py store every game's save data.
-  static std::filesystem::path getRenpySaveDirectory();
-  explicit SaveSelectDialogContent(const ModsIndex::Mod &mod,
-                                   ModInfoScreen *mic);
-};
-}
-
-
 class ModInfoScreen : public QWidget {
   Q_OBJECT
 public:
-  friend class detail::SaveSelectDialogContent;
   explicit ModInfoScreen(Router* router, QWidget *parent = nullptr);
 
   void setDisplayingMod(const ModsIndex::Mod& mod);

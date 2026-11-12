@@ -19,8 +19,10 @@
 
 #if defined(NDEBUG) || defined(_NDEBUG)
 #undef MVC_DEBUG
+#define MVC_DEBUG_EVAL(...) 
 #else
 #define MVC_DEBUG
+#define MVC_DEBUG_EVAL(...) __VA_ARGS__
 #endif
 
 #if defined(Q_OS_WIN)
@@ -47,4 +49,8 @@
 #define MVC_VFS_AVAILABLE
 #endif
 
+#ifndef MVC_DEBUG
+#define CPPTRACE_TRY try
+#define CPPTRACE_CATCH(x) catch(x)
+#endif
 

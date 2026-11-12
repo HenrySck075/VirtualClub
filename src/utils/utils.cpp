@@ -16,8 +16,15 @@
 #include <QNetworkDiskCache>
 #include <QStandardPaths>
 
+#include <qmetaobject.h>
 #include <random>
 #include <sstream>
+
+#include "macros.h"
+#ifdef MVC_DEBUG
+#include <cpptrace/from_current_macros.hpp>
+#include <cpptrace/from_current.hpp>
+#endif
 
 int findChildWidgetIndex(QLayout* layout, QWidget* child) {
     if (!layout) return -1;
@@ -195,56 +202,63 @@ QNetworkAccessManager* createNetworkAccessManager(QObject *context) {
 
 
 
-QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& url)
-{
-    auto promise = std::make_shared<QPromise<QByteArray>>();
-    QFuture<QByteArray> future = promise->future();
+QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& url) {
+  auto promise = std::make_shared<QPromise<QByteArray>>();
+  QFuture<QByteArray> future = promise->future();
 
-    QNetworkRequest request(url);
-    QNetworkReply* reply = manager->get(request);
+  QNetworkRequest request(url);
+  QNetworkReply* reply = manager->get(request);
 
-    qDebug() << "Fetching URL:" << url.toString();
+  qDebug() << "Fetching URL:" << url.toString();
 
-    QObject::connect(reply, &QNetworkReply::finished, [reply, promise]() {
-        promise->start();
-        if (reply->error() == QNetworkReply::NoError) {
-            promise->addResult(reply->readAll());
-        } else {
-            promise->addResult(QByteArray()); 
-        }
-        promise->finish();
-        
-        reply->deleteLater();
-    });
+  QObject::connect(reply, &QNetworkReply::finished, [url, reply, promise]() {
+    promise->start();
+    if (reply->error() == QNetworkReply::NoError) {
+      promise->addResult(reply->readAll());
+    } else {
+      promise->setException(network_error(reply->error(), url.toString()));
+    }
+    promise->finish();
+    
+    reply->deleteLater();
+  });
 
-    return future;
+  return future;
 }
 
-QFuture<nlohmann::json> fetchJsonAsync(QNetworkAccessManager* manager, const QUrl& url)
-{
-    auto promise = std::make_shared<QPromise<nlohmann::json>>();
-    QFuture<nlohmann::json> future = promise->future();
+QFuture<nlohmann::json> fetchJsonAsync(QNetworkAccessManager* manager, const QUrl& url) {
+  auto promise = std::make_shared<QPromise<nlohmann::json>>();
+  QFuture<nlohmann::json> future = promise->future();
 
-    QNetworkRequest request(url);
-    QNetworkReply* reply = manager->get(request);
+  QNetworkRequest request(url);
+  QNetworkReply* reply = manager->get(request);
 
-    QObject::connect(reply, &QNetworkReply::finished, [reply, promise]() {
-        promise->start();
-        if (reply->error() == QNetworkReply::NoError) {
-            try {
-                nlohmann::json jsonData = nlohmann::json::parse(reply->readAll().toStdString());
-                promise->addResult(jsonData);
-            } catch (const std::exception&) {
-                promise->addResult(nlohmann::json()); 
-            }
-        } else {
-            promise->addResult(nlohmann::json()); 
-        }
-        promise->finish();
-        
-        reply->deleteLater();
-    });
+  QObject::connect(reply, &QNetworkReply::finished, [reply, promise, url]() {
+    promise->start();
+    if (reply->error() == QNetworkReply::NoError) {
+      CPPTRACE_TRY {
+        nlohmann::json jsonData = nlohmann::json::parse(reply->readAll().toStdString());
+        promise->addResult(jsonData);
+      } CPPTRACE_CATCH (...) {
+        promise->setException(std::current_exception()); 
+        MVC_DEBUG_EVAL(cpptrace::from_current_exception().print());
+      }
+    } else {
+      promise->setException(network_error(reply->error(), url.toString()));
+    }
+    promise->finish();
+    
+    reply->deleteLater();
+  });
 
-    return future;
+  return future;
 }
 
+const char* network_error::what() const noexcept {
+  return msg.c_str();
+}
+network_error::network_error(QNetworkReply::NetworkError error, QString url)
+    : error_(error), url_(std::move(url)) {
+  msg = std::string("Network error ") + QMetaEnum::fromType<QNetworkReply::NetworkError>().valueToKey(error_) +
+         " occurred while fetching URL: " + url_.toStdString();
+}

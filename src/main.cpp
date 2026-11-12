@@ -87,6 +87,11 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
         }
     }
 
+    if (!qsettings.contains(GSTK_MOD_STORAGE_PATH)) {
+      QString defaultPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/storage";
+      qsettings.setValue(GSTK_MOD_STORAGE_PATH, defaultPath);
+    }
+
     PyConfig config;
     PyConfig_InitPythonConfig(&config);
 

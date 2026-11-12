@@ -2,6 +2,7 @@
 #include <QLayout>
 #include <QWidget>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 
 #include <QFuture>
 #include <QPromise>
@@ -57,6 +58,19 @@ std::string format_duration(std::chrono::duration<Rep, Period> d) {
 
     return result;
 }
+
+class network_error : public QException {
+public:
+  network_error(QNetworkReply::NetworkError error, QString url);
+
+  const char* what() const noexcept override;
+
+private:
+  QNetworkReply::NetworkError error_;
+  QString url_;
+
+  std::string msg;
+};
 
 
 QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& url);

@@ -8,7 +8,6 @@
 #include "ui/GradientBackground.hpp"
 #include "ui/IconButton.hpp"
 #include "ui/PixmapWidget.hpp"
-#include "utils/EventFilters.hpp"
 #include "utils/FlowLayout.hpp"
 #include "utils/LucideIcons.hpp"
 #include "ui/Router.hpp"
@@ -18,122 +17,140 @@
 #include <QComboBox>
 #include <QPointer>
 
-namespace detail {
 
-OMIThumbnail::OMIThumbnail(QString imageUrl, QSize displaySize, QNetworkAccessManager* networkManager, QWidget* parent) 
-: QWidget(parent), m_nm(networkManager)
-{
-  setFixedSize(displaySize);
-  auto* container = new QStackedWidget(this);
-  m_child = container;
-  // gray background with `new LoadingCircle()` in the center
-  auto* placeholderWidget = new QWidget();
-  placeholderWidget->setStyleSheet("background-color: #dddddd;");
-  container->addWidget(placeholderWidget);
+class OMIThumbnail : public QWidget {
+  Q_OBJECT
+private:
+  bool m_hovered = false;
 
-  auto* placeholderLayout = new QVBoxLayout(placeholderWidget);
-  placeholderLayout->setContentsMargins(m_padding, m_padding, m_padding, m_padding);
+  QNetworkAccessManager* m_nm;
 
-  updateChildRender();
-
-  if (!imageUrl.isEmpty()) {
-    auto* loadingCircle = new LoadingCircle(placeholderWidget);
-    loadingCircle->setColor(Qt::white);
-    placeholderLayout->addWidget(loadingCircle, 0, Qt::AlignCenter);
-
-
-    fetchUrlAsync(m_nm, QUrl(imageUrl)).then(this, [this, container](QByteArray data) {
-      QPixmap pixmap;
-      if (pixmap.loadFromData(data)) {
-        auto* pixmapWidget = new PixmapWidget(this);
-        pixmapWidget->setPixmap(pixmap);
-        container->addWidget(pixmapWidget);
-        container->setCurrentWidget(pixmapWidget);
-      } else {
-        // If the image fails to load, keep the placeholder
-        qWarning("Failed to load image from data.");
-      }
-    });
+  QWidget* m_child = nullptr;
+  
+  const int m_padding = 8;
+  const int m_radius = 4;
+public:
+  void setHovered(bool hovered){
+    m_hovered = hovered;
+    update();
   }
-}
 
-void OMIThumbnail::resizeEvent(QResizeEvent* e) {
-  updateChildRender();
-}
-void OMIThumbnail::updateChildRender() {
-  // Ensure padding doesn't result in negative dimensions if the window gets too small
-  int childX = m_padding;
-  int childY = m_padding;
-  int childWidth = qMax(0, width() - (2 * m_padding));
-  int childHeight = qMax(0, height() - (2 * m_padding));
-
-  // Apply the padded geometry to the child
-  m_child->setGeometry(childX, childY, childWidth, childHeight);
-
-  QPainterPath path;
-  path.addRoundedRect(m_child->rect(), m_radius, m_radius);
-  QRegion roundedRegion(path.toFillPolygon().toPolygon());
-
-  m_child->setMask(roundedRegion);
-}
-void OMIThumbnail::paintEvent(QPaintEvent* event) {
-  // Draw a rounded rectangle at `this->rect()` with *only* a 4px outline, 
-  // using gradient color of c_primaryLightColor at the top-left and c_secondaryLightColor at the bottom-right
-
-  if (m_hovered) {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-
-    QLinearGradient gradient(rect().topLeft(), rect().bottomRight());
-    gradient.setColorAt(0.0, c_primaryLightColor);
-    gradient.setColorAt(1.0, c_secondaryLightColor);
-
-    QPen pen(gradient, m_radius);
-    painter.setPen(pen);
-    painter.setBrush(Qt::NoBrush);
-
-    // Inset by half the pen width (2px) so the 4px border stays inside the widget bounds
-    painter.drawRoundedRect(rect().adjusted(2, 2, -2, -2), 4, 4);
+  void resizeEvent(QResizeEvent* event) override {
+    updateChildRender();
   }
-}
+  void paintEvent(QPaintEvent* event) override {
+    // Draw a rounded rectangle at `this->rect()` with *only* a 4px outline, 
+    // using gradient color of c_primaryLightColor at the top-left and c_secondaryLightColor at the bottom-right
 
-void OMIThumbnail::setHovered(bool hovered) {
-  m_hovered = hovered;
-  update();
-}
+    if (m_hovered) {
+      QPainter painter(this);
+      painter.setRenderHint(QPainter::Antialiasing, true);
+
+      QLinearGradient gradient(rect().topLeft(), rect().bottomRight());
+      gradient.setColorAt(0.0, c_primaryLightColor);
+      gradient.setColorAt(1.0, c_secondaryLightColor);
+
+      QPen pen(gradient, m_radius);
+      painter.setPen(pen);
+      painter.setBrush(Qt::NoBrush);
+
+      // Inset by half the pen width (2px) so the 4px border stays inside the widget bounds
+      painter.drawRoundedRect(rect().adjusted(2, 2, -2, -2), 4, 4);
+    }
+  }
+  void updateChildRender() {
+    // Ensure padding doesn't result in negative dimensions if the window gets too small
+    int childX = m_padding;
+    int childY = m_padding;
+    int childWidth = qMax(0, width() - (2 * m_padding));
+    int childHeight = qMax(0, height() - (2 * m_padding));
+
+    // Apply the padded geometry to the child
+    m_child->setGeometry(childX, childY, childWidth, childHeight);
+
+    QPainterPath path;
+    path.addRoundedRect(m_child->rect(), m_radius, m_radius);
+    QRegion roundedRegion(path.toFillPolygon().toPolygon());
+
+    m_child->setMask(roundedRegion);
+  }
+
+  /*
+   * @params displaySize image display size (including padding for the hover border)
+   */
+  explicit OMIThumbnail(QString imageUrl, QSize displaySize, QNetworkAccessManager* networkManager, QWidget* parent = nullptr)
+    : QWidget(parent), m_nm(networkManager) {
+    setFixedSize(displaySize);
+    auto* container = new QStackedWidget(this);
+    m_child = container;
+    // gray background with `new LoadingCircle()` in the center
+    auto* placeholderWidget = new QWidget();
+    placeholderWidget->setStyleSheet("background-color: #dddddd;");
+    container->addWidget(placeholderWidget);
+
+    auto* placeholderLayout = new QVBoxLayout(placeholderWidget);
+    placeholderLayout->setContentsMargins(m_padding, m_padding, m_padding, m_padding);
+
+    updateChildRender();
+
+    if (!imageUrl.isEmpty()) {
+      auto* loadingCircle = new LoadingCircle(placeholderWidget);
+      loadingCircle->setColor(Qt::white);
+      placeholderLayout->addWidget(loadingCircle, 0, Qt::AlignCenter);
 
 
-OnlineModItem::OnlineModItem(QNetworkAccessManager* networkManager, OnlineMod mod, QWidget* parent) 
-  : QWidget(parent), m_nm(networkManager), m_mod(mod)
-{
-  setFixedWidth(258);
+      fetchUrlAsync(m_nm, QUrl(imageUrl)).then(this, [this, container](QByteArray data) {
+        QPixmap pixmap;
+        if (pixmap.loadFromData(data)) {
+          auto* pixmapWidget = new PixmapWidget(this);
+          pixmapWidget->setPixmap(pixmap);
+          container->addWidget(pixmapWidget);
+          container->setCurrentWidget(pixmapWidget);
+        } else {
+          // If the image fails to load, keep the placeholder
+          qWarning("Failed to load image from data.");
+        }
+      });
+    }
+  }
+};
 
-  auto* layout = new QVBoxLayout(this);
-  layout->setSpacing(4);
-  layout->setAlignment(Qt::AlignTop);
+class OnlineModItem : public QWidget {
+  Q_OBJECT
+private:
+  OnlineMod m_mod;
+  QNetworkAccessManager* m_nm; // "Owned" by OnlineModsIndexScreen
+  OMIThumbnail* m_thumbnail = nullptr;
+public:
+  explicit OnlineModItem(QNetworkAccessManager* networkManager, OnlineMod mod, QWidget* parent = nullptr)
+    : QWidget(parent), m_nm(networkManager), m_mod(mod) {
+    setFixedWidth(258);
 
-  // OMIThumbnail (16:9 ratio), title and author
-  m_thumbnail = new OMIThumbnail(QString::fromStdString(mod.imageUrl), QSize(250, 140), m_nm, this);
-  layout->addWidget(m_thumbnail);
+    auto* layout = new QVBoxLayout(this);
+    layout->setSpacing(4);
+    layout->setAlignment(Qt::AlignTop);
 
-  auto* titleLabel = new ElidedLabel(QString::fromStdString(mod.name), this);
-  //titleLabel->setWordWrap(true);
-  titleLabel->setFont(QFont("Quicksand", 12, QFont::Weight::DemiBold));
-  titleLabel->setMaxLines(2);
-  layout->addWidget(titleLabel);
+    // OMIThumbnail (16:9 ratio), title and author
+    m_thumbnail = new OMIThumbnail(QString::fromStdString(mod.imageUrl), QSize(250, 140), m_nm, this);
+    layout->addWidget(m_thumbnail);
 
-  auto* authorLabel = new QLabel(QString::fromStdString(mod.author), this);
-  authorLabel->setFont(QFont("Quicksand", 10));
-  layout->addWidget(authorLabel);
-}
-void OnlineModItem::enterEvent(QEnterEvent* event) {
-  m_thumbnail->setHovered(true);
-}
-void OnlineModItem::leaveEvent(QEvent* event) {
-  m_thumbnail->setHovered(false);
-}
+    auto* titleLabel = new ElidedLabel(QString::fromStdString(mod.name), this);
+    //titleLabel->setWordWrap(true);
+    titleLabel->setFont(QFont("Quicksand", 12, QFont::Weight::DemiBold));
+    titleLabel->setMaxLines(2);
+    layout->addWidget(titleLabel);
 
-}
+    auto* authorLabel = new QLabel(QString::fromStdString(mod.author), this);
+    authorLabel->setFont(QFont("Quicksand", 10));
+    layout->addWidget(authorLabel);
+  }
+  void enterEvent(QEnterEvent* event) override {
+    m_thumbnail->setHovered(true);
+  }
+  void leaveEvent(QEvent* event) override {
+    m_thumbnail->setHovered(false);
+  }
+};
 
 
 OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : QWidget(parent) {
@@ -179,7 +196,6 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
 
   auto* indexSelector = new QComboBox(header);
   QList<QPointer<OnlineIndex>> indexes {{
-    QPointer<OnlineIndex>(new ModdingCentralIndex(this)),
     QPointer<OnlineIndex>(new DokiModsDotMeIndex(this))
   }}; 
 
@@ -192,10 +208,35 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
     auto index = indexes[idx];
     if (!index) return;
     m_currentIndex = index;
+    queryIndex();
   });
   m_currentIndex = indexes[0];
 
   headerLayout->addWidget(indexSelector);
+
+  headerLayout->addWidget(new QLabel("Sort by", header));
+
+  auto* sortSelector = new QComboBox(header);
+  std::array<std::pair<ListSorting, std::string>, 5> sorts {{
+    {ListSorting::Newest, "Newest"},
+    {ListSorting::Oldest, "Oldest"},
+    {ListSorting::TitleAZ, "Title A-Z"},
+    {ListSorting::TitleZA, "Title Z-A"},
+    {ListSorting::Author, "Author"},
+  }};
+
+  for (const auto& [sort, name] : sorts) {
+    sortSelector->addItem(QString::fromStdString(name));
+  }
+
+  connect(sortSelector, QOverload<int>::of(&QComboBox::currentIndexChanged), [this, sortSelector, sorts](int idx){
+    if (idx < 0 || idx >= sorts.size()) return;
+    auto sort = sorts[idx].first;
+    m_sort = sort;
+    queryIndex();
+  });
+
+  headerLayout->addWidget(sortSelector);
 
   
   m_container = new QStackedWidget(this);
@@ -226,7 +267,13 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   pContentLayout->addWidget(loadingCircle, 0, Qt::AlignCenter);
   m_container->addWidget(m_placeholderWidget);
 
-
+  m_exceptionWidget = new QWidget();
+  auto* exceptionLayout = new QVBoxLayout(m_exceptionWidget);
+  m_exceptionLabel = new QLabel();
+  m_exceptionLabel->setWordWrap(true);
+  m_exceptionLabel->setAlignment(Qt::AlignCenter);
+  exceptionLayout->addWidget(m_exceptionLabel, 0, Qt::AlignCenter);
+  m_container->addWidget(m_exceptionWidget);
 
 
   auto* footer = new QWidget(this);
@@ -274,8 +321,25 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   });
   footerLayout->addWidget(pageInput);
 
-  auto* totalPagesLabel = new QLabel(QString("of %1").arg(m_totalPages), footer);
+  auto* totalPagesLabel = new QLabel(footer); // text content set below
   footerLayout->addWidget(totalPagesLabel);
+
+  auto* perPageInput = new QLineEdit(footer);
+  perPageInput->setFixedWidth(40);
+  perPageInput->setAlignment(Qt::AlignCenter);
+  perPageInput->setText(QString::number(m_perPage));
+  connect(perPageInput, &QLineEdit::editingFinished, [this, perPageInput](){
+      bool ok;
+      int newPerPage = perPageInput->text().toInt(&ok); 
+      if (ok && newPerPage > 0 && newPerPage <= m_totalPages) {
+        setPerPage(newPerPage);
+      } else {
+        perPageInput->setText(QString::number(m_perPage)); 
+      }
+  });
+  footerLayout->addWidget(perPageInput);
+
+  footerLayout->addWidget(new QLabel("mods per page", footer));
   footerLayout->addStretch(1);
 
   auto* nextPageBtn = new IconButton(LucideIcons::chevron_right);
@@ -308,12 +372,18 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
     lastPageBtn->setEnabled(nv + 1 < m_totalPages);
   });
 
+  connect(this, &OnlineModsIndexScreen::perPageNumberUpdated, [this](){
+    m_totalPages = ceil(m_totalItems / m_perPage);
+    setPage(m_page >= m_totalPages ? m_totalPages - 1 : m_page);
+    queryIndex();
+  });
+
   firstPageBtn->setEnabled(false);
   prevPageBtn->setEnabled(false);
 
   connect(this, &OnlineModsIndexScreen::totalItemsUpdated, [this, totalPagesLabel, updateModsCountLabel](){
     m_totalPages = ceil(m_totalItems / m_perPage);
-    totalPagesLabel->setText(QString("of %1").arg(m_totalPages));
+    totalPagesLabel->setText(QString("of %1, showing").arg(m_totalPages));
     updateModsCountLabel();
   });
 }
@@ -322,7 +392,9 @@ void OnlineModsIndexScreen::queryIndex() {
   if (m_currentIndex != nullptr) {
     if (m_container) m_container->setCurrentWidget(m_placeholderWidget);
     if (m_footer) m_footer->hide();
-    m_currentIndex->getMods({.page = m_page, .perPage = m_perPage}).then(this, [this](std::vector<OnlineMod> list){
+    m_currentIndex->getMods({
+      .page = m_page, .perPage = m_perPage, .sorting = m_sort
+    }).then(this, [this](std::vector<OnlineMod> list){
       for (auto* item : m_whar) {
         m_contentLayout->removeWidget(item);
         item->deleteLater();
@@ -330,7 +402,7 @@ void OnlineModsIndexScreen::queryIndex() {
       m_whar.clear();
 
       for (const auto& mod : list) {
-        auto* item = new detail::OnlineModItem(m_nm, mod, m_content);
+        auto* item = new OnlineModItem(m_nm, mod, m_content);
         m_contentLayout->addWidget(item);
         m_whar.push_back(item);
       }
@@ -339,6 +411,9 @@ void OnlineModsIndexScreen::queryIndex() {
 
       if (m_container) m_container->setCurrentWidget(m_scrollArea);
       if (m_footer && m_totalItems > m_perPage) m_footer->show();
+    }).onFailed(this, [this](const std::exception& e){
+      m_exceptionLabel->setText(QString("Failed to fetch mods: %1").arg(e.what()));
+      if (m_container) m_container->setCurrentWidget(m_exceptionWidget);
     });
   }
 }
@@ -352,12 +427,25 @@ void OnlineModsIndexScreen::showEvent(QShowEvent* event) {
 };
 
 void OnlineModsIndexScreen::setTotalItems(int value) {
+  if (value == m_totalItems) return;
   m_totalItems = value;
   emit totalItemsUpdated();
 }
 void OnlineModsIndexScreen::setPage(int page) {
+  if (page == m_page) return;
   if (page >= 0 && page < m_totalPages) {
     m_page = page;
     emit pageNumberUpdated();
   }
 }
+void OnlineModsIndexScreen::setPerPage(int value) {
+  if (value == m_perPage) return;
+  // why 12?
+  // why would you want anything smaller than this?
+  if (value > 12 && value < m_totalItems) {
+    m_perPage = value;
+    emit perPageNumberUpdated();
+  }
+}
+
+#include "OnlineModsIndex.moc"
