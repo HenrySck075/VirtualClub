@@ -24,7 +24,7 @@ ImageLoadingWidget::ImageLoadingWidget(const QString& imageUrl,
 
   if (!imageUrl.isEmpty()) {
     auto* loadingCircle = new LoadingCircle(placeholderWidget);
-    loadingCircle->setColor(Qt::white);
+    loadingCircle->setColor(Qt::black);
     placeholderLayout->addWidget(loadingCircle, 0, Qt::AlignCenter);
   }
 }

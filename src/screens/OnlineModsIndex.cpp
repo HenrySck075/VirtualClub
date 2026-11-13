@@ -165,6 +165,57 @@ public:
     layout->setContentsMargins(12, 8, 8, 12);
     layout->setAlignment(Qt::AlignTop);
 
+
+    auto* titleLabel = new ElidedLabel(QString::fromStdString(mod.name), this);
+    titleLabel->setFont(QFont("Quicksand", 18, QFont::Weight::Bold));
+    titleLabel->setMaxLines(2);
+
+    auto* authorLabel = new QLabel(QString::fromStdString(mod.author), this);
+    authorLabel->setFont(QFont("Quicksand", 15, QFont::Weight::DemiBold));
+
+    auto* creationDateLineLayout = new QHBoxLayout();
+    creationDateLineLayout->setContentsMargins(0, 0, 0, 0);
+    creationDateLineLayout->setSpacing(4);
+    
+    {
+      auto* icon = LucideIcons::calendar.svgWidget();
+      icon->setFixedSize(16, 16);
+      icon->setStyleSheet(QString("color: %1").arg(qColorToCSSrgb(c_secondaryColor)));
+      creationDateLineLayout->addWidget(icon);
+
+      auto* creationDateLabel = new QLabel(
+        QString::fromStdString(format_date(mod.creationDate))
+      , this);
+      creationDateLabel->setFont(QFont("Quicksand", 12));
+      creationDateLineLayout->addWidget(creationDateLabel);
+    }
+
+    auto* metadata = new QWidget(this);
+    auto* metadataLayout = new QVBoxLayout(metadata);
+    metadataLayout->setContentsMargins(0, 0, 0, 0);
+    metadataLayout->setSpacing(4);
+    metadataLayout->addWidget(titleLabel);
+    metadataLayout->addWidget(authorLabel);
+    metadataLayout->addLayout(creationDateLineLayout);
+
+    auto* downloadButton = new Button("Download", LucideIcons::download, this);
+    connect(downloadButton, &QPushButton::clicked, this, [mod, this]() {
+      Dialog::showContentDialog(
+        this,
+        "Download mod",
+        new DownloadDialogContent(mod)
+      );
+    });
+
+    auto* metadataRow = new QHBoxLayout();
+    metadataRow->setContentsMargins(0, 0, 0, 0);
+    metadataRow->setSpacing(12);
+    metadataRow->addWidget(metadata);
+    metadataRow->addWidget(downloadButton, 0, Qt::AlignVCenter);
+    layout->addLayout(metadataRow);
+
+
+
     std::vector<std::string> imageUrls;
     if (!mod.imageUrl.empty()) {
       imageUrls.push_back(mod.imageUrl);
@@ -230,36 +281,6 @@ public:
       updateCarousel();
     });
     updateCarousel();
-
-    auto* titleLabel = new ElidedLabel(QString::fromStdString(mod.name), this);
-    titleLabel->setFont(QFont("Quicksand", 18, QFont::Weight::Bold));
-    titleLabel->setMaxLines(2);
-
-    auto* authorLabel = new QLabel(QString::fromStdString(mod.author), this);
-    authorLabel->setFont(QFont("Quicksand", 15, QFont::Weight::DemiBold));
-
-    auto* metadata = new QWidget(this);
-    auto* metadataLayout = new QVBoxLayout(metadata);
-    metadataLayout->setContentsMargins(0, 0, 0, 0);
-    metadataLayout->setSpacing(4);
-    metadataLayout->addWidget(titleLabel);
-    metadataLayout->addWidget(authorLabel);
-
-    auto* downloadButton = new Button("Download", LucideIcons::download, this);
-    connect(downloadButton, &QPushButton::clicked, this, [mod, this]() {
-      Dialog::showContentDialog(
-        this,
-        "Download mod",
-        new DownloadDialogContent(mod)
-      );
-    });
-
-    auto* metadataRow = new QHBoxLayout();
-    metadataRow->setContentsMargins(0, 0, 0, 0);
-    metadataRow->setSpacing(12);
-    metadataRow->addWidget(metadata);
-    metadataRow->addWidget(downloadButton, 0, Qt::AlignVCenter);
-    layout->addLayout(metadataRow);
 
     layout->addSpacing(12);
 
@@ -667,7 +688,10 @@ void OnlineModsIndexScreen::queryIndex() {
         .searchQuery = m_searchQuery
       }));
 
-      if (m_container) m_container->setCurrentWidget(m_scrollArea);
+      if (m_container) {
+        m_scrollArea->verticalScrollBar()->setValue(0);
+        m_container->setCurrentWidget(m_scrollArea);
+      }
       if (m_footer && m_totalItems > m_perPage) m_footer->show();
     }).onFailed(this, [this](const std::exception& e){
       m_exceptionLabel->setText(QString("Failed to fetch mods: %1").arg(e.what()));

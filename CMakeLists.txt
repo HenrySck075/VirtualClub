@@ -6,9 +6,9 @@ if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 add_compile_definitions(
-  MVC_VERSION=${PROJECT_VERSION}
+  MVC_VERSION="${PROJECT_VERSION}"
 )
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -27,7 +27,8 @@ find_package(Python REQUIRED COMPONENTS Interpreter Development)
 message(STATUS "Python binary path: ${Python_EXECUTABLE}")
 
 # Find Qt6 components
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Svg LinguistTools)
+# (also requires ImageFormats plugin for the online mods browser)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Svg SvgWidgets LinguistTools)
 
 find_package(pybind11 REQUIRED CONFIG)
 
@@ -132,7 +133,7 @@ FetchContent_MakeAvailable(yaml-cpp)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE yaml-cpp::yaml-cpp) # The library or executable that require yaml-cpp library
 # Link Qt6 libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::Svg pybind11::embed)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::Svg Qt6::SvgWidgets pybind11::embed)
 
 set(IS_ANDROID FALSE)
 set(IS_TERMUX FALSE)

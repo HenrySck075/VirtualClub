@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <vector>
 #include <QFuture>
 #include <QString>
@@ -13,6 +14,9 @@ struct OnlineMod {
   std::string imageUrl;
   std::vector<std::string> screenshotImageUrls;
   std::string url;
+
+  std::chrono::local_time<std::chrono::minutes> creationDate;
+  std::chrono::local_time<std::chrono::minutes> lastUpdated;
 };
 
 enum class ListSorting {
@@ -37,15 +41,8 @@ public:
   explicit OnlineIndex(QObject* parent = nullptr) : QObject(parent) {}
 };
 
-///////////////////////////////////////
-/// Subclass for dokimods.me
-///
-/// This one has support for server-side perPage limit but the site sets ?perPage=500 
-/// so it basically sends everything anyway and does pagination client-side
-///
-/// Update: the reason was because the list was sent in TitleZA order... split into several "chunks". or in other words, semi-arbitrary.
-/// This endpoint also DOES NOT CACHE. whrer should i report this?
-class DokiModsDotMeIndex : public OnlineIndex {
+/// Subclass for classes getting the entire index at once and does every operation based on that data.
+class FullFetchIndex : public OnlineIndex {
   bool m_fetched = false;
   QNetworkAccessManager* m_nm = nullptr;
   std::unordered_map<ListSorting, std::vector<OnlineMod>> m_modsList;
@@ -55,15 +52,35 @@ class DokiModsDotMeIndex : public OnlineIndex {
     const std::string& searchQuery
   ) const;
   std::vector<OnlineMod> selectList(QueryConfig config);
+protected:
+  QNetworkAccessManager* networkManager() const {return m_nm;}
 public:
+  virtual ListSorting baseSort() {return ListSorting::Oldest;}
   QFuture<std::vector<OnlineMod>> getMods(QueryConfig config) override;
   int getTotalMods(QueryConfig config) override;
 
+  virtual QFuture<std::vector<OnlineMod>> fetchMods() = 0;
+
+  explicit FullFetchIndex(QObject* parent = nullptr);
+};
+
+///////////////////////////////////////
+/// Subclass for dokimods.me
+///
+/// This one has support for server-side perPage limit but the site sets ?perPage=500 
+/// so it basically sends everything anyway and does pagination client-side
+///
+/// Update: the reason was because the list was sent in TitleZA order... split into several "chunks". or in other words, semi-arbitrary.
+/// This endpoint also DOES NOT CACHE. whrer should i report this?
+class DokiModsDotMeIndex : public FullFetchIndex {
+public:
+  QFuture<std::vector<OnlineMod>> fetchMods() override;
   QString displayName() override {
     return "dokimods.me";
   }
 
-  explicit DokiModsDotMeIndex(QObject* parent = nullptr);
+  explicit DokiModsDotMeIndex(QObject* parent = nullptr)
+    : FullFetchIndex(parent) {};
 };
 
 
@@ -71,7 +88,10 @@ public:
 /// Subclass for DDMC Mods List 
 ///
 /// sourced from Reddit and mods list spreadsheet snapshot generated as JSON
-class DDMCIndex : public OnlineIndex {};
+class DDMCIndex : public FullFetchIndex {
+public:
+  ListSorting baseSort() override {return ListSorting::TitleAZ;}
+};
 
 ///////////////////////////////////////
 /// Subclass for Elysium Team (upcoming)

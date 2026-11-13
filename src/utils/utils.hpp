@@ -8,6 +8,14 @@
 #include <QPromise>
 #include <nlohmann/json.hpp>
 
+inline QString qColorToCSSrgb(const QColor& color) {
+  return QString("rgb(%1,%2,%3)")
+    .arg(color.red())
+    .arg(color.green())
+    .arg(color.blue())
+  ;
+}
+
 int findChildWidgetIndex(QLayout* layout, QWidget* child); 
 QWidget* findChildWidgetBy(QLayout* layout, std::function<bool(QWidget*)> predicate); 
 
@@ -57,6 +65,11 @@ std::string format_duration(std::chrono::duration<Rep, Period> d) {
     result += std::to_string(seconds_count.count()) + "s";
 
     return result;
+}
+
+template<class Duration>
+std::string format_date(std::chrono::local_time<Duration> time) {
+   return std::format("{:%b %d, %Y}", time);
 }
 
 class network_error : public QException {

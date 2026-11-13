@@ -207,6 +207,10 @@ QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& ur
   QFuture<QByteArray> future = promise->future();
 
   QNetworkRequest request(url);
+  request.setHeader(
+    QNetworkRequest::UserAgentHeader, 
+    "VirtualClub v" MVC_VERSION "(Qt" QT_VERSION_STR ")"
+  );
   QNetworkReply* reply = manager->get(request);
 
   QObject::connect(reply, &QNetworkReply::finished, [url, reply, promise]() {
@@ -229,6 +233,11 @@ QFuture<nlohmann::json> fetchJsonAsync(QNetworkAccessManager* manager, const QUr
   QFuture<nlohmann::json> future = promise->future();
 
   QNetworkRequest request(url);
+  // if this makes the requests errored out then awesome
+  request.setHeader(
+    QNetworkRequest::UserAgentHeader, 
+    "VirtualClub v" MVC_VERSION "(Qt" QT_VERSION_STR ")"
+  );
   QNetworkReply* reply = manager->get(request);
 
   QObject::connect(reply, &QNetworkReply::finished, [reply, promise, url]() {

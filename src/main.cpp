@@ -21,6 +21,7 @@
 #include "utils/SessionManager.hpp"
 #include "utils/i18n.hpp"
 #include "utils/macros.h"
+#include "utils/utils.hpp"
 
 #include <pybind11/embed.h>
 #include <QTranslator>
@@ -34,13 +35,7 @@
 
 namespace py = pybind11;
 
-QString turkye(const QColor& color) {
-  return QString("rgb(%1,%2,%3)")
-    .arg(color.red())
-    .arg(color.green())
-    .arg(color.blue())
-  ;
-}
+
 
 int main(int argc, char *argv[]) {
 
@@ -175,7 +170,7 @@ QProgressBar::chunk {
   border-radius: 8px;
   margin: 4px;
 }
-)").arg(turkye(c_primaryColor)).arg(turkye(c_secondaryColor)));
+)").arg(qColorToCSSrgb(c_primaryColor)).arg(qColorToCSSrgb(c_secondaryColor)));
 
 
     showUserSetupDialogIfNeeded();

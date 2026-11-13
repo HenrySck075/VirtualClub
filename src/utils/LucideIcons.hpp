@@ -6,7 +6,7 @@
 #include <QIcon>
 #include <QPainter>
 #include <QSvgRenderer>
-#include <optional>
+#include <QtSvgWidgets/QSvgWidget>
 #include <utility>
 
 class LucideIcon {
@@ -21,6 +21,11 @@ public:
 
     operator QIcon() const {
         return icon();
+    }
+
+    QSvgWidget* svgWidget(QWidget* parent = nullptr) const {
+        auto* widget = new QSvgWidget(m_path, parent);
+        return widget;
     }
 
     QPixmap pixmap(const QSize &size = QSize(), const QColor &color = Qt::black) const {
@@ -52,6 +57,7 @@ namespace LucideIcons {
 inline static const LucideIcon arrow_left{":/icons/arrow_left.svg"};
 inline static const LucideIcon arrow_right{":/icons/arrow_right.svg"};
 inline static const LucideIcon bug{":/icons/bug.svg"};
+inline static const LucideIcon calendar{":/icons/calendar.svg"};
 inline static const LucideIcon chevron_left{":/icons/chevron_left.svg"};
 inline static const LucideIcon chevron_right{":/icons/chevron_right.svg"};
 inline static const LucideIcon chevrons_left{":/icons/chevrons_left.svg"};
