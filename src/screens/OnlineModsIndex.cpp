@@ -105,6 +105,8 @@ public:
                 closeDialog();
                 return;
               }
+              // set extract folder to a subdirectory
+              auto extractDir = storageDir.filePath(QString::fromStdString(m_mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_"));
 
               QtConcurrent::run(zip_extract, filePath.toUtf8().constData(),
                                               storagePath.toUtf8().constData(),
