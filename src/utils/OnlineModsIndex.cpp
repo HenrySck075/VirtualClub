@@ -22,7 +22,7 @@ FullFetchIndex::FullFetchIndex(QObject *parent)
 QFuture<std::vector<OnlineMod>> FullFetchIndex::getMods(OnlineIndex::QueryConfig config) {
   if (m_modsList.empty()) {
     return fetchMods().then([this, config](std::vector<OnlineMod> mods) {
-      m_modsList[baseSort()] = std::move(mods);
+      m_baseModsList = std::move(mods);
       createSortedListIfAbsent(config.sorting);
       return selectList(config);
     });
@@ -39,8 +39,8 @@ int FullFetchIndex::getTotalMods(QueryConfig config) {
   createSortedListIfAbsent(config.sorting);
   return filterList(m_modsList[config.sorting], config.searchQuery).size();
 }
-std::vector<OnlineMod> FullFetchIndex::filterList(
-  const std::vector<OnlineMod>& list,
+std::vector<size_t> FullFetchIndex::filterList(
+  const std::vector<size_t>& list,
   const std::string& searchQuery
 ) const {
   if (searchQuery.empty()) {
@@ -54,13 +54,14 @@ std::vector<OnlineMod> FullFetchIndex::filterList(
   }
 
   struct Match {
-    OnlineMod mod;
+    size_t index;
     int titleMatches;
   };
   std::vector<Match> matches;
   matches.reserve(list.size());
 
-  for (const auto& mod : list) {
+  for (const auto& index : list) {
+    const auto& mod = m_baseModsList[index];
     const auto title = QString::fromStdString(mod.name);
     const auto author = QString::fromStdString(mod.author);
     const auto description = QString::fromStdString(mod.description);
@@ -80,7 +81,7 @@ std::vector<OnlineMod> FullFetchIndex::filterList(
     }
 
     if (matchesAllTokens) {
-      matches.push_back({mod, titleMatches});
+      matches.push_back({index, titleMatches});
     }
   }
 
@@ -88,10 +89,10 @@ std::vector<OnlineMod> FullFetchIndex::filterList(
     return a.titleMatches > b.titleMatches;
   });
 
-  std::vector<OnlineMod> filtered;
+  std::vector<size_t> filtered;
   filtered.reserve(matches.size());
   for (auto& match : matches) {
-    filtered.push_back(std::move(match.mod));
+    filtered.push_back(match.index);
   }
   return filtered;
 }
@@ -107,7 +108,13 @@ std::vector<OnlineMod> FullFetchIndex::selectList(QueryConfig config) {
     return {};
   }
 
-  return std::vector<OnlineMod>(list.begin() + startIndex, list.begin() + endIndex);
+  std::vector<OnlineMod> result;
+  result.reserve(endIndex - startIndex);
+  for (int i = startIndex; i < endIndex; ++i) {
+    result.push_back(m_baseModsList[list[i]]);
+  }
+
+  return result;
 }
 void FullFetchIndex::createSortedListIfAbsent(ListSorting sort) {
   if (m_modsList.contains(sort)) return;
@@ -127,20 +134,19 @@ void FullFetchIndex::createSortedListIfAbsent(ListSorting sort) {
       if (baseSorting == ListSorting::Newest) {
         std::reverse(sorted.begin(), sorted.end());
       } else {
-        std::sort(sorted.begin(), sorted.end(), [](const OnlineMod& a, const OnlineMod& b) {
-          return a.lastUpdated < b.lastUpdated;
+        std::sort(sorted.begin(), sorted.end(), [this](const size_t a, const size_t b) {
+          return m_baseModsList[a].lastUpdated < m_baseModsList[b].lastUpdated;
         });
       }
       
       break;
     }
-
     case ListSorting::Newest: {
       if (baseSorting == ListSorting::Oldest) {
         std::reverse(sorted.begin(), sorted.end());
       } else {
-        std::sort(sorted.begin(), sorted.end(), [](const OnlineMod& a, const OnlineMod& b) {
-          return a.lastUpdated > b.lastUpdated;
+        std::sort(sorted.begin(), sorted.end(), [this](const size_t a, const size_t b) {
+          return m_baseModsList[a].lastUpdated > m_baseModsList[b].lastUpdated;
         });
       }
       break;
@@ -149,8 +155,8 @@ void FullFetchIndex::createSortedListIfAbsent(ListSorting sort) {
       if (baseSorting == ListSorting::TitleZA) {
         std::reverse(sorted.begin(), sorted.end());
       } else {
-        std::sort(sorted.begin(), sorted.end(), [](const OnlineMod& a, const OnlineMod& b) {
-          return a.name < b.name;
+        std::sort(sorted.begin(), sorted.end(), [this](const size_t a, const size_t b) {
+          return m_baseModsList[a].name < m_baseModsList[b].name;
         });
       }
       break;
@@ -159,15 +165,15 @@ void FullFetchIndex::createSortedListIfAbsent(ListSorting sort) {
       if (baseSorting == ListSorting::TitleAZ) {
         std::reverse(sorted.begin(), sorted.end());
       } else {
-        std::sort(sorted.begin(), sorted.end(), [](const OnlineMod& a, const OnlineMod& b) {
-          return a.name > b.name;
+        std::sort(sorted.begin(), sorted.end(), [this](const size_t a, const size_t b) {
+          return m_baseModsList[a].name > m_baseModsList[b].name;
         });
       }
       break;
     }
     case ListSorting::Author: {
-      std::sort(sorted.begin(), sorted.end(), [](const OnlineMod& a, const OnlineMod& b) {
-        return a.author < b.author;
+      std::sort(sorted.begin(), sorted.end(), [this](const size_t a, const size_t b) {
+        return m_baseModsList[a].author < m_baseModsList[b].author;
       });
       break;
     }
@@ -260,7 +266,6 @@ QFuture<std::vector<OnlineMod>> DokiModsDotMeIndex::fetchMods() {
 //////////////////////
 
 QFuture<std::vector<OnlineMod>> DDMCIndex::fetchMods() {
-
   return fetchJsonAsync(networkManager(), QUrl("https://virtualclub.pages.dev/mods.json")).then([this](nlohmann::json resp) {
     assert(resp.is_array());
 

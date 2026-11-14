@@ -45,17 +45,19 @@ public:
 class FullFetchIndex : public OnlineIndex {
   bool m_fetched = false;
   QNetworkAccessManager* m_nm = nullptr;
-  std::unordered_map<ListSorting, std::vector<OnlineMod>> m_modsList;
+  // Mods list in the order of baseSort()
+  std::vector<OnlineMod> m_baseModsList;
+  std::unordered_map<ListSorting, std::vector<size_t>> m_modsList;
   void createSortedListIfAbsent(ListSorting sorting);
-  std::vector<OnlineMod> filterList(
-    const std::vector<OnlineMod>& list,
+  std::vector<size_t> filterList(
+    const std::vector<size_t>& list,
     const std::string& searchQuery
   ) const;
   std::vector<OnlineMod> selectList(QueryConfig config);
 protected:
   QNetworkAccessManager* networkManager() const {return m_nm;}
 public:
-  virtual ListSorting baseSort() {return ListSorting::Oldest;}
+  virtual ListSorting baseSort() const {return ListSorting::Oldest;}
   QFuture<std::vector<OnlineMod>> getMods(QueryConfig config) override;
   int getTotalMods(QueryConfig config) override;
 
@@ -88,7 +90,7 @@ public:
 /// sourced from Reddit and mods list spreadsheet snapshot generated as JSON
 class DDMCIndex : public FullFetchIndex {
 public:
-  ListSorting baseSort() override {return ListSorting::TitleAZ;}
+  ListSorting baseSort() const override {return ListSorting::TitleAZ;}
   QFuture<std::vector<OnlineMod>> fetchMods() override;
   
   QString displayName() override {return "VirtualClub (DDMC)";}
