@@ -4,6 +4,7 @@
 
 class QNetworkAccessManager;
 class QStackedWidget;
+class LoadingCircle;
 
 class ImageLoadingWidget : public QWidget {
   Q_OBJECT
@@ -15,6 +16,7 @@ public:
 private:
   QStackedWidget* m_container = nullptr;
   QNetworkAccessManager* m_nm = nullptr; 
+  LoadingCircle* m_loadingCircle = nullptr;
 
   QString m_imageUrl;
   bool m_requestMade = false;

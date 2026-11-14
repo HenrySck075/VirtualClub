@@ -22,7 +22,10 @@ FullFetchIndex::FullFetchIndex(QObject *parent)
 QFuture<std::vector<OnlineMod>> FullFetchIndex::getMods(OnlineIndex::QueryConfig config) {
   if (m_modsList.empty()) {
     return fetchMods().then([this, config](std::vector<OnlineMod> mods) {
+      std::vector<size_t> vec(mods.size());
+      std::iota(vec.begin(), vec.end(), 0);
       m_baseModsList = std::move(mods);
+      m_modsList[baseSort()] = vec;
       createSortedListIfAbsent(config.sorting);
       return selectList(config);
     });

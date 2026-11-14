@@ -33,6 +33,19 @@
 #include "utils/FileDownloader.hpp"
 #include "utils/i18n.hpp"
 
+// :)
+template <typename F>
+requires std::invocable<F, const char*>
+int zip_extract_cpp(const char *zipname, const char *dir, F&& callback) {
+    return zip_extract(zipname, dir, 
+        [](const char *filename, void *arg) -> int {
+            return (*static_cast<std::remove_cvref_t<F>*>(arg))(filename);
+        }, 
+        &callback
+    );
+}
+
+
 class DownloadDialogContent : public DialogContent {
   Q_OBJECT
 private:
@@ -96,6 +109,7 @@ public:
             });
     connect(m_downloader, &FileDownloader::finished, this,
             [this](const QString& filePath) {
+            QThreadPool::globalInstance()->start([this, filePath]() {
               m_statusLabel->setText("Extracting mod...");
               const auto storagePath = QSettings().value(GSTK_MOD_STORAGE_PATH).toString();
               QDir storageDir(storagePath);
@@ -107,24 +121,32 @@ public:
               }
               // set extract folder to a subdirectory
               auto extractDir = storageDir.filePath(QString::fromStdString(m_mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_"));
+              std::string modDir = "";
 
-              QtConcurrent::run(zip_extract, filePath.toUtf8().constData(),
+              int result = zip_extract_cpp(filePath.toUtf8().constData(),
                                               storagePath.toUtf8().constData(),
-                                              nullptr, nullptr).then(this, [this, filePath](int result) {
-                if (result != 0) {
-                  m_statusLabel->setText(
-                    QString("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
-                  QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
-                  return;
+                                              [this, &modDir](const char* filename){
+                std::filesystem::path fp(filename);
+                // if file name of fp is either "scripts.rpa" or "script.rpyc", 
+                // set modDir to the grandparent folder
+                if (fp.filename() == "scripts.rpa" || fp.filename() == "script.rpyc") {
+                  modDir = fp.parent_path().parent_path().string();
                 }
-
-                QFile::remove(filePath);
-                m_progressBar->setRange(0, 100);
-                m_progressBar->setValue(100);
-                m_statusLabel->setText("Download complete.");
-                closeDialog();
               });
+              if (result != 0) {
+                m_statusLabel->setText(
+                  QString("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
+                QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+                return;
+              }
+
+              QFile::remove(filePath);
+              m_progressBar->setRange(0, 100);
+              m_progressBar->setValue(100);
+              m_statusLabel->setText("Download complete.");
+              closeDialog();
             });
+          });
     connect(m_downloader, &FileDownloader::failed, this,
             [this](const QString& reason) {
               m_statusLabel->setText(QString("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));

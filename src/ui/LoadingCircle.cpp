@@ -1,6 +1,6 @@
 #include "LoadingCircle.hpp"
 LoadingCircle::LoadingCircle(QWidget *parent) : QWidget(parent) {
-  m_timer.setInterval(1 / 60 * 1000);
+  m_timer.setInterval(1000 / 60);
   connect(&m_timer, &QTimer::timeout, this, [this]() {
     m_angle += 2.0 / (m_scale * (qMin(width(), height()) / 36));
     if (m_angle >= 360.0) {

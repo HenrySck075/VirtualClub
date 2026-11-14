@@ -23,9 +23,9 @@ ImageLoadingWidget::ImageLoadingWidget(const QString& imageUrl,
   placeholderLayout->setContentsMargins(0, 0, 0, 0);
 
   if (!imageUrl.isEmpty()) {
-    auto* loadingCircle = new LoadingCircle(placeholderWidget);
-    loadingCircle->setColor(Qt::black);
-    placeholderLayout->addWidget(loadingCircle, 0, Qt::AlignCenter);
+    m_loadingCircle = new LoadingCircle(placeholderWidget);
+    m_loadingCircle->setColor(Qt::black);
+    placeholderLayout->addWidget(m_loadingCircle, 0, Qt::AlignCenter);
   }
 }
 
@@ -39,16 +39,28 @@ void ImageLoadingWidget::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
   if (!m_imageUrl.isEmpty() && !m_requestMade) {
     m_requestMade = true;
-    fetchUrlAsync(m_nm, QUrl(m_imageUrl)).then(this, [this](QByteArray data) {
-      QPixmap pixmap;
-      if (pixmap.loadFromData(data)) {
-        auto* pixmapWidget = new PixmapWidget(this);
-        pixmapWidget->setPixmap(pixmap);
-        m_container->addWidget(pixmapWidget);
-        m_container->setCurrentWidget(pixmapWidget);
-      } else {
-        qWarning("Failed to load image from data.");
-      }
-    });
+    fetchUrlAsync(m_nm, QUrl(m_imageUrl))
+      .then(this, [this](QByteArray data) {
+        QPixmap pixmap;
+        if (pixmap.loadFromData(data)) {
+          auto* pixmapWidget = new PixmapWidget(this);
+          pixmapWidget->setPixmap(pixmap);
+          m_container->addWidget(pixmapWidget);
+          m_container->setCurrentWidget(pixmapWidget);
+        } else {
+          qWarning("Failed to load image from data.");
+          if (m_loadingCircle) {
+            m_loadingCircle->deleteLater();
+            m_loadingCircle = nullptr;
+          }
+        }
+      })
+      .onFailed(this, [this](const std::exception& exception) {
+        qWarning("Failed to fetch image: %s", exception.what());
+        if (m_loadingCircle) {
+          m_loadingCircle->deleteLater();
+          m_loadingCircle = nullptr;
+        }
+      });
   }
 }
