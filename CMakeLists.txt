@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.1.6 LANGUAGES C CXX)
+project(VirtualClub VERSION 0.2.0 LANGUAGES C CXX)
 
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported (i used some clang-specific syntax for ease of development sorry abt that). Please use a different compiler.")
@@ -8,7 +8,7 @@ endif()
 add_compile_definitions(
   MVC_VERSION="${PROJECT_VERSION}"
 )
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -28,7 +28,7 @@ message(STATUS "Python binary path: ${Python_EXECUTABLE}")
 
 # Find Qt6 components
 # (also requires ImageFormats plugin for the online mods browser)
-find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Svg SvgWidgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Svg LinguistTools)
 
 find_package(pybind11 REQUIRED CONFIG)
 
@@ -88,6 +88,12 @@ qt_add_translations(
 
 
 
+target_precompile_headers(
+  ${PROJECT_NAME} PRIVATE 
+  "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/pch.h>"
+)
+
+
 if(UNIX AND NOT APPLE)
   add_compile_definitions(ZIP_HAVE_SYMLINK=1)
 endif()
@@ -133,7 +139,7 @@ FetchContent_MakeAvailable(yaml-cpp)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE yaml-cpp::yaml-cpp) # The library or executable that require yaml-cpp library
 # Link Qt6 libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::Svg Qt6::SvgWidgets pybind11::embed)
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::Svg pybind11::embed)
 
 set(IS_ANDROID FALSE)
 set(IS_TERMUX FALSE)

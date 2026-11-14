@@ -12,6 +12,7 @@
 #include "ui/IconButton.hpp"
 #include "ui/ImageLoadingWidget.hpp"
 #include "ui/MESWidgets.hpp"
+#include "ui/PixmapWidget.hpp"
 #include "utils/FlowLayout.hpp"
 #include "utils/LucideIcons.hpp"
 #include "ui/Router.hpp"
@@ -29,7 +30,7 @@
 #include "consts.hpp"
 #include "third_party/kubazip/zip.h"
 #include "utils/FileDownloader.hpp"
-
+#include "utils/i18n.hpp"
 
 class DownloadDialogContent : public DialogContent {
   Q_OBJECT
@@ -155,10 +156,8 @@ private:
 public:
   explicit OnlineModInfoDC(QNetworkAccessManager* networkManager, OnlineMod mod, QWidget* parent = nullptr)
     : DialogContent(parent), m_nm(networkManager), m_mod(mod) {
-    setMinimumWidth(800);
-    setMaximumWidth(1720);
-    setMaximumHeight(680);
-    setBaseSize({800, 580});
+    setMinimumSize({800, 580});
+    setMaximumSize({1720, 768});
 
     auto* layout = new QVBoxLayout(this);
     layout->setSpacing(4);
@@ -176,15 +175,15 @@ public:
     auto* creationDateLineLayout = new QHBoxLayout();
     creationDateLineLayout->setContentsMargins(0, 0, 0, 0);
     creationDateLineLayout->setSpacing(4);
+    creationDateLineLayout->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     
     {
-      auto* icon = LucideIcons::calendar.svgWidget();
-      icon->setFixedSize(16, 16);
-      icon->setStyleSheet(QString("color: %1").arg(qColorToCSSrgb(c_secondaryColor)));
+      auto* icon = new PixmapWidget(LucideIcons::calendar.pixmap({16,16}, c_secondaryColor));
+      icon->setFixedSize({16,16});
       creationDateLineLayout->addWidget(icon);
 
       auto* creationDateLabel = new QLabel(
-        QString::fromStdString(format_date(mod.creationDate))
+        QString::fromStdString(mod.creationDate.has_value() ? format_date(mod.creationDate.value()) : "Not provided")
       , this);
       creationDateLabel->setFont(QFont("Quicksand", 12));
       creationDateLineLayout->addWidget(creationDateLabel);
@@ -213,6 +212,15 @@ public:
     metadataRow->addWidget(metadata);
     metadataRow->addWidget(downloadButton, 0, Qt::AlignVCenter);
     layout->addLayout(metadataRow);
+
+    auto* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    auto* scrollContent = new QWidget();
+    auto* scrollLayout = new QVBoxLayout(scrollContent);
+    scrollLayout->setContentsMargins(0, 0, 0, 0);
+    scrollArea->setWidget(scrollContent);
+    layout->addWidget(scrollArea);
 
 
 
@@ -249,7 +257,7 @@ public:
     carouselLayout->addWidget(previousImageButton);
     carouselLayout->addWidget(imageStack);
     carouselLayout->addWidget(nextImageButton);
-    layout->addLayout(carouselLayout);
+    scrollLayout->addLayout(carouselLayout);
 
     auto* dotsLayout = new QHBoxLayout();
     dotsLayout->setContentsMargins(0, 4, 0, 0);
@@ -258,7 +266,7 @@ public:
     for (auto* dot : imageDots) {
       dotsLayout->addWidget(dot);
     }
-    layout->addLayout(dotsLayout);
+    scrollLayout->addLayout(dotsLayout);
 
     auto updateCarousel = [imageStack, imageDots, previousImageButton, nextImageButton]() {
       const auto currentIndex = imageStack->currentIndex();
@@ -282,15 +290,12 @@ public:
     });
     updateCarousel();
 
-    layout->addSpacing(12);
+    scrollLayout->addSpacing(12);
 
-    auto* descriptionScroll = new QScrollArea(this);
-    auto* descriptionLabel = new QLabel(QString::fromStdString(mod.description), this);
+    auto* descriptionLabel = new QLabel(QString::fromStdString(mod.description), scrollContent);
     descriptionLabel->setWordWrap(true);
     descriptionLabel->setFont(QFont("Quicksand", 12));
-    descriptionScroll->setWidget(descriptionLabel);
-    descriptionScroll->setWidgetResizable(true);
-    layout->addWidget(descriptionScroll);
+    scrollLayout->addWidget(descriptionLabel);
   }
 };
 
@@ -409,7 +414,7 @@ public:
     if (event->button() == Qt::LeftButton) {
       Dialog::showContentDialog(
         getMainWindow(),
-        "Mod information",
+        tr("Mod information"),
         new OnlineModInfoDC(m_nm, m_mod)
       );
       event->accept();
@@ -471,7 +476,8 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
 
   auto* indexSelector = new QComboBox(header);
   QList<QPointer<OnlineIndex>> indexes {{
-    QPointer<OnlineIndex>(new DokiModsDotMeIndex(this))
+    QPointer<OnlineIndex>(new DokiModsDotMeIndex(this)),
+    QPointer<OnlineIndex>(new DDMCIndex(this))
   }}; 
 
   for (auto& index : indexes) {
@@ -489,7 +495,7 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
 
   headerLayout->addWidget(indexSelector);
 
-  headerLayout->addWidget(new QLabel("Sort by", header));
+  headerLayout->addWidget($createAutoTLLabelInline("Sort by"));
 
   auto* sortSelector = new QComboBox(header);
   std::array<std::pair<ListSorting, std::string>, 5> sorts {{

@@ -15,8 +15,8 @@ struct OnlineMod {
   std::vector<std::string> screenshotImageUrls;
   std::string url;
 
-  std::chrono::local_time<std::chrono::minutes> creationDate;
-  std::chrono::local_time<std::chrono::minutes> lastUpdated;
+  std::optional<std::chrono::sys_days> creationDate;
+  std::optional<std::chrono::sys_days> lastUpdated;
 };
 
 enum class ListSorting {
@@ -75,9 +75,7 @@ public:
 class DokiModsDotMeIndex : public FullFetchIndex {
 public:
   QFuture<std::vector<OnlineMod>> fetchMods() override;
-  QString displayName() override {
-    return "dokimods.me";
-  }
+  QString displayName() override {return "dokimods.me";}
 
   explicit DokiModsDotMeIndex(QObject* parent = nullptr)
     : FullFetchIndex(parent) {};
@@ -91,6 +89,12 @@ public:
 class DDMCIndex : public FullFetchIndex {
 public:
   ListSorting baseSort() override {return ListSorting::TitleAZ;}
+  QFuture<std::vector<OnlineMod>> fetchMods() override;
+  
+  QString displayName() override {return "VirtualClub (DDMC)";}
+
+  explicit DDMCIndex(QObject* parent = nullptr)
+    : FullFetchIndex(parent) {}
 };
 
 ///////////////////////////////////////

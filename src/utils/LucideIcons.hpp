@@ -6,7 +6,6 @@
 #include <QIcon>
 #include <QPainter>
 #include <QSvgRenderer>
-#include <QtSvgWidgets/QSvgWidget>
 #include <utility>
 
 class LucideIcon {
@@ -21,11 +20,6 @@ public:
 
     operator QIcon() const {
         return icon();
-    }
-
-    QSvgWidget* svgWidget(QWidget* parent = nullptr) const {
-        auto* widget = new QSvgWidget(m_path, parent);
-        return widget;
     }
 
     QPixmap pixmap(const QSize &size = QSize(), const QColor &color = Qt::black) const {

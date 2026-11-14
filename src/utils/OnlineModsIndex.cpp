@@ -183,24 +183,21 @@ void FullFetchIndex::createSortedListIfAbsent(ListSorting sort) {
 
 //////////////////////
 
-std::chrono::local_time<std::chrono::minutes> parseIso8601(std::string dt) {
+std::chrono::sys_days parseIso8601(std::string dt, std::string format = "%Y-%m-%dT%H:%M:%S") {
   std::tm tm = {};
   std::istringstream ss(dt);
   
   // Parse using traditional C-style formatting flags via std::get_time
-  ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+  ss >> std::get_time(&tm, format.c_str());
   
   if (ss.fail()) {
     throw std::runtime_error("Failed to parse datetime string: " + dt);
   }
   auto tp = std::chrono::sys_days{std::chrono::year{tm.tm_year + 1900} / 
-                                  (tm.tm_mon + 1) / tm.tm_mday} +
-            std::chrono::hours{tm.tm_hour} + 
-            std::chrono::minutes{tm.tm_min};
+                                  (tm.tm_mon + 1) / tm.tm_mday};
             
-  std::chrono::local_time<std::chrono::minutes> local_min{tp.time_since_epoch()};
 
-  return local_min;
+  return tp;
 }
 
 QFuture<std::vector<OnlineMod>> DokiModsDotMeIndex::fetchMods() {
@@ -256,6 +253,43 @@ QFuture<std::vector<OnlineMod>> DokiModsDotMeIndex::fetchMods() {
       });
     }
     
+    return list;
+  });
+}
+
+//////////////////////
+
+QFuture<std::vector<OnlineMod>> DDMCIndex::fetchMods() {
+
+  return fetchJsonAsync(networkManager(), QUrl("https://virtualclub.pages.dev/mods.json")).then([this](nlohmann::json resp) {
+    assert(resp.is_array());
+
+    std::vector<OnlineMod> list;
+    list.reserve(resp.size());
+
+    for (auto& item : resp) {
+      auto imageFile = item["image"];
+      std::string imageUrl;
+      if (imageFile.is_string()) {
+        imageUrl = "https://virtualclub.pages.dev/images/" + imageFile.get<std::string>();
+      }
+      std::optional<std::chrono::sys_days> creationDate = 
+        item["date"] == "" ? std::nullopt : std::make_optional(parseIso8601(item["date"].get<std::string>(), "%Y-%m-%d"));
+      auto lastUpdated = item["updated"].is_null() ? creationDate : parseIso8601(item["updated"].get<std::string>(), "%Y-%m-%d");
+      list.push_back({
+        .name = item["name"],
+        .description = item["description"],
+        .author = item["developer"],
+        .version = "",
+        .imageUrl = imageUrl,
+        .screenshotImageUrls = {},
+        .url = item["downloadUrl"],
+
+        .creationDate = creationDate,
+        .lastUpdated = lastUpdated
+      });
+    }
+
     return list;
   });
 }

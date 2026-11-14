@@ -67,8 +67,8 @@ std::string format_duration(std::chrono::duration<Rep, Period> d) {
     return result;
 }
 
-template<class Duration>
-std::string format_date(std::chrono::local_time<Duration> time) {
+template<typename Clock, class Duration>
+std::string format_date(std::chrono::time_point<Clock, Duration> time) {
    return std::format("{:%b %d, %Y}", time);
 }
 
