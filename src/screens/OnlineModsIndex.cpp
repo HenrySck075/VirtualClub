@@ -27,6 +27,7 @@
 #include <QFileInfo>
 #include <QProgressBar>
 #include <QSettings>
+#include <QtConcurrent/QtConcurrent>
 #include "consts.hpp"
 #include "third_party/kubazip/zip.h"
 #include "utils/FileDownloader.hpp"
@@ -41,6 +42,7 @@ private:
   QLabel* m_statusLabel = nullptr;
 
   static QString downloadFileName(const OnlineMod& mod) {
+    /*
     auto fileName = QFileInfo(QUrl(QString::fromStdString(mod.url)).path()).fileName();
     if (fileName.isEmpty()) {
       fileName = QString::fromStdString(mod.name).trimmed();
@@ -52,7 +54,8 @@ private:
     if (QFileInfo(fileName).suffix().isEmpty()) {
       fileName += ".zip";
     }
-    return fileName;
+    */
+    return QString::fromStdString(mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_") + ".zip";
   }
 
 public:
@@ -103,28 +106,27 @@ public:
                 return;
               }
 
-              const auto result = zip_extract(filePath.toUtf8().constData(),
+              QtConcurrent::run(zip_extract, filePath.toUtf8().constData(),
                                               storagePath.toUtf8().constData(),
-                                              nullptr, nullptr);
-              if (result != 0) {
-                m_statusLabel->setText(
-                  QString("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
-                QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
-                closeDialog();
-                return;
-              }
+                                              nullptr, nullptr).then(this, [this, filePath](int result) {
+                if (result != 0) {
+                  m_statusLabel->setText(
+                    QString("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
+                  QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+                  return;
+                }
 
-              QFile::remove(filePath);
-              m_progressBar->setRange(0, 100);
-              m_progressBar->setValue(100);
-              m_statusLabel->setText("Download complete.");
-              closeDialog();
+                QFile::remove(filePath);
+                m_progressBar->setRange(0, 100);
+                m_progressBar->setValue(100);
+                m_statusLabel->setText("Download complete.");
+                closeDialog();
+              });
             });
     connect(m_downloader, &FileDownloader::failed, this,
-            [this](const QString&) {
-              m_statusLabel->setText("Download failed. Please download & install the mod manually.");
+            [this](const QString& reason) {
+              m_statusLabel->setText(QString("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));
               QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
-              closeDialog();
             });
 
     const auto storagePath = QSettings().value(GSTK_MOD_STORAGE_PATH).toString();
@@ -200,7 +202,7 @@ public:
     auto* downloadButton = new Button("Download", LucideIcons::download, this);
     connect(downloadButton, &QPushButton::clicked, this, [mod, this]() {
       Dialog::showContentDialog(
-        this,
+        dialog(),
         "Download mod",
         new DownloadDialogContent(mod)
       );
@@ -476,8 +478,8 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
 
   auto* indexSelector = new QComboBox(header);
   QList<QPointer<OnlineIndex>> indexes {{
-    QPointer<OnlineIndex>(new DokiModsDotMeIndex(this)),
-    QPointer<OnlineIndex>(new DDMCIndex(this))
+    QPointer<OnlineIndex>(new DDMCIndex(this)),
+    QPointer<OnlineIndex>(new DokiModsDotMeIndex(this))
   }}; 
 
   for (auto& index : indexes) {

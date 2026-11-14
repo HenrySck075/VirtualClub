@@ -2,6 +2,10 @@
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
 #include <QFileInfo>
+#include <lexbor/html/parser.h>
+#include <lexbor/dom/interfaces/element.h>
+#include <lexbor/dom/collection.h>
+#include <QUrlQuery>
 
 FileDownloader::FileDownloader(QObject *parent) : QObject(parent) {}
 
@@ -39,8 +43,15 @@ void FileDownloader::parseGoogleDriveUrl(const QString &urlStr) {
     
     if (match.hasMatch()) {
         QString fileId = match.captured(1);
-        QString directUrlStr = QString("https://drive.google.com/uc?export=download&confirm=t&id=%1").arg(fileId);
-        processDirectUrl(QUrl(directUrlStr));
+        // Request the base uc endpoint. Small files download directly; 
+        // large files trigger the virus warning HTML page.
+        QString initialUrlStr = QString("https://drive.google.com/uc?export=download&id=%1").arg(fileId);
+        
+        QNetworkRequest request{QUrl(initialUrlStr)};
+        request.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+        
+        m_currentReply = m_networkManager.get(request);
+        connect(m_currentReply, &QNetworkReply::finished, this, &FileDownloader::onInitialPageFinished);
     } else {
         emit failed("Invalid Google Drive URL. Could not find a valid File ID.");
     }
@@ -51,6 +62,7 @@ void FileDownloader::onInitialPageFinished() {
     
     QByteArray data = m_currentReply->readAll();
     int statusCode = m_currentReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    QString contentType = m_currentReply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
     
     if (m_currentReply->error() != QNetworkReply::NoError || (statusCode >= 400 && statusCode < 600)) {
         QString err = m_currentReply->errorString();
@@ -60,28 +72,190 @@ void FileDownloader::onInitialPageFinished() {
         return;
     }
     
+    // If it's Google Drive and Content-Type is NOT HTML, it's a small file 
+    // that downloaded directly on the initial GET request.
+    if (m_originalUrl.contains("drive.google.com") && !contentType.contains("text/html")) {
+        m_currentReply->deleteLater();
+        m_currentReply = nullptr;
+
+        m_saveFile = std::make_unique<QSaveFile>(m_destinationPath);
+        if (!m_saveFile->open(QIODevice::WriteOnly)) {
+            emit failed(QString("Could not open destination file path for writing: %1").arg(m_destinationPath));
+            return;
+        }
+        m_saveFile->write(data);
+        if (m_saveFile->commit()) {
+            emit finished(m_destinationPath);
+        } else {
+            emit failed("Failed to commit downloaded bytes to storage.");
+        }
+        return;
+    }
+    
     m_currentReply->deleteLater();
     m_currentReply = nullptr;
 
     if (m_originalUrl.contains("mediafire.com")) {
         parseMediaFirePage(QString::fromUtf8(data));
+    } else if (m_originalUrl.contains("drive.google.com")) {
+        parseGoogleDrivePage(QString::fromUtf8(data));
     }
 }
 
-void FileDownloader::parseMediaFirePage(const QString &htmlContent) {
-    QRegularExpression rx("href=\"(https?://download[^\"]+)\"[^>]*id=\"downloadButton\"");
-    QRegularExpressionMatch match = rx.match(htmlContent);
-    
-    if (!match.hasMatch()) {
-        rx.setPattern("href=\"(https?://download\\d+\\.mediafire\\.com/[^\"]+)\"");
-        match = rx.match(htmlContent);
+void FileDownloader::parseGoogleDrivePage(const QString &htmlContent) {
+    QByteArray utf8Data = htmlContent.toUtf8();
+
+    // 1. Initialize Lexbor HTML5 document
+    lxb_html_document_t *document = lxb_html_document_create();
+    if (!document) {
+        emit failed("Failed to create Lexbor HTML document instance.");
+        return;
     }
 
-    if (match.hasMatch()) {
-        processDirectUrl(QUrl(match.captured(1)));
-    } else {
-        emit failed("Could not parse MediaFire direct download link. Structure may have changed or file is invalid.");
+    lxb_status_t status = lxb_html_document_parse(document, (const lxb_char_t *)utf8Data.constData(), utf8Data.size());
+    if (status != LXB_STATUS_OK) {
+        lxb_html_document_destroy(document);
+        emit failed("Lexbor failed to parse Google Drive warning page HTML.");
+        return;
     }
+
+    // 2. Create a DOM element collection to search elements
+    lxb_dom_collection_t *collection = lxb_dom_collection_make(&document->dom_document, 16);
+    if (!collection) {
+        lxb_html_document_destroy(document);
+        emit failed("Failed to allocate Lexbor DOM collection.");
+        return;
+    }
+
+    lxb_dom_element_t *root_element = lxb_dom_interface_element(document->body);
+
+    // 3. Find the download form action URL
+    status = lxb_dom_elements_by_tag_name(root_element, collection, (const lxb_char_t *)"form", 4);
+    QString actionUrl;
+
+    if (status == LXB_STATUS_OK && lxb_dom_collection_length(collection) > 0) {
+        lxb_dom_element_t *form_elem = lxb_dom_collection_element(collection, 0);
+        size_t val_len = 0;
+        const lxb_char_t *action_val = lxb_dom_element_get_attribute(form_elem, (const lxb_char_t *)"action", 6, &val_len);
+        if (action_val) {
+            actionUrl = QString::fromUtf8((const char *)action_val, val_len);
+        }
+    }
+
+    lxb_dom_collection_clean(collection);
+
+    if (actionUrl.isEmpty()) {
+        lxb_dom_collection_destroy(collection, true);
+        lxb_html_document_destroy(document);
+        emit failed("Could not locate download form action URL via Lexbor parser.");
+        return;
+    }
+
+    actionUrl.replace("&amp;", "&");
+    if (actionUrl.startsWith("/")) {
+        actionUrl = "https://drive.google.com" + actionUrl;
+    }
+
+    QUrl url(actionUrl);
+    QUrlQuery query;
+
+    // 4. Find all <input> elements to sweep up hidden tokens (uuid, at, confirm, id)
+    status = lxb_dom_elements_by_tag_name(root_element, collection, (const lxb_char_t *)"input", 5);
+    if (status == LXB_STATUS_OK) {
+        size_t length = lxb_dom_collection_length(collection);
+        for (size_t i = 0; i < length; ++i) {
+            lxb_dom_element_t *input_elem = lxb_dom_collection_element(collection, i);
+            size_t name_len = 0, val_len = 0, type_len = 0;
+
+            const lxb_char_t *type_val = lxb_dom_element_get_attribute(input_elem, (const lxb_char_t *)"type", 4, &type_len);
+            QString type = type_val ? QString::fromUtf8((const char *)type_val, type_len).toLower() : QString();
+
+            // Target hidden tracking inputs and submission triggers
+            if (type == "hidden" || type == "submit" || type.isEmpty()) {
+                const lxb_char_t *name_val = lxb_dom_element_get_attribute(input_elem, (const lxb_char_t *)"name", 4, &name_len);
+                if (name_val) {
+                    QString name = QString::fromUtf8((const char *)name_val, name_len);
+                    const lxb_char_t *value_val = lxb_dom_element_get_attribute(input_elem, (const lxb_char_t *)"value", 5, &val_len);
+                    QString value = value_val ? QString::fromUtf8((const char *)value_val, val_len) : QString();
+
+                    query.addQueryItem(name, value);
+                }
+            }
+        }
+    }
+
+    // Clean up Lexbor allocations cleanly
+    lxb_dom_collection_destroy(collection, true);
+    lxb_html_document_destroy(document);
+
+    url.setQuery(query);
+
+    // 5. Trigger download with fully compiled endpoint and parameters
+    processDirectUrl(url);
+}
+
+void FileDownloader::parseMediaFirePage(const QString &htmlContent) {
+    QByteArray utf8Data = htmlContent.toUtf8();
+
+    // 1. Initialize Lexbor HTML5 document
+    lxb_html_document_t *document = lxb_html_document_create();
+    if (!document) {
+        emit failed("Failed to create Lexbor HTML document instance for MediaFire.");
+        return;
+    }
+
+    lxb_status_t status = lxb_html_document_parse(document, (const lxb_char_t *)utf8Data.constData(), utf8Data.size());
+    if (status != LXB_STATUS_OK) {
+        lxb_html_document_destroy(document);
+        emit failed("Lexbor failed to parse MediaFire landing page HTML.");
+        return;
+    }
+
+    // 2. Create a DOM collection to search elements
+    lxb_dom_collection_t *collection = lxb_dom_collection_make(&document->dom_document, 16);
+    if (!collection) {
+        lxb_html_document_destroy(document);
+        emit failed("Failed to allocate Lexbor DOM collection for MediaFire.");
+        return;
+    }
+
+    lxb_dom_element_t *root_element = lxb_dom_interface_element(document->body);
+
+    // 3. Find the download button using tag and ID lookup
+    // Target structure: form[name="download"] > div#download_link > a#downloadButton
+    status = lxb_dom_elements_by_tag_name(root_element, collection, (const lxb_char_t *)"a", 1);
+    QString downloadUrl;
+
+    if (status == LXB_STATUS_OK) {
+        size_t length = lxb_dom_collection_length(collection);
+        for (size_t i = 0; i < length; ++i) {
+            lxb_dom_element_t *elem = lxb_dom_collection_element(collection, i);
+            size_t id_len = 0;
+            
+            // Check if element has id="downloadButton"
+            const lxb_char_t *id_val = lxb_dom_element_get_attribute(elem, (const lxb_char_t *)"id", 2, &id_len);
+            if (id_val && QString::fromUtf8((const char *)id_val, id_len) == "downloadButton") {
+                size_t href_len = 0;
+                const lxb_char_t *href_val = lxb_dom_element_get_attribute(elem, (const lxb_char_t *)"href", 4, &href_len);
+                if (href_val) {
+                    downloadUrl = QString::fromUtf8((const char *)href_val, href_len);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Clean up Lexbor allocations
+    lxb_dom_collection_destroy(collection, true);
+    lxb_html_document_destroy(document);
+
+    if (downloadUrl.isEmpty()) {
+        emit failed("Could not locate MediaFire direct download link via Lexbor parser. Structure may have changed.");
+        return;
+    }
+
+    downloadUrl.replace("&amp;", "&");
+    processDirectUrl(QUrl(downloadUrl));
 }
 
 void FileDownloader::checkDirectUrl(const QUrl &directUrl) {
@@ -155,6 +329,7 @@ bool FileDownloader::isArchiveFile(const QUrl &url, QNetworkReply *headReply) {
 }
 
 void FileDownloader::processDirectUrl(const QUrl &directUrl) {
+    qDebug() << "Downloading" << directUrl;
     QNetworkRequest request(directUrl);
     // FollowRedirectAttribute is omitted; Qt6 handles safe redirects automatically.
     request.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");

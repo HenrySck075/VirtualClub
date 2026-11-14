@@ -137,9 +137,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE yaml-cpp::yaml-cpp) # The library or executable that require yaml-cpp library
-# Link Qt6 libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets Qt6::Multimedia Qt6::Svg pybind11::embed)
+FetchContent_Declare(
+    lexbor
+    GIT_REPOSITORY https://github.com/lexbor/lexbor.git
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(lexbor)
+
+target_link_libraries(
+  ${PROJECT_NAME} PRIVATE 
+  yaml-cpp::yaml-cpp lexbor
+  Qt6::Widgets Qt6::Multimedia Qt6::Svg pybind11::embed
+)
 
 set(IS_ANDROID FALSE)
 set(IS_TERMUX FALSE)

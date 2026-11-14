@@ -34,6 +34,7 @@ private slots:
 private:
   void checkDirectUrl(const QUrl &directUrl);
   void processDirectUrl(const QUrl &directUrl);
+  void parseGoogleDrivePage(const QString &htmlContent);
   void parseMediaFirePage(const QString &htmlContent);
   void parseGoogleDriveUrl(const QString &urlStr);
   bool isArchiveFile(const QUrl &url, QNetworkReply *headReply);
