@@ -6,6 +6,8 @@
 #include <lexbor/dom/interfaces/element.h>
 #include <lexbor/dom/collection.h>
 #include <QUrlQuery>
+#include <QTimer>
+#include <QRandomGenerator>
 
 FileDownloader::FileDownloader(QObject *parent) : QObject(parent) {}
 
@@ -255,7 +257,12 @@ void FileDownloader::parseMediaFirePage(const QString &htmlContent) {
     }
 
     downloadUrl.replace("&amp;", "&");
-    processDirectUrl(QUrl(downloadUrl));
+    
+    // Delay download by a random interval between 3-4s on purpose
+    // idk just in case
+    QTimer::singleShot(QRandomGenerator::global()->bounded(3000, 4000), this, [this, downloadUrl]() {
+        processDirectUrl(QUrl(downloadUrl));
+    });
 }
 
 void FileDownloader::checkDirectUrl(const QUrl &directUrl) {

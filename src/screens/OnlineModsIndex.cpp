@@ -17,6 +17,7 @@
 #include "utils/LucideIcons.hpp"
 #include "ui/Router.hpp"
 #include "ui/LoadingCircle.hpp"
+#include "utils/ModIndex.hpp"
 #include "utils/OnlineModsIndex.hpp"
 #include "utils/utils.hpp"
 #include <QComboBox>
@@ -28,6 +29,7 @@
 #include <QProgressBar>
 #include <QSettings>
 #include <QtConcurrent/QtConcurrent>
+#include <string_view>
 #include "consts.hpp"
 #include "third_party/kubazip/zip.h"
 #include "utils/FileDownloader.hpp"
@@ -54,6 +56,8 @@ private:
   QProgressBar* m_progressBar = nullptr;
   QLabel* m_statusLabel = nullptr;
 
+  bool m_taskFinished = false;
+
   static QString downloadFileName(const OnlineMod& mod) {
     /*
     auto fileName = QFileInfo(QUrl(QString::fromStdString(mod.url)).path()).fileName();
@@ -72,6 +76,10 @@ private:
   }
 
 public:
+  bool allowClosing() override {
+    return m_taskFinished;
+  }
+
   explicit DownloadDialogContent(OnlineMod mod, QWidget* parent = nullptr)
     : DialogContent(parent), m_mod(std::move(mod)) {
     setFixedWidth(420);
@@ -80,7 +88,7 @@ public:
     layout->setContentsMargins(25, 20, 25, 20);
     layout->setSpacing(12);
 
-    auto* titleLabel = new QLabel(QString("Downloading %1").arg(QString::fromStdString(m_mod.name)), this);
+    auto* titleLabel = new QLabel(tr("Downloading %1").arg(QString::fromStdString(m_mod.name)), this);
     titleLabel->setWordWrap(true);
     titleLabel->setFont(QFont("Quicksand", 12, QFont::Weight::Bold));
     layout->addWidget(titleLabel);
@@ -90,80 +98,115 @@ public:
     m_progressBar->setValue(0);
     layout->addWidget(m_progressBar);
 
-    m_statusLabel = new QLabel("Starting download...", this);
+    m_statusLabel = new QLabel(tr("Starting download..."), this);
     m_statusLabel->setWordWrap(true);
     layout->addWidget(m_statusLabel);
 
     m_downloader = new FileDownloader(this);
+    auto fallbackRoute = [this]() {
+      QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+      m_taskFinished = true;
+    };
     connect(m_downloader, &FileDownloader::progress, this,
             [this](qint64 bytesReceived, qint64 bytesTotal) {
               if (bytesTotal > 0) {
                 m_progressBar->setValue(static_cast<int>((bytesReceived * 100) / bytesTotal));
-                m_statusLabel->setText(QString("Downloading... %1 / %2")
+                m_statusLabel->setText(tr("Downloading... %1 / %2")
                                          .arg(bytesReceived)
                                          .arg(bytesTotal));
               } else {
                 m_progressBar->setRange(0, 0);
-                m_statusLabel->setText(QString("Downloaded %1 bytes").arg(bytesReceived));
+                m_statusLabel->setText(tr("Downloaded %1 bytes").arg(bytesReceived));
               }
             });
     connect(m_downloader, &FileDownloader::finished, this,
-            [this](const QString& filePath) {
-            QThreadPool::globalInstance()->start([this, filePath]() {
-              m_statusLabel->setText("Extracting mod...");
+            [this, fallbackRoute](const QString& filePath) {
+            QThreadPool::globalInstance()->start([this, filePath, fallbackRoute]() {
+              m_statusLabel->setText(tr("Extracting mod..."));
               const auto storagePath = QSettings().value(GSTK_MOD_STORAGE_PATH).toString();
               QDir storageDir(storagePath);
               if (storagePath.isEmpty() || !storageDir.mkpath(".")) {
-                m_statusLabel->setText("Could not access the mod storage path.");
-                QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
-                closeDialog();
+                m_statusLabel->setText(tr("Could not access the mod storage path."));
+                fallbackRoute();
                 return;
               }
               // set extract folder to a subdirectory
               auto extractDir = storageDir.filePath(QString::fromStdString(m_mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_"));
               std::string modDir = "";
 
-              int result = zip_extract_cpp(filePath.toUtf8().constData(),
-                                              storagePath.toUtf8().constData(),
-                                              [this, &modDir](const char* filename){
-                std::filesystem::path fp(filename);
+              auto fp = filePath.toUtf8();
+
+              // get the number of files in the archive
+              // purely for progress bar purpose
+
+              int numFiles = 0;
+              // TODO: maybe reuse za to extract the files
+              {
+                struct zip_t* za = zip_open(fp.constData(), 0, 'r');
+
+                if (!za) {
+                  m_statusLabel->setText(tr("Could not open the downloaded mod archive."));
+                  zip_close(za);
+                  m_taskFinished = true;
+                  return;
+                }
+
+                numFiles = zip_entries_total(za);
+
+                zip_close(za);
+              };
+
+              int extractedFiles = 0;
+              m_progressBar->setRange(0, numFiles);
+
+              int result = zip_extract_cpp(fp.constData(),
+                                              extractDir.toUtf8().constData(),
+                                              [this, &modDir, &extractedFiles](const char* filename){
                 // if file name of fp is either "scripts.rpa" or "script.rpyc", 
                 // set modDir to the grandparent folder
-                if (fp.filename() == "scripts.rpa" || fp.filename() == "script.rpyc") {
+                std::string_view fpv(filename);
+                if (fpv.ends_with("scripts.rpa") || fpv.ends_with("script.rpyc")) {
+                  std::filesystem::path fp(filename);
                   modDir = fp.parent_path().parent_path().string();
                 }
+                extractedFiles++;
+                m_progressBar->setValue(extractedFiles);
+                return 0;
               });
               if (result != 0) {
                 m_statusLabel->setText(
-                  QString("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
-                QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+                  tr("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
+                fallbackRoute();
                 return;
               }
 
               QFile::remove(filePath);
-              m_progressBar->setRange(0, 100);
+              m_statusLabel->setText(tr("Installing..."));
+              ModsIndex::get()->installMod(modDir);
               m_progressBar->setValue(100);
-              m_statusLabel->setText("Download complete.");
+              m_statusLabel->setText(tr("Download complete."));
+              m_taskFinished = true;
               closeDialog();
             });
           });
     connect(m_downloader, &FileDownloader::failed, this,
-            [this](const QString& reason) {
-              m_statusLabel->setText(QString("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));
-              QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
+            [this, fallbackRoute](const QString& reason) {
+              m_statusLabel->setText(tr("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));
+              fallbackRoute();
             });
 
     const auto storagePath = QSettings().value(GSTK_MOD_STORAGE_PATH).toString();
-            if (storagePath.isEmpty()) {
-              QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
-              closeDialog();
-              return;
-            }
+    if (storagePath.isEmpty()) {
+      // this only happens if the user edits the configs file.
+      // or maybe unreachable because it's reset to the default in main
+      m_statusLabel->setText("Mod storage path is not set. Please set it in the settings.");
+      m_taskFinished = true;
+      return;
+    }
     const auto tempPath = QDir(storagePath).filePath("tempdl");
     if (!QDir().mkpath(tempPath)) {
-      m_statusLabel->setText("Could not create the temporary download directory.");
-      QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
-      closeDialog();
+      m_statusLabel->setText(tr("Could not create the temporary download directory. Please check the folder permission of %1").arg(tempPath));
+      fallbackRoute();
       return;
     }
 
@@ -223,7 +266,7 @@ public:
     metadataLayout->addWidget(authorLabel);
     metadataLayout->addLayout(creationDateLineLayout);
 
-    auto* downloadButton = new Button("Download", LucideIcons::download, this);
+    auto* downloadButton = new Button(tr("Download"), LucideIcons::download, this);
     connect(downloadButton, &QPushButton::clicked, this, [mod, this]() {
       Dialog::showContentDialog(
         dialog(),
@@ -484,7 +527,9 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   headerLayout->addWidget(backButton);
 
   auto* searchBar = new QLineEdit(header);
-  searchBar->setPlaceholderText("Search mods");
+  addRetranslateCallback([searchBar, this] { 
+    searchBar->setPlaceholderText(tr("Search mods"));
+  });
   searchBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
   connect(searchBar, &QLineEdit::textEdited, this, [this](const QString& text){
     m_searchQuery = text.toStdString();
@@ -521,20 +566,31 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
 
   headerLayout->addWidget(indexSelector);
 
-  headerLayout->addWidget($createAutoTLLabelInline("Sort by"));
+  auto* sortByLabel = new QLabel();
+  addRetranslateCallback([this, sortByLabel] {
+    sortByLabel->setText(tr("Sort by"));
+  });
+  headerLayout->addWidget(sortByLabel);
 
   auto* sortSelector = new QComboBox(header);
   std::array<std::pair<ListSorting, std::string>, 5> sorts {{
-    {ListSorting::Newest, "Newest"},
-    {ListSorting::Oldest, "Oldest"},
-    {ListSorting::TitleAZ, "Title A-Z"},
-    {ListSorting::TitleZA, "Title Z-A"},
-    {ListSorting::Author, "Author"},
+    {ListSorting::Newest, trNoop("Newest")},
+    {ListSorting::Oldest, trNoop("Oldest")},
+    {ListSorting::TitleAZ, trNoop("Title A-Z")},
+    {ListSorting::TitleZA, trNoop("Title Z-A")},
+    {ListSorting::Author, trNoop("Author")},
   }};
 
   for (const auto& [sort, name] : sorts) {
-    sortSelector->addItem(QString::fromStdString(name));
+    sortSelector->addItem(tr(name.c_str()));
   }
+  addRetranslateCallback([sortSelector, sorts]{
+    int i = 0;
+    for (const auto& [sort, name] : sorts) {
+      sortSelector->setItemText(i, tr(name.c_str()));
+      i++;
+    }
+  });
 
   connect(sortSelector, QOverload<int>::of(&QComboBox::currentIndexChanged), [this, sortSelector, sorts](int idx){
     if (idx < 0 || idx >= sorts.size()) return;
@@ -665,6 +721,13 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   });
   footerLayout->addWidget(lastPageBtn);
 
+  // tooltip for nav buttons
+  addRetranslateCallback([firstPageBtn, prevPageBtn, nextPageBtn, lastPageBtn]{
+    firstPageBtn->setToolTip(tr("First page"));
+    prevPageBtn->setToolTip(tr("Previous page"));
+    nextPageBtn->setToolTip(tr("Next page"));
+    lastPageBtn->setToolTip(tr("Last page"));
+  });
 
 
   connect(this, &OnlineModsIndexScreen::pageNumberUpdated, [pageInput, firstPageBtn, prevPageBtn, nextPageBtn, lastPageBtn, this](){
@@ -687,6 +750,7 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
 
   firstPageBtn->setEnabled(false);
   prevPageBtn->setEnabled(false);
+
 
   connect(this, &OnlineModsIndexScreen::totalItemsUpdated, [this, totalPagesLabel, updateModsCountLabel](){
     m_totalPages = std::max(1, (m_totalItems + m_perPage - 1) / m_perPage);

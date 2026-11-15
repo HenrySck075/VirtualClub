@@ -37,12 +37,16 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
   auto notesLabel = new QLabel();
   notesLabel->setStyleSheet("font-style: italic;");
-  $setLabelTextAndRegisterAutoTL(notesLabel,"All changes are automatically saved.");
+  addRetranslateCallback([this, notesLabel] {
+    notesLabel->setText(tr("All changes are automatically saved."));
+  });
   contentLayout->addWidget(notesLabel,0,Qt::AlignLeft);
 
   auto addSettingsHeader = [this, contentLayout](QString headerName) {
     auto* headerLabel = new QLabel(headerName);
-    $setLabelTextAndRegisterAutoTL(headerLabel, headerName.toStdString().c_str());
+    addRetranslateCallback([this, headerLabel, headerName] {
+      headerLabel->setText(tr(headerName.toStdString().c_str()));
+    });
     headerLabel->setFont(QFont("Quicksand", 18, QFont::Bold));
     contentLayout->addWidget(headerLabel, 0, Qt::AlignLeft);
     // pad it out veritcally
@@ -59,11 +63,17 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
     auto metadataLayout = new QVBoxLayout();
     layout->addLayout(metadataLayout);
 
-    auto nameLabel = $createAutoTLLabelInline(name.toStdString().c_str());
+    auto* nameLabel = new QLabel();
+    addRetranslateCallback([this, nameLabel, name] {
+      nameLabel->setText(tr(name.toStdString().c_str()));
+    });
     nameLabel->setFont(QFont("Quicksand", 12, QFont::Bold)); 
     metadataLayout->addWidget(nameLabel); 
 
-    auto descLabel = $createAutoTLLabelInline(desc.toStdString().c_str());
+    auto* descLabel = new QLabel();
+    addRetranslateCallback([this, descLabel, desc] {
+      descLabel->setText(tr(desc.toStdString().c_str()));
+    });
     descLabel->setFont(QFont("Quicksand", 10)); 
     descLabel->setWordWrap(true); 
     descLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);

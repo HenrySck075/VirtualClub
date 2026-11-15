@@ -209,7 +209,7 @@ QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& ur
   QNetworkRequest request(url);
   request.setHeader(
     QNetworkRequest::UserAgentHeader, 
-    "VirtualClub v" MVC_VERSION "(Qt" QT_VERSION_STR ")"
+    "VirtualClub v" MVC_VERSION " (Qt" QT_VERSION_STR ")"
   );
   QNetworkReply* reply = manager->get(request);
 
@@ -233,10 +233,11 @@ QFuture<nlohmann::json> fetchJsonAsync(QNetworkAccessManager* manager, const QUr
   QFuture<nlohmann::json> future = promise->future();
 
   QNetworkRequest request(url);
-  // if this makes the requests errored out then awesome
+  // fun fact the ai autocompleter sets the user agent
+  // to sum shit like "Genshin Studio" idk why
   request.setHeader(
     QNetworkRequest::UserAgentHeader, 
-    "VirtualClub v" MVC_VERSION "(Qt" QT_VERSION_STR ")"
+    "VirtualClub v" MVC_VERSION " (Qt" QT_VERSION_STR ")"
   );
   QNetworkReply* reply = manager->get(request);
 

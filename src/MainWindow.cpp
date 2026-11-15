@@ -165,16 +165,15 @@ void MainWindow::routeTransitionHandler(QString path, QWidget* outgoing, QWidget
   setPageTitleBar(incoming->windowTitle());
 }
 
-void addSidebarItemToRetranslate(SidebarItem* item) {
-  item->setText(qApp->translate("Sidebar", item->text().toStdString().c_str()));
-  item->setProperty("mvcTLText", item->text());
-  item->setProperty("mvcTLContext", "Sidebar");
-  addWidgetToRetranslateList(item);
+void addSidebarItemToRetranslate(SidebarItem* item, const QString& name) {
+  addRetranslateCallback([item, name] {
+    item->setText(qApp->translate("Sidebar", name.toStdString().c_str()));
+  });
 }
 
 SidebarItem* MainWindow::addNavigationItem(LucideIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget) {
   auto item = m_sidebar->addSidebarItem(icon, name, position);
-  addSidebarItemToRetranslate(item);
+  addSidebarItemToRetranslate(item, name);
 
   m_navigationMap[item] = route;
   widget->setProperty("__sidebarItem", QVariant::fromValue<SidebarItem*>(item));
@@ -196,7 +195,7 @@ SidebarItem* MainWindow::addNavigationItem(LucideIcon icon, QString name, Sideba
 
 SidebarItem* MainWindow::addActionItem(LucideIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked) {
   auto item = m_sidebar->addSidebarItem(icon, name, position, false, false);
-  addSidebarItemToRetranslate(item);
+  addSidebarItemToRetranslate(item, name);
 
   m_actionMap.push_back(item);
   connect(item, &SidebarItem::clicked, this, onClicked);

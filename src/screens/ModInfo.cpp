@@ -322,7 +322,9 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
 #ifdef MVC_VFS_AVAILABLE
   m_playtimeLabel = new QLabel(); 
   m_playtimeLabel->setStyleSheet("color: #000000;");
-  addWidgetToRetranslateList_(m_playtimeLabel);
+  addRetranslateCallback([this] {
+    updatePlaytimeLabel();
+  });
 
   // TODO:
   headerLayout->addWidget(m_playtimeLabel);

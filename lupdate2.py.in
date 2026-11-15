@@ -119,12 +119,17 @@ def main():
                 
                 current_line += 1
             
-            # Write reconstructed file padded with newlines
+            # Write reconstructed file padded with newlines, reverting Q_OBJECT expansion
             max_line = max(lines_by_number.keys()) if lines_by_number else 0
             with open(temp_file, 'w', encoding='utf-8') as f:
                 for line_num in range(1, max_line + 1):
                     if line_num in lines_by_number:
-                        f.write(" ".join(lines_by_number[line_num]) + "\n")
+                        block_str = " ".join(lines_by_number[line_num])
+                        # Detect Qt's Q_OBJECT macro expansion signature and revert it
+                        if "staticMetaObject" in block_str and "qt_metacall" in block_str and "qt_metacast" in block_str:
+                            f.write("Q_OBJECT\n")
+                        else:
+                            f.write(" ".join(lines_by_number[line_num]) + "\n")
                     else:
                         f.write("\n")
                         
@@ -165,3 +170,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
