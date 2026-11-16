@@ -25,8 +25,8 @@ inline constexpr auto STK_BASEPATH = "baseGameInstallPath";
 inline constexpr auto STK_BGPACK = "background";
 inline constexpr auto STK_DISPLAYNAME = "displayName";
 inline constexpr auto STK_PFP = "profileImage";
-inline constexpr auto STK_RECENTLIST = "recentList";
+inline constexpr auto STK_RECENTLIST = "recentList"; // storing states as settings? its more likely than you think!
 inline constexpr auto STK_LANGUAGE = "lang";
-inline constexpr auto GSTK_MOD_STORAGE_PATH = "modStoragePath";
+inline constexpr auto GSTK_STORAGE_PATH = "launcherStoragePath";
 
 #endif

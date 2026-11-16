@@ -82,13 +82,13 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
         }
     }
 
-    if (!qsettings.contains(GSTK_MOD_STORAGE_PATH)) {
+    if (!qsettings.contains(GSTK_STORAGE_PATH)) {
       QString defaultPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/storage";
-      qsettings.setValue(GSTK_MOD_STORAGE_PATH, defaultPath);
+      qsettings.setValue(GSTK_STORAGE_PATH, defaultPath);
     }
     // create storage folder 
-    if (!QDir(qsettings.value(GSTK_MOD_STORAGE_PATH).toString()).exists()) {
-      QDir().mkpath(qsettings.value(GSTK_MOD_STORAGE_PATH).toString());
+    if (!QDir(qsettings.value(GSTK_STORAGE_PATH).toString()).exists()) {
+      QDir().mkpath(qsettings.value(GSTK_STORAGE_PATH).toString());
     }
 
     PyConfig config;

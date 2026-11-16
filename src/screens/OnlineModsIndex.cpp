@@ -123,7 +123,7 @@ public:
             [this, fallbackRoute](const QString& filePath) {
             QThreadPool::globalInstance()->start([this, filePath, fallbackRoute]() {
               m_statusLabel->setText(tr("Extracting mod..."));
-              const auto storagePath = QSettings().value(GSTK_MOD_STORAGE_PATH).toString();
+              const auto storagePath = QSettings().value(GSTK_STORAGE_PATH).toString();
               QDir storageDir(storagePath);
               if (storagePath.isEmpty() || !storageDir.mkpath(".")) {
                 m_statusLabel->setText(tr("Could not access the mod storage path."));
@@ -195,7 +195,7 @@ public:
               fallbackRoute();
             });
 
-    const auto storagePath = QSettings().value(GSTK_MOD_STORAGE_PATH).toString();
+    const auto storagePath = QSettings().value(GSTK_STORAGE_PATH).toString();
     if (storagePath.isEmpty()) {
       // this only happens if the user edits the configs file.
       // or maybe unreachable because it's reset to the default in main

@@ -173,33 +173,4 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
     trNoop("Sets the application language"), 
     languagesComboBox
   );
-
-  /*
-  auto* testButton1 = new Button("Dialog");
-  connect(testButton1, &Button::clicked, this, [this](){
-    Dialog::showActionDialog(
-      getMainWindow(), 
-      "Test Dialog", 
-      "This is a test dialog.",
-      "You can put any content here.",
-      Dialog::DialogType::Confirm
-    );
-  });
-
-  auto* testButton2 = new Button("Dialog with danger sfx");
-  connect(testButton2, &Button::clicked, this, [this](){
-    Dialog::showActionDialog(
-      getMainWindow(), 
-      "Test Dialog", 
-      "This is a test dialog.",
-      "You can put any content here.",
-      Dialog::DialogType::Confirm,
-      true
-    );
-  });
-
-  contentLayout->addWidget(testButton1);
-  contentLayout->addWidget(testButton2);
-*/
-#undef addSettingsLabel
 }
