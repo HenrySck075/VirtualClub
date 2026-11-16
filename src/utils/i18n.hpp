@@ -12,10 +12,11 @@ void setLanguage(QLocale locale);
 
 void setupReTLHandler();
 
+// Add a callback when the application language changed.
+//
+// This is mainly used to update text UI widgets, but it should only do so for widgets that, 
+// in practice, exists when a language change in SettingsScreen was made.
 void addRetranslateCallback(std::function<void()> callback, bool immediate = true);
+void addRetranslateCallback(QObject* context, std::function<void()> callback, bool immediate = true);
 void removeRetranslateCallback(std::function<void()> callback);
 
-/// Alternative syntax to QT_TR_NOOP due to the custom lupdate wrapper resolving the macro.
-inline const char* trNoop(const char* text) {return text;}
-/// Alternative syntax to QT_TRANSLATE_NOOP due to the custom lupdate wrapper resolving the macro.
-inline const char* translateNoop(const char* context, const char* text) {return text;}

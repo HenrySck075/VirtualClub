@@ -41,6 +41,14 @@ void addRetranslateCallback(std::function<void()> callback, bool immediate) {
   if (immediate) callback();
 };
 
+
+void addRetranslateCallback(QObject* context, std::function<void()> callback, bool immediate) {
+  addRetranslateCallback(std::move(callback), immediate);
+  QObject::connect(context, &QObject::destroyed, [callback]() {
+    removeRetranslateCallback(callback);
+  });
+}
+
 void removeRetranslateCallback(std::function<void()> callback) {
   // why
   auto it = std::remove_if(g_retranslateCallbacks.begin(), g_retranslateCallbacks.end(),

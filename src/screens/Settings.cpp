@@ -26,9 +26,14 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
   layout->setContentsMargins(margin, margin, margin, margin);
   layout->setSpacing(0);
 
-  auto* content = new QWidget(this);
-  setupGradientWidget(content);
-  layout->addWidget(content);
+  auto* scrollArea = new QScrollArea(this);
+  scrollArea->setFrameShape(QFrame::NoFrame);
+  scrollArea->setWidgetResizable(true);
+  setupGradientWidget(scrollArea);
+
+  auto* content = new QWidget();
+  scrollArea->setWidget(content);
+  layout->addWidget(scrollArea);
   auto* contentLayout = new QVBoxLayout(content);
   static const int contentMargin = 16;
   contentLayout->setContentsMargins(contentMargin, contentMargin, contentMargin, contentMargin);
@@ -38,14 +43,17 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
 
   auto notesLabel = new QLabel();
   notesLabel->setStyleSheet("font-style: italic;");
-  addRetranslateCallback([this, notesLabel] {
+  addRetranslateCallback(this, [this, notesLabel] {
     notesLabel->setText(tr("All changes are automatically saved."));
   });
   contentLayout->addWidget(notesLabel,0,Qt::AlignLeft);
 
   if (router) {
-    auto *globalSettingsButton = new Button(tr("Global settings"), content);
+    auto *globalSettingsButton = new Button(LucideIcons::settings, content);
     contentLayout->addWidget(globalSettingsButton, 0, Qt::AlignLeft);
+    addRetranslateCallback(this, [this, globalSettingsButton] {
+      globalSettingsButton->setText(tr("Global settings"));
+    });
     connect(globalSettingsButton, &Button::clicked, this, [router]() {
       router->navigate("/settings/global");
     });
@@ -53,7 +61,7 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
 
   auto addSettingsHeader = [this, contentLayout](QString headerName) {
     auto* headerLabel = new QLabel(headerName);
-    addRetranslateCallback([this, headerLabel, headerName] {
+    addRetranslateCallback(this, [this, headerLabel, headerName] {
       headerLabel->setText(tr(headerName.toStdString().c_str()));
     });
     headerLabel->setFont(QFont("Quicksand", 18, QFont::Bold));
@@ -73,20 +81,19 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
     layout->addLayout(metadataLayout);
 
     auto* nameLabel = new QLabel();
-    addRetranslateCallback([this, nameLabel, name] {
-      nameLabel->setText(tr(name.toStdString().c_str()));
-    });
     nameLabel->setFont(QFont("Quicksand", 12, QFont::Bold)); 
     metadataLayout->addWidget(nameLabel); 
 
     auto* descLabel = new QLabel();
-    addRetranslateCallback([this, descLabel, desc] {
-      descLabel->setText(tr(desc.toStdString().c_str()));
-    });
     descLabel->setFont(QFont("Quicksand", 10)); 
     descLabel->setWordWrap(true); 
     descLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     metadataLayout->addWidget(descLabel); 
+
+    addRetranslateCallback(this, [this, nameLabel, name, descLabel, desc] {
+      nameLabel->setText(tr(name.toStdString().c_str()));
+      descLabel->setText(tr(desc.toStdString().c_str()));
+    });
 
     layout->addWidget(action);
 
@@ -98,13 +105,13 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
 
   auto settings = ProfileSettings::get();
 
-  addSettingsHeader(trNoop("Profile"));
+  addSettingsHeader(QT_TR_NOOP("Profile"));
 
   auto* pfpChangeButton = new IconButton(LucideIcons::pen);
 
   addSettingsLabel(
-    trNoop("Profile picture"),
-    trNoop("Give it a cooler image"),
+    QT_TR_NOOP("Profile picture"),
+    QT_TR_NOOP("Give it a cooler image"),
     pfpChangeButton,
     [this, settings, pfpChangeButton](QHBoxLayout* layout, QVBoxLayout* metadataLayout){
       auto* pfpLabel = new PixmapWidget;
@@ -125,12 +132,13 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
   displayNameTextInput->setText(
     settings->value(STK_DISPLAYNAME, ProfileSingleApp::instance()->profileId()).toString()
   );
+  displayNameTextInput->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
   bool haveDisplayName = settings->contains(STK_DISPLAYNAME);
   auto [dnNameLabel, dnDescLabel] = addSettingsLabel(
-    trNoop("Display name"), 
+    QT_TR_NOOP("Display name"), 
     haveDisplayName
-      ? trNoop("Change the profile's display name.")
-      : trNoop("you dont want the name to look like that, do you?"), 
+      ? QT_TR_NOOP("Change the profile's display name.")
+      : QT_TR_NOOP("you dont want the name to look like that, do you?"), 
     displayNameTextInput
   );
   connect(displayNameTextInput, &QLineEdit::editingFinished, this, [displayNameTextInput, dnDescLabel, haveDisplayName, settings](){
@@ -143,16 +151,16 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
 
 
 
-  auto* basePathChangeButton = new Button(tr("Change"), content);
+  auto* basePathChangeButton = new Button(LucideIcons::folder_pen, content);
   addSettingsLabel(
-    trNoop("Base game's path"),
-    trNoop("The directory where the base game is installed."),
+    QT_TR_NOOP("Base game's path"),
+    QT_TR_NOOP("The directory where the base game is installed."),
     basePathChangeButton,
     [this, settings, basePathChangeButton](QHBoxLayout*, QVBoxLayout* metadataLayout) {
       auto* basePath = new QLineEdit(this);
       basePath->setText(settings->value(STK_BASEPATH).toString());
       basePath->setReadOnly(true);
-      metadataLayout->addWidget( basePath);
+      metadataLayout->addWidget(basePath);
 
       connect(basePathChangeButton, &Button::clicked, this, [this, settings, basePath](){
         if (askForBasePathChange()) {
@@ -161,9 +169,12 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
       });
     }
   );
+  addRetranslateCallback(this, [basePathChangeButton, this] {
+    basePathChangeButton->setText(tr("Change"));
+  });
 
 
-  addSettingsHeader(trNoop("Application"));
+  addSettingsHeader(QT_TR_NOOP("Application"));
 
   auto* languagesComboBox = new QComboBox();
   {
@@ -185,8 +196,8 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
   });
   
   auto [lNameLabel, lDescLabel] = addSettingsLabel(
-    trNoop("Language"), 
-    trNoop("Sets the application language"), 
+    QT_TR_NOOP("Language"), 
+    QT_TR_NOOP("Sets the application language"), 
     languagesComboBox
   );
 }

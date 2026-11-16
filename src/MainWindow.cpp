@@ -81,7 +81,7 @@ void MainWindow::initUI() {
   m_mainContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   mainLayout->addWidget(m_mainContent);
 
-  addNavigationItem(LucideIcons::house, translateNoop("Sidebar", "Home"), SidebarPosition::Top, "/home", new HomeScreen())->setSelected(true);
+  addNavigationItem(LucideIcons::house, QT_TRANSLATE_NOOP("Sidebar", "Home"), SidebarPosition::Top, "/home", new HomeScreen())->setSelected(true);
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, "/mods", new ModsScreen(m_router));
   m_router->addFixedRoute("/mods/online", new OnlineModsIndexScreen(m_router), std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   m_router->addRoute("/mods/:id", [this](const RouteParams& params) {
@@ -92,11 +92,11 @@ void MainWindow::initUI() {
     return a;
   }, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 
-  addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen(m_router));
+  addNavigationItem(LucideIcons::settings, QT_TRANSLATE_NOOP("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen(m_router));
   m_router->addRoute("/settings/global", [this](const RouteParams&) {
     return new GlobalSettingsScreen(m_router);
   }, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
-  addActionItem(LucideIcons::users, translateNoop("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
+  addActionItem(LucideIcons::users, QT_TRANSLATE_NOOP("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
   m_router->navigate("/home");
 
   //connect(m_sidebar, &Sidebar::selectedItemChanged, this, &MainWindow::onSelectedItemChanged);
@@ -123,6 +123,7 @@ SidebarItem* MainWindow::sidebarItemForPath(QString& path) {
   return nullptr;
 }
 
+std::unordered_map<QWidget*, QMetaObject::Connection> g_titleBarUpdaterConnections;
 void MainWindow::routeTransitionHandler(QString path, QWidget* outgoing, QWidget* incoming, std::function<void()> onFinished) {
   anime::SlideDirection direction;
 
@@ -162,15 +163,26 @@ void MainWindow::routeTransitionHandler(QString path, QWidget* outgoing, QWidget
   if (anim) {
     connect(anim, &QAbstractAnimation::finished, this, [this, incoming, onFinished](){
       if (onFinished) onFinished();
-      setPageTitleBar(incoming->windowTitle());
     });
   }
 
   setPageTitleBar(incoming->windowTitle());
+
+  // disconnect old one if exists
+  // meaning g_titleBarUpdaterConnections in practice should have the size of however many MainWindow are there per process (1)
+  if (g_titleBarUpdaterConnections.find(outgoing) != g_titleBarUpdaterConnections.end()) {
+    disconnect(g_titleBarUpdaterConnections[outgoing]);
+    g_titleBarUpdaterConnections.erase(outgoing);
+  }
+  g_titleBarUpdaterConnections[incoming] = connect(incoming, &QWidget::windowTitleChanged, this, [this, incoming](){
+    if (m_router == incoming) {
+      setPageTitleBar(incoming->windowTitle());
+    }
+  });
 }
 
 void addSidebarItemToRetranslate(SidebarItem* item, const QString& name) {
-  addRetranslateCallback([item, name] {
+  addRetranslateCallback(item, [item, name] {
     item->setText(qApp->translate("Sidebar", name.toStdString().c_str()));
   });
 }

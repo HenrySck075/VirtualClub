@@ -140,7 +140,7 @@ GlobalSettingsScreen::GlobalSettingsScreen(Router *router, QWidget *parent) : QW
           this,
           tr("Storage path not changed"),
           tr("Could not move all launcher data to the selected directory."),
-          tr("Choose an empty directory on the same storage device and try again."),
+          tr("Choose an empty directory and try again."),
           Dialog::DialogType::Confirm,
           true
       );

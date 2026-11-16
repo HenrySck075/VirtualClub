@@ -48,7 +48,6 @@ qt_add_translations(
   RESOURCE_PREFIX "/translations"
 
   #LUPDATE_TARGET CustomLupdateWrapper
-  #"-tr-function-alias" "QT_TR_NOOP+=trNoop,QT_TRANSLATE_NOOP+=translateNoop"
 )
 
 

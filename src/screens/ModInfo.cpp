@@ -322,9 +322,6 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
 #ifdef MVC_VFS_AVAILABLE
   m_playtimeLabel = new QLabel(); 
   m_playtimeLabel->setStyleSheet("color: #000000;");
-  addRetranslateCallback([this] {
-    updatePlaytimeLabel();
-  });
 
   // TODO:
   headerLayout->addWidget(m_playtimeLabel);
@@ -340,21 +337,17 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   contentLayout->setSpacing(8);
   contentLayout->setAlignment(Qt::AlignLeft);
 
-  m_playButton = new Button(LucideIcons::play);
-  addRetranslateCallback([this](){
-    m_playButton->setText(tr("Play"));
-  }); 
+  m_playButton = new Button(LucideIcons::play); 
+  m_playButton->setText(tr("Play"));
   connect(m_playButton, &Button::clicked, this, &ModInfoScreen::onPlayButtonClicked);
   contentLayout->addWidget(m_playButton); 
 
   m_playFromSaveButton = new Button(LucideIcons::rotate_cw_clock);
-  addRetranslateCallback([this](){
-    m_playFromSaveButton->setText(tr("...from save"));
-    m_playFromSaveButton->setToolTip(tr("Start the mod from save file"));
-  });
   connect(m_playFromSaveButton, &Button::clicked, [this](){
     Dialog::showContentDialog(getMainWindow(), tr("Select save"), new SaveSelectDialogContent(m_displayingMod.value(), this), {860,600});
   });
+  m_playFromSaveButton->setText(tr("...from save"));
+  m_playFromSaveButton->setToolTip(tr("Start the mod from save file"));
   contentLayout->addWidget(m_playFromSaveButton);
 
   m_deleteButton = new Button(tr("Uninstall"), LucideIcons::trash);

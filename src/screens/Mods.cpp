@@ -259,7 +259,9 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
 
   // headerLayout->addStretch();
   auto* searchBar = new QLineEdit();
-  searchBar->setPlaceholderText("Search mod");
+  addRetranslateCallback(this, [searchBar, this] {
+    searchBar->setPlaceholderText(tr("Search mods"));
+  });
   // on text edited (not submitted), filter mods grid by hidiing unmatched DesktopIconWidgets
   connect(searchBar, &QLineEdit::textEdited, this, [this](const QString& text){
     findChildWidgetBy(m_contentLayout, [this, text](QWidget* w){

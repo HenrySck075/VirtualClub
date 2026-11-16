@@ -116,7 +116,7 @@ public:
                                          .arg(bytesTotal));
               } else {
                 m_progressBar->setRange(0, 0);
-                m_statusLabel->setText(tr("Downloaded %1 bytes").arg(bytesReceived));
+                //m_statusLabel->setText(tr("Downloaded %1 bytes").arg(bytesReceived));
               }
             });
     connect(m_downloader, &FileDownloader::finished, this,
@@ -145,7 +145,7 @@ public:
                 struct zip_t* za = zip_open(fp.constData(), 0, 'r');
 
                 if (!za) {
-                  m_statusLabel->setText(tr("Could not open the downloaded mod archive."));
+                  m_statusLabel->setText(tr("Could not open the downloaded archive."));
                   zip_close(za);
                   m_taskFinished = true;
                   return;
@@ -527,7 +527,7 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   headerLayout->addWidget(backButton);
 
   auto* searchBar = new QLineEdit(header);
-  addRetranslateCallback([searchBar, this] { 
+  addRetranslateCallback(this, [searchBar, this] { 
     searchBar->setPlaceholderText(tr("Search mods"));
   });
   searchBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -567,24 +567,24 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   headerLayout->addWidget(indexSelector);
 
   auto* sortByLabel = new QLabel();
-  addRetranslateCallback([this, sortByLabel] {
+  addRetranslateCallback(this, [this, sortByLabel] {
     sortByLabel->setText(tr("Sort by"));
   });
   headerLayout->addWidget(sortByLabel);
 
   auto* sortSelector = new QComboBox(header);
   std::array<std::pair<ListSorting, std::string>, 5> sorts {{
-    {ListSorting::Newest, trNoop("Newest")},
-    {ListSorting::Oldest, trNoop("Oldest")},
-    {ListSorting::TitleAZ, trNoop("Title A-Z")},
-    {ListSorting::TitleZA, trNoop("Title Z-A")},
-    {ListSorting::Author, trNoop("Author")},
+    {ListSorting::Newest, QT_TR_NOOP("Newest")},
+    {ListSorting::Oldest, QT_TR_NOOP("Oldest")},
+    {ListSorting::TitleAZ, QT_TR_NOOP("Title A-Z")},
+    {ListSorting::TitleZA, QT_TR_NOOP("Title Z-A")},
+    {ListSorting::Author, QT_TR_NOOP("Author")},
   }};
 
   for (const auto& [sort, name] : sorts) {
     sortSelector->addItem(tr(name.c_str()));
   }
-  addRetranslateCallback([sortSelector, sorts]{
+  addRetranslateCallback(this, [sortSelector, sorts]{
     int i = 0;
     for (const auto& [sort, name] : sorts) {
       sortSelector->setItemText(i, tr(name.c_str()));
@@ -722,7 +722,7 @@ OnlineModsIndexScreen::OnlineModsIndexScreen(Router* router, QWidget* parent) : 
   footerLayout->addWidget(lastPageBtn);
 
   // tooltip for nav buttons
-  addRetranslateCallback([firstPageBtn, prevPageBtn, nextPageBtn, lastPageBtn]{
+  addRetranslateCallback(this, [firstPageBtn, prevPageBtn, nextPageBtn, lastPageBtn]{
     firstPageBtn->setToolTip(tr("First page"));
     prevPageBtn->setToolTip(tr("Previous page"));
     nextPageBtn->setToolTip(tr("Next page"));
