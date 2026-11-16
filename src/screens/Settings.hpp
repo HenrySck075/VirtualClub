@@ -2,10 +2,13 @@
 #define SCREENS_Settings_H
 
 #include <QWidget>
+
+class Router;
+
 class SettingsScreen : public QWidget {
   Q_OBJECT
 public:
-  explicit SettingsScreen(QWidget *parent = nullptr);
+  explicit SettingsScreen(Router *router = nullptr, QWidget *parent = nullptr);
 };
 
 #endif

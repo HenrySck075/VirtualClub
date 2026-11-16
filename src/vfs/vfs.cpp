@@ -25,6 +25,7 @@
 
 #include <QStandardPaths>
 #include <QDir>
+#include <QSettings>
 #include <QTemporaryDir>
 
 #include <nlohmann/json.hpp>
@@ -231,7 +232,7 @@ public:
         modFolder = startupConfigs.mod.modPath;
 
         containsRenpyEngine = fs::exists(modFolder / "lib");
-        dbFolder = modFolder / ".vclubmgr";
+        dbFolder = fs::path(QSettings().value(GSTK_STORAGE_PATH).toString().toStdString()) / "session_data";
         deltaFolder = dbFolder / "delta" / startupConfigs.mod.id;
         contentFolder = deltaFolder / "content";
         whiteoutFilePath = deltaFolder / ".whiteouts";

@@ -28,5 +28,6 @@ inline constexpr auto STK_PFP = "profileImage";
 inline constexpr auto STK_RECENTLIST = "recentList"; // storing states as settings? its more likely than you think!
 inline constexpr auto STK_LANGUAGE = "lang";
 inline constexpr auto GSTK_STORAGE_PATH = "launcherStoragePath";
+inline constexpr auto GSTK_SESSION_DATA_MIGRATED = "sessionDataMigrated";
 
 #endif

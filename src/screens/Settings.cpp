@@ -11,13 +11,14 @@
 #include "consts.hpp"
 #include "ui/IconButton.hpp"
 #include "ui/PixmapWidget.hpp"
+#include "ui/Router.hpp"
 #include "utils/LucideIcons.hpp"
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
 #include "utils/i18n.hpp"
 #include "utils/utils.hpp"
 
-SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
+SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent) {
   setWindowTitle("Settings");
   // Set up the layout for the Settings screen
   auto *layout = new QVBoxLayout(this);
@@ -41,6 +42,14 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
     notesLabel->setText(tr("All changes are automatically saved."));
   });
   contentLayout->addWidget(notesLabel,0,Qt::AlignLeft);
+
+  if (router) {
+    auto *globalSettingsButton = new Button(tr("Global settings"), content);
+    contentLayout->addWidget(globalSettingsButton, 0, Qt::AlignLeft);
+    connect(globalSettingsButton, &Button::clicked, this, [router]() {
+      router->navigate("/settings/global");
+    });
+  }
 
   auto addSettingsHeader = [this, contentLayout](QString headerName) {
     auto* headerLabel = new QLabel(headerName);
@@ -134,17 +143,24 @@ SettingsScreen::SettingsScreen(QWidget *parent) : QWidget(parent) {
 
 
 
-  auto* pathChangeButton = new IconButton(LucideIcons::folder_pen, content);
-  auto [pcNameLabel, pcDescLabel] = addSettingsLabel(
-    trNoop("Base game's path"), 
-    settings->value(STK_BASEPATH).toString(), 
-    pathChangeButton
-  );
-  connect(pathChangeButton, &Button::clicked, this, [this, settings, pcDescLabel](){
-    askForBasePathChange();
+  auto* basePathChangeButton = new Button(tr("Change"), content);
+  addSettingsLabel(
+    trNoop("Base game's path"),
+    trNoop("The directory where the base game is installed."),
+    basePathChangeButton,
+    [this, settings, basePathChangeButton](QHBoxLayout*, QVBoxLayout* metadataLayout) {
+      auto* basePath = new QLineEdit(this);
+      basePath->setText(settings->value(STK_BASEPATH).toString());
+      basePath->setReadOnly(true);
+      metadataLayout->addWidget( basePath);
 
-    pcDescLabel->setText(settings->value(STK_BASEPATH).toString());
-  });
+      connect(basePathChangeButton, &Button::clicked, this, [this, settings, basePath](){
+        if (askForBasePathChange()) {
+          basePath->setText(settings->value(STK_BASEPATH).toString());
+        }
+      });
+    }
+  );
 
 
   addSettingsHeader(trNoop("Application"));

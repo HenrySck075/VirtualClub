@@ -12,6 +12,7 @@
 #include "MainWindow.hpp"
 #include "consts.hpp"
 #include "screens/Home.hpp"
+#include "screens/GlobalSettings.hpp"
 #include "screens/ModInfo.hpp"
 #include "screens/Mods.hpp"
 #include "screens/OnlineModsIndex.hpp"
@@ -91,7 +92,10 @@ void MainWindow::initUI() {
     return a;
   }, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
 
-  addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen());
+  addNavigationItem(LucideIcons::settings, translateNoop("Sidebar", "Settings"), SidebarPosition::Bottom, "/settings", new SettingsScreen(m_router));
+  m_router->addRoute("/settings/global", [this](const RouteParams&) {
+    return new GlobalSettingsScreen(m_router);
+  }, std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   addActionItem(LucideIcons::users, translateNoop("Sidebar", "Switch profile"), SidebarPosition::Bottom, showSwitchUserDialog);
   m_router->navigate("/home");
 
