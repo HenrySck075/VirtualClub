@@ -5,7 +5,6 @@
 #include <QStackedWidget>
 #include <QMainWindow>
 #include "utils/LucideIcons.hpp"
-#include <QSystemTrayIcon>
 
 class MainWindow : public QWidget {
   Q_OBJECT
@@ -20,8 +19,6 @@ class MainWindow : public QWidget {
   std::unordered_map<SidebarItem*, QString> m_navigationMap;
   std::list<SidebarItem*> m_actionMap;
 
-  QSystemTrayIcon* m_trayIcon = nullptr;
-
   QString m_currentPath = "/home";
   
   struct {
@@ -35,7 +32,6 @@ public:
   }
 
   void setPageTitleBar(const QString& pageTitle);
-  void updateTrayTooltip();
 protected:
   void initUI();
 
@@ -51,7 +47,6 @@ protected:
   SidebarItem* addNavigationItem(LucideIcon icon, QString name, SidebarPosition position, QString route, QWidget* widget);
   SidebarItem* addActionItem(LucideIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked);
 
-  void setupTrayIcon();
   bool confirmQuit();
 };
 

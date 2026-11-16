@@ -8,8 +8,8 @@
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <string>
-#include "MainWindow.hpp"
 #include "macros.h"
+#include "TrayIcon.hpp"
 #include "vfs/vfs.hpp"
 
 #ifdef _WIN32
@@ -52,7 +52,7 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
   instance->mount();
 
   QApplication::setQuitOnLastWindowClosed(false);
-  getMainWindow()->updateTrayTooltip();
+  TrayIcon::updateTooltip();
 };
 
 bool SessionManager::isMounted(std::string modId) {
@@ -223,7 +223,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
       [modId, startedCallback](pid_t pid) {
           qDebug() << "Game launched with PID:" << pid;
           m_playingMods.insert(modId);
-          getMainWindow()->updateTrayTooltip();
+          TrayIcon::updateTooltip();
           startedCallback();
       },
       [modId, exitedCallback](int exit_code) {
@@ -244,7 +244,7 @@ void SessionManager::unmount(std::string modId) {
     QApplication::setQuitOnLastWindowClosed(true);
   }
 
-  getMainWindow()->updateTrayTooltip();
+  TrayIcon::updateTooltip();
 };
 bool SessionManager::hasMountedMod() {
   return !m_mountedMods.empty();

@@ -385,15 +385,17 @@ QProgressBar::chunk {
   };
 
   const auto initialModId = parser.value(modOption);
-  if (!initialModId.isEmpty()) {
-      launchMod(initialModId);
-  }
 
   std::unique_ptr<MainWindow> window = std::make_unique<MainWindow>();
   window->setWindowIcon(QIcon(":/app-icon.png"));
   if (initialModId.isEmpty()) {
       window->show();
   }
+
+  if (!initialModId.isEmpty()) {
+      launchMod(initialModId);
+  }
+
 
   // Handle messages when a user attempts to re-open the app under this profile
   QObject::connect(&app, &ProfileSingleApp::messageReceivedFromSecondary, [&](const QStringList &args) {

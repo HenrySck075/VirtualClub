@@ -7,7 +7,7 @@
 #include <QTime>
 #include <QGraphicsOpacityEffect>
 #include <QParallelAnimationGroup>
-#include <QMenu>
+#include <QSystemTrayIcon>
 
 #include "MainWindow.hpp"
 #include "consts.hpp"
@@ -26,6 +26,7 @@
 #include "utils/ProfileSettings.hpp"
 #include "utils/ProfileSingleApp.hpp"
 #include "utils/SessionManager.hpp"
+#include "utils/TrayIcon.hpp"
 #include "utils/anime.hpp"
 #include "utils/i18n.hpp"
 
@@ -37,7 +38,9 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
 
   //m_currentBackgroundImage = getCurrentImage(m_settings.currentBackground);
   initUI();
-  setupTrayIcon();
+  TrayIcon::setup(this, [this]() {
+    return confirmQuit();
+  });
 }
 
 void MainWindow::setPageTitleBar(const QString& pageTitle) {
@@ -258,60 +261,13 @@ bool MainWindow::confirmQuit() {
 #undef trConfirmQuit
 }
 
-void MainWindow::updateTrayTooltip() {
-  if (!m_trayIcon) return;
-
-  QString sessionStatus;
-
-  if (SessionManager::hasMountedMod()) {
-    sessionStatus = QString("%1 mounted").arg(SessionManager::countMountedMods());
-
-    if (SessionManager::hasPlayingMod()) {
-      sessionStatus += QString(", %1 running").arg(SessionManager::countPlayingMods());
-    }
-  }
-
-  m_trayIcon->setToolTip(QString("VirtualClub - %1%2").arg(
-    ProfileSingleApp::instance()->profileName(),
-    sessionStatus
-  ));
-}
-
-void MainWindow::setupTrayIcon() {
-  m_trayIcon = new QSystemTrayIcon(QIcon(":/app-icon.png"), this);
-  updateTrayTooltip();
-  auto *trayMenu = new QMenu(this);
-
-  // Option to bring window back to focus
-  QAction *showAction = trayMenu->addAction("Show Window");
-  QObject::connect(showAction, &QAction::triggered, this, [this]() {
-    this->show();
-    this->activateWindow();
-  });
-
-  // Option to truly exit the application
-  QAction *quitAction = trayMenu->addAction("Quit");
-  QObject::connect(quitAction, &QAction::triggered, qApp, [this](){
-    if (confirmQuit()) QCoreApplication::quit();
-  });
-
-  QObject::connect(m_trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
-    if (reason == QSystemTrayIcon::Trigger) { // Left click
-      this->show();
-      this->activateWindow();
-    }
-  });
-
-  m_trayIcon->setContextMenu(trayMenu);
-  m_trayIcon->show();
-}
 void MainWindow::closeEvent(QCloseEvent *event) {
     // Check if the user is attempting to close via the window manager (or custom state)
     if (isVisible() && SessionManager::hasMountedMod()) {
       event->ignore(); // Cancel the close request
       this->hide();    // Send window to background
     } else {
-      m_trayIcon->hide();
+      if (auto* trayIcon = TrayIcon::get()) trayIcon->hide();
       event->accept(); // Allow real shutdown if requested elsewhere
     }
 }

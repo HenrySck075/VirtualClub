@@ -2,9 +2,11 @@
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
 #include <QFileInfo>
+extern "C" {
 #include <lexbor/html/parser.h>
 #include <lexbor/dom/interfaces/element.h>
 #include <lexbor/dom/collection.h>
+}
 #include <QUrlQuery>
 #include <QTimer>
 #include <QRandomGenerator>
