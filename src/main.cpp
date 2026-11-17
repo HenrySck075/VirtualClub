@@ -331,6 +331,20 @@ QProgressBar::chunk {
 
   auto settings = ProfileSettings::get(); 
 
+  if (!settings->contains(STK_BASEGAMEID) && settings->contains(STK_BASEPATH)) {
+    const auto baseGamePath =
+      fs::path(settings->value(STK_BASEPATH).toString().toStdString()) / "game";
+    try {
+      settings->setValue(
+        STK_BASEGAMEID,
+        QString::fromStdString(ArchiveReader::readBuildId(baseGamePath))
+      );
+    } catch (const std::exception& error) {
+      qWarning() << "Could not determine base game build ID:"
+                 << error.what();
+    }
+  }
+
   if (!settings->contains(STK_BGPACK)) {
     auto packs = BackgroundLoader::getPacks();
     if (!packs.isEmpty()) {

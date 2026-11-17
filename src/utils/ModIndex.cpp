@@ -20,28 +20,6 @@
 #include "../third_party/stb/stb_image_resize2.h"
 
 
-py::bytes read_file_to_bytes(const std::string& filepath) {
-    // Open in binary mode and position at the end to get file size
-    std::ifstream file(filepath, std::ios::binary | std::ios::ate);
-    if (!file.is_open()) {
-        throw std::runtime_error("Could not open file: " + filepath);
-    }
-
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    // Read raw bytes into a standard buffer
-    std::vector<char> buffer(size);
-    if (!file.read(buffer.data(), size)) {
-        throw std::runtime_error("Failed to read file contents: " + filepath);
-    }
-
-    // Pass buffer pointer and size to py::bytes
-    // This copies the C++ memory buffer into a Python bytes object
-    return py::bytes(buffer.data(), buffer.size());
-}
-
-
 ModsIndex::ModsIndex(const QString &path)
 : m_store(std::make_shared<YamlSettings>(path)) {
   m_modsList.clear();
@@ -157,42 +135,11 @@ ModsIndex::Mod ModsIndex::installMod(std::filesystem::path path) {
   auto settings = ProfileSettings::get();
   auto modGameDir = path / "game";
   auto baseGameDir = std::filesystem::path(settings->value(STK_BASEPATH).toString().toStdString()) / "game";
-  std::map<std::string, std::pair<std::string, py::object>, std::greater<std::string>> indexes; 
-
-  for (auto& dir : {modGameDir, baseGameDir}) {
-    for (auto& p : std::filesystem::recursive_directory_iterator(dir)) {
-      if (p.is_regular_file() && p.path().extension() == ".rpa") {
-        auto filepath = p.path().string();
-        auto filename = p.path().filename().string();
-        if (indexes.contains(filename)) {
-          continue; // skip if already processed
-        }
-        auto index = ArchiveReader::rpaReaderModule().attr("read_rpa_index")(filepath);
-        indexes[filename] = std::make_pair(filepath, index);
-      }
-    }
-  };
-
-  // returns a py::bytes or a none equivalent idr what its called
-  auto readGameFile = [&modGameDir, &indexes](std::string filepath) -> py::object {
-    auto modFilePath = modGameDir / filepath;
-    if (std::filesystem::exists(modFilePath)) {
-      qDebug() << QString::fromStdString(filepath) << "exists as loose file";
-      return read_file_to_bytes(modFilePath.string());
-    } else {
-      for (auto& [key, value] : indexes) {
-        auto index = value.second;
-        if (index.contains(filepath.c_str())) {
-          qDebug() << QString::fromStdString(filepath) << "exists as archived file in" << QString::fromStdString(value.first);
-          auto fileData = ArchiveReader::rpaReaderModule().attr("extract_single_file")(value.first, filepath, index);
-          return fileData;
-        }
-      }
-    }
-    return py::none{};
-  };
 
   // TODO: Analyze EVERY files
+  auto readGameFile = [&modGameDir, &baseGameDir](const std::string& filepath) {
+    return ArchiveReader::readGameFile({modGameDir, baseGameDir}, filepath);
+  };
   auto optionsRpyc = readGameFile("options.rpyc");
   // by standard this shouldnt be none, but if will be here just in case my ported logic has a flaw idk
   if (optionsRpyc.is_none()) {

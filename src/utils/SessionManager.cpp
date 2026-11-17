@@ -102,6 +102,15 @@ void spawn_process(
   QObject::connect(process, &QProcess::started, [process, on_created]() {
       on_created(process->processId());
   });
+  QObject::connect(process, &QProcess::errorOccurred,
+                   [process, on_exit](QProcess::ProcessError error) {
+                       if (error == QProcess::FailedToStart) {
+                           qWarning() << "Could not start process:" << process->program()
+                                      << process->errorString();
+                           on_exit(-1);
+                           process->deleteLater();
+                       }
+                   });
   process->start();
 }
 
@@ -113,6 +122,9 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
   fs::path mountPath = m_mountedMods[mod.id]->mountPath().toStdString();
   std::optional<fs::path> pythonwPath;
+  QString launchCommand;
+  QStringList launchPrefixArgs;
+  bool usesTranslationLayer = false;
   // mac
   #if defined(__APPLE__)
   {
@@ -157,14 +169,58 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
       }
 
       #endif
+
+#if !defined(_WIN32)
+  if (!pythonwPath) {
+      const std::array<std::string, 2> windowsPlatformKeys {
+          "windows-x86_64", "windows-i686"
+      };
+      const std::array<std::string, 3> pythonDirectories {
+          "py3-", "py2-", ""
+      };
+
+      for (const auto& directory : pythonDirectories) {
+          for (const auto& windowsPlatformKey : windowsPlatformKeys) {
+              auto candidate = mountPath / "lib" /
+                  (directory + windowsPlatformKey) / "pythonw.exe";
+              if (fs::exists(candidate)) {
+                  pythonwPath = candidate;
+                  break;
+              }
+          }
+          if (pythonwPath) break;
+      }
+
+      if (pythonwPath) {
+          const std::array<QString, 2> translationLayers {"wine64", "wine"};
+          for (const auto& translationLayer : translationLayers) {
+              launchCommand = QStandardPaths::findExecutable(translationLayer);
+              if (!launchCommand.isEmpty()) {
+                  usesTranslationLayer = true;
+                  break;
+              }
+          }
+
+          if (!usesTranslationLayer) {
+              throw std::runtime_error(
+                  "Could not find a Wine translation layer to launch the Windows pythonw executable."
+              );
+          }
+          launchPrefixArgs << QString::fromStdString(pythonwPath->string());
+      }
+  }
+#endif
+
   if (!pythonwPath) {
       throw std::runtime_error("Could not find pythonw executable for the current environment in the mod folder.");
   }
 
   // Step 1.5: Set executable permission on specifically Linux platform 
-  #if defined(__linux__)
+  #if defined(__linux__) && !defined(_WIN32)
   {
-      fs::permissions(*pythonwPath, fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec, fs::perm_options::add);
+      if (!usesTranslationLayer) {
+          fs::permissions(*pythonwPath, fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec, fs::perm_options::add);
+      }
   }
   #endif
 
@@ -204,8 +260,10 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
   #ifdef __linux__
   // get current list of LD_LIBRARY_PATH
-  const char* ld_library_path = std::getenv("LD_LIBRARY_PATH");
-  extra_env << QString::fromStdString("LD_LIBRARY_PATH=" + pythonwPath->parent_path().string() + ":" + (ld_library_path ? ld_library_path : ""));
+  if (!usesTranslationLayer) {
+      const char* ld_library_path = std::getenv("LD_LIBRARY_PATH");
+      extra_env << QString::fromStdString("LD_LIBRARY_PATH=" + pythonwPath->parent_path().string() + ":" + (ld_library_path ? ld_library_path : ""));
+  }
   #endif
 
   // Ren'Py 6 fallback launch flag. cant believe i have to do this
@@ -215,11 +273,18 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
       argv << "-EO";
   }
   argv << QString::fromStdString(bootstrapperPath);
+  if (usesTranslationLayer) {
+      argv = launchPrefixArgs + argv;
+  }
+
+  if (launchCommand.isEmpty()) {
+      launchCommand = QString::fromStdString(pythonwPath->string());
+  }
 
   std::string modId = mod.id;
 
   spawn_process(
-      QString::fromStdString(pythonwPath->string()), argv, extra_env, 
+      launchCommand, argv, extra_env,
       [modId, startedCallback](pid_t pid) {
           qDebug() << "Game launched with PID:" << pid;
           m_playingMods.insert(modId);

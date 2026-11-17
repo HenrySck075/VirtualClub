@@ -10,6 +10,8 @@
 #include "../utils/macros.h"
 #include "utils/EventFilters.hpp"
 #include "utils/ModIndex.hpp"
+#include "utils/ProfileSettings.hpp"
+#include "../consts.hpp"
 
 #include <QWidget>
 #include <QPixmap>
@@ -256,6 +258,9 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
     m_router->navigate("/mods/online");
   });
   headerLayout->addWidget(browseIcon);
+  browseIcon->setVisible(
+    ProfileSettings::get()->value(STK_BASEGAMEID).toString() == "DDLC"
+  );
 
   // headerLayout->addStretch();
   auto* searchBar = new QLineEdit();

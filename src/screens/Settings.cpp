@@ -29,6 +29,9 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
   auto* scrollArea = new QScrollArea(this);
   scrollArea->setFrameShape(QFrame::NoFrame);
   scrollArea->setWidgetResizable(true);
+  // TODO: a side effect of this is that this affects background color of QLineEdit
+  // and i cant target the viewport specifically through object name for some reason
+  // it looks okay though
   scrollArea->viewport()->setStyleSheet("background: transparent;");
   scrollArea->viewport()->setAutoFillBackground(true);
   setupGradientWidget(scrollArea);

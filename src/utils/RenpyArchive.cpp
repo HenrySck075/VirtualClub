@@ -1,6 +1,9 @@
 #include "RenpyArchive.hpp"
+#include <fstream>
+#include <map>
 #include <optional>
 #include <pybind11/embed.h>
+#include <stdexcept>
 
 namespace py = pybind11;
 
@@ -10,6 +13,85 @@ namespace ArchiveReader {
 
   py::module_ rpaReaderModule() {return rpaReader.value();};
   py::module_ rpycReaderModule() {return rpycReader.value();};
+
+  static py::bytes readFileToBytes(const std::filesystem::path& filepath) {
+    std::ifstream file(filepath, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+      throw std::runtime_error("Could not open file: " + filepath.string());
+    }
+
+    const auto size = file.tellg();
+    file.seekg(0, std::ios::beg);
+    std::vector<char> buffer(static_cast<size_t>(size));
+    if (!file.read(buffer.data(), size)) {
+      throw std::runtime_error("Failed to read file contents: " + filepath.string());
+    }
+    return py::bytes(buffer.data(), buffer.size());
+  }
+
+  py::object readGameFile(const std::vector<std::filesystem::path>& gameDirs,
+                          const std::string& filepath) {
+    std::map<std::string, std::pair<std::string, py::object>, std::greater<std::string>> indexes;
+
+    for (const auto& gameDir : gameDirs) {
+      const auto looseFile = gameDir / filepath;
+      if (std::filesystem::exists(looseFile)) {
+        return readFileToBytes(looseFile);
+      }
+
+      if (!std::filesystem::exists(gameDir)) {
+        continue;
+      }
+      for (const auto& entry : std::filesystem::recursive_directory_iterator(gameDir)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".rpa") {
+          continue;
+        }
+
+        const auto archivePath = entry.path().string();
+        const auto archiveName = entry.path().filename().string();
+        if (indexes.contains(archiveName)) {
+          continue;
+        }
+        indexes[archiveName] = {
+          archivePath,
+          rpaReaderModule().attr("read_rpa_index")(archivePath)
+        };
+      }
+    }
+
+    for (const auto& [archiveName, archive] : indexes) {
+      const auto& archiveIndex = archive.second;
+      if (archiveIndex.contains(filepath.c_str())) {
+        return rpaReaderModule().attr("extract_single_file")(
+          archive.first, filepath, archiveIndex
+        );
+      }
+    }
+    return py::none{};
+  }
+
+  std::string readBuildId(const std::filesystem::path& gameDir) {
+    auto optionsRpyc = readGameFile({gameDir}, "options.rpyc");
+    if (optionsRpyc.is_none()) {
+      throw std::runtime_error("Could not find options.rpyc in base game.");
+    }
+
+    auto rpycReader = rpycReaderModule();
+    auto statements = rpycReader.attr("get_rpyc_statements")(
+      rpycReader.attr("peek_rpyc")(optionsRpyc)
+    ).cast<py::list>();
+    py::list buildDefines;
+    buildDefines.append("name");
+    py::dict requestedDefines;
+    requestedDefines["build"] = buildDefines;
+    auto defines = rpycReader.attr("lookup_defines")(
+      statements, requestedDefines
+    ).cast<py::dict>();
+
+    return defines.contains("build.name")
+      ? defines["build.name"].cast<std::string>()
+      : "DDLC";
+  }
 
   void loadArchiveReaderModules() {
     rpaReader = py::module_::create_extension_module("rpaReader", "very simple .rpa reader", new PyModuleDef{});
