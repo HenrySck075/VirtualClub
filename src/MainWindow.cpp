@@ -44,7 +44,7 @@ MainWindow::MainWindow(QWidget *parent) : QWidget(parent), m_topLevelNavSfx(this
 }
 
 void MainWindow::setPageTitleBar(const QString& pageTitle) {
-  auto title = QString("VirtualClub DDLC Mod Manager - %1").arg(
+  auto title = QString("VirtualClub Ren'Py Mod Manager - %1").arg(
     ProfileSettings::get()->value(STK_DISPLAYNAME, ProfileSingleApp::instance()->profileId()).toString()
   );
 
@@ -97,7 +97,7 @@ void MainWindow::initUI() {
   m_subLevelNavSfx.setMuted(false);
 
 
-  addNavigationItem(LucideIcons::house, QT_TRANSLATE_NOOP("Sidebar", "Home"), SidebarPosition::Top, "/home", new HomeScreen())->setSelected(true);
+  addNavigationItem(LucideIcons::house, QT_TRANSLATE_NOOP("Sidebar", "Home"), SidebarPosition::Top, "/home", new HomeScreen(m_router))->setSelected(true);
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, "/mods", new ModsScreen(m_router));
   m_router->addFixedRoute("/mods/online", new OnlineModsIndexScreen(m_router), std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   m_router->addRoute("/mods/:id", [this](const RouteParams& params) {

@@ -111,7 +111,7 @@ public:
     static void showContentDialog(QWidget* parent, 
                            const QString& title, 
                            DialogContent* content,
-                           QSize size = {0,0},
+                           QSize size = {},
                            QString openSfx = "qrc:/audio/sidebar_click.wav");
 
 protected:

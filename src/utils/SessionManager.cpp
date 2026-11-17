@@ -288,6 +288,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
       [modId, startedCallback](pid_t pid) {
           qDebug() << "Game launched with PID:" << pid;
           m_playingMods.insert(modId);
+          ModsIndex::get()->addModToRecentlyPlayed(modId);
           TrayIcon::updateTooltip();
           startedCallback();
       },

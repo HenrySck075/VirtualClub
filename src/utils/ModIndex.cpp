@@ -21,7 +21,7 @@
 
 
 ModsIndex::ModsIndex(const QString &path)
-: m_store(std::make_shared<YamlSettings>(path)) {
+: QObject(nullptr), m_store(std::make_shared<YamlSettings>(path)) {
   m_modsList.clear();
 
   auto mods = m_store->value("mods").toMap();
@@ -239,6 +239,7 @@ void ModsIndex::addModToRecentlyPlayed(const std::string& id) {
   }
   list.prepend(qid);
   m_store->setValue(STK_RECENTLIST, list);
+  emit recentlyPlayedUpdated();
 }
 
 const std::vector<ModsIndex::Mod>& ModsIndex::getRecentlyPlayed() {

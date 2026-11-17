@@ -138,6 +138,7 @@ QString BackgroundLoader::getImage(const QString& pack_) {
       }
   }
 
+  // Fallback route
   const auto images = getImages(pack);
   return images.isEmpty() ? QString() : images.first();
 }

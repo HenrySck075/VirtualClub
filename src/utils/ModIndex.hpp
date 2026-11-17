@@ -2,11 +2,14 @@
 #define ModIndex_H
 
 #include <filesystem>
+#include <QObject>
 #include <string>
 #include <vector>
 #include "utils/YamlSettings.hpp"
 
-class ModsIndex {
+class ModsIndex : public QObject {
+  Q_OBJECT
+
 public:
   struct Mod {
     std::string id;
@@ -44,6 +47,10 @@ public:
   void addModToRecentlyPlayed(const std::string& id);
   const std::vector<Mod>& getRecentlyPlayed();
 
+signals:
+  void recentlyPlayedUpdated();
+
+public:
   const std::vector<Mod>& getMods();
   Mod installMod(std::filesystem::path path);
   void removeMod(Mod& mod);

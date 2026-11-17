@@ -348,6 +348,31 @@ bool Dialog::eventFilter(QObject* watched, QEvent* event) {
         return true;
       }
     }
+  } else if (event->type() == QEvent::MouseMove) {
+    auto* mouseEvent = static_cast<QMouseEvent*>(event);
+    auto* widget = qobject_cast<QWidget*>(watched);
+    if (widget && (widget == this || isAncestorOf(widget)) && windowHandle()) {
+      constexpr int resizeMargin = 8;
+      const QPoint position = mapFromGlobal(mouseEvent->globalPosition().toPoint());
+
+      bool left = position.x() <= resizeMargin;
+      bool right = !left && position.x() >= width() - resizeMargin;
+      bool top = position.y() <= resizeMargin;
+      bool bottom = !top && position.y() >= height() - resizeMargin;
+
+      if (left || right || top || bottom) {
+        QCursor cur;
+        if ((left && top) || (right && bottom)) cur = Qt::SizeFDiagCursor;
+        else if ((left && bottom) || (right && top)) cur = Qt::SizeBDiagCursor;
+        else if (left || right) cur = Qt::SizeHorCursor;
+        else if (top || bottom) cur = Qt::SizeVerCursor;
+        windowHandle()->setCursor(cur);
+        return true;
+      } else {
+        windowHandle()->unsetCursor();
+        return false;
+      }
+    }
   }
   return QDialog::eventFilter(watched, event);
 }
@@ -475,12 +500,12 @@ void Dialog::showContentDialog(QWidget* parent,
                        QSize size,
                        QString openSfx) {
   Dialog dlg(title, content, openSfx, true, parent);
-  if (size.isValid()) {
+  if (!size.isEmpty()) {
     dlg.setFixedSize(size);
   } else {
     // copy size constraints from content
     dlg.setMinimumSize(content->minimumSize());
-    dlg.setMaximumSize(content->maximumSize());
+    dlg.setMaximumSize(content->maximumSize()+QSize{0, BOTTOM_BAR_HEIGHT+TITLE_BAR_HEIGHT});
   }
 
   content->m_dialog = &dlg;

@@ -7,6 +7,7 @@
 #include <QComboBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QTimer>
 #include "../ui/GradientBackground.hpp"
 #include "../ui/MESWidgets.hpp"
 #include "MainWindow.hpp"
@@ -25,8 +26,14 @@
 class BackgroundPackItem : public QWidget {
   Q_OBJECT
   QString m_pack;
+  QList<QPixmap> m_pixmaps;
+  size_t m_appliedPixmapIndex = 0;
+  size_t m_currentPixmapIndex = 0;
   bool m_selected = false;
   bool m_hovered = false;
+
+  QTimer* m_previewCycleTimer = nullptr;
+  QLabel* m_preview = nullptr;
 
 public:
   explicit BackgroundPackItem(QString pack, QWidget* parent = nullptr)
@@ -35,17 +42,33 @@ public:
     setCursor(Qt::PointingHandCursor);
     setToolTip(m_pack);
 
+    m_previewCycleTimer = new QTimer(this);
+    m_previewCycleTimer->setInterval(500); 
+
+    connect(m_previewCycleTimer, &QTimer::timeout, this, std::bind(&BackgroundPackItem::updatePreview, this));
+
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(5, 5, 5, 5);
     layout->setSpacing(5);
 
-    auto* preview = new QLabel(this);
-    preview->setFixedSize(240, 135);
-    preview->setAlignment(Qt::AlignCenter);
-    preview->setPixmap(QPixmap(BackgroundLoader::getImage(m_pack)).scaled(
-      preview->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation
-    ));
-    layout->addWidget(preview);
+    auto images = BackgroundLoader::getImages(m_pack);
+    auto currentImage = BackgroundLoader::getImage(m_pack);
+    if (!currentImage.isEmpty()) {
+      m_appliedPixmapIndex = m_currentPixmapIndex = images.indexOf(currentImage);
+    }
+
+    m_preview = new QLabel(this);
+    m_preview->setFixedSize(240, 135);
+    m_preview->setAlignment(Qt::AlignCenter);
+
+    for (const auto& image : images) {
+      m_pixmaps.append(QPixmap(image).scaled(
+        m_preview->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation
+      ));
+    }
+
+    m_preview->setPixmap(m_pixmaps[m_currentPixmapIndex]);
+    layout->addWidget(m_preview);
 
     auto* name = new QLabel(m_pack, this);
     name->setAlignment(Qt::AlignCenter);
@@ -72,14 +95,27 @@ signals:
 protected:
   void enterEvent(QEnterEvent* event) override {
     m_hovered = true;
+    if (m_previewCycleTimer) m_previewCycleTimer->start();
     update();
     QWidget::enterEvent(event);
   }
 
   void leaveEvent(QEvent* event) override {
     m_hovered = false;
+    if (m_previewCycleTimer) m_previewCycleTimer->stop();
+    m_currentPixmapIndex = m_appliedPixmapIndex - 1;
+    updatePreview();
     update();
     QWidget::leaveEvent(event);
+  }
+
+  void updatePreview() {
+    if (m_pixmaps.isEmpty()) return;
+
+    m_currentPixmapIndex = (m_currentPixmapIndex + 1) % m_pixmaps.size();
+    if (m_preview) {
+      m_preview->setPixmap(m_pixmaps[m_currentPixmapIndex]);
+    }
   }
 
   void mouseReleaseEvent(QMouseEvent* event) override {
@@ -98,8 +134,8 @@ protected:
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
     QLinearGradient gradient(rect().topLeft(), rect().bottomRight());
-    gradient.setColorAt(0.0, c_primaryLightColor);
-    gradient.setColorAt(1.0, c_secondaryLightColor);
+    gradient.setColorAt(0.0, m_selected ? c_primaryColor : c_primaryLightColor);
+    gradient.setColorAt(1.0, m_selected ? c_secondaryColor : c_secondaryLightColor);
     painter.setPen(QPen(gradient, m_selected ? 4 : 2));
     painter.setBrush(Qt::NoBrush);
     painter.drawRoundedRect(rect().adjusted(2, 2, -2, -2), 5, 5);
@@ -267,36 +303,6 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
     basePathChangeButton->setText(tr("Change"));
   });
 
-  addSettingsHeader(QT_TR_NOOP("Background"));
-
-  auto* backgroundScroll = new QScrollArea(content);
-  backgroundScroll->setFrameShape(QFrame::NoFrame);
-  backgroundScroll->setWidgetResizable(true);
-  backgroundScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  backgroundScroll->setFixedHeight(208);
-  backgroundScroll->viewport()->setStyleSheet("background: transparent;");
-  auto* backgroundContent = new QWidget();
-  backgroundContent->setStyleSheet("background: transparent;");
-  auto* backgroundLayout = new FlowLayout(backgroundContent, 8, 8, 8);
-  backgroundLayout->setAlignment(Qt::AlignHCenter);
-  backgroundScroll->setWidget(backgroundContent);
-  contentLayout->addWidget(backgroundScroll);
-
-  const auto selectedPack = settings->value(STK_BGPACK).toString();
-  for (const auto& pack : BackgroundLoader::getPacks()) {
-    auto* item = new BackgroundPackItem(pack, backgroundContent);
-    item->setSelected(pack == selectedPack);
-    backgroundLayout->addWidget(item);
-    connect(item, &BackgroundPackItem::clicked, this, [this, settings, item, backgroundContent] {
-      settings->setValue(STK_BGPACK, item->pack());
-      for (auto* other : backgroundContent->findChildren<BackgroundPackItem*>()) {
-        other->setSelected(other == item);
-      }
-      if (auto* mainWindow = getMainWindow()) {
-        mainWindow->setBackgroundPack(item->pack());
-      }
-    });
-  }
 
   addSettingsHeader(QT_TR_NOOP("Application"));
 
@@ -324,6 +330,45 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
     QT_TR_NOOP("Sets the application language"), 
     languagesComboBox
   );
+
+  {
+    auto* nameLabel = new QLabel(tr("Background"));
+    nameLabel->setFont(QFont("Quicksand", 12, QFont::Bold)); 
+    contentLayout->addWidget(nameLabel); 
+  }
+
+  auto* backgroundScroll = new QScrollArea(content);
+  backgroundScroll->setFrameShape(QFrame::NoFrame);
+  backgroundScroll->setWidgetResizable(true);
+  backgroundScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  backgroundScroll->setFixedHeight(208);
+  backgroundScroll->viewport()->setStyleSheet("background: transparent;");
+  auto* backgroundContent = new QWidget();
+  backgroundContent->setStyleSheet(
+    QString("QScrollArea {background: transparent; border: 2px solid %1; border-radius: 4px;}")
+    .arg(qColorToCSSrgb(c_primaryColor))
+  );
+  auto* backgroundLayout = new FlowLayout(backgroundContent, 8, 8, 8);
+  backgroundLayout->setAlignment(Qt::AlignHCenter);
+  backgroundScroll->setWidget(backgroundContent);
+  contentLayout->addWidget(backgroundScroll);
+
+  const auto selectedPack = settings->value(STK_BGPACK).toString();
+  for (const auto& pack : BackgroundLoader::getPacks()) {
+    auto* item = new BackgroundPackItem(pack, backgroundContent);
+    item->setSelected(pack == selectedPack);
+    backgroundLayout->addWidget(item);
+    connect(item, &BackgroundPackItem::clicked, this, [this, settings, item, backgroundContent] {
+      settings->setValue(STK_BGPACK, item->pack());
+      for (auto* other : backgroundContent->findChildren<BackgroundPackItem*>()) {
+        other->setSelected(other == item);
+      }
+      if (auto* mainWindow = getMainWindow()) {
+        mainWindow->setBackgroundPack(item->pack());
+      }
+    });
+  }
+
 }
 
 #include "Settings.moc"
