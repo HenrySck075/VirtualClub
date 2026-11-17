@@ -35,6 +35,7 @@ public:
   }
 
   void setPageTitleBar(const QString& pageTitle);
+  void setBackgroundPack(const QString& pack);
 protected:
   void initUI();
 

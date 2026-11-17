@@ -2,7 +2,9 @@
 #include <QTime>
 #include <QImage>
 #include <QCoreApplication>
+#include <algorithm>
 #include <filesystem>
+#include <vector>
 #include "consts.hpp"
 #include "utils/ProfileSettings.hpp"
 
@@ -50,17 +52,43 @@ inline fs::path getBGPackPath(const QString& pack) {
 }
 
 QStringList BackgroundLoader::getPacks() {
-  // literally just list every folders under getBGAssetsPath
-  // i mean i could just implement some checks but idc atm
-
   QStringList packs;
-  for (const auto& entry : fs::directory_iterator(getBGAssetsPath())) {
-      if (entry.is_directory()) {
-          packs.append(QString::fromStdString(entry.path().filename().string()));
+  const auto assetsPath = getBGAssetsPath();
+  std::error_code error;
+  if (!fs::is_directory(assetsPath, error)) {
+    return packs;
+  }
+
+  for (const auto& entry : fs::directory_iterator(assetsPath, error)) {
+      if (!error && entry.is_directory()) {
+        packs.append(QString::fromStdString(entry.path().filename().string()));
       }
   }
 
+  packs.sort(Qt::CaseInsensitive);
   return packs;
+}
+
+QStringList BackgroundLoader::getImages(const QString& pack_) {
+  const auto pack = pack_.isEmpty()
+    ? ProfileSettings::get()->value(STK_BGPACK).toString()
+    : pack_;
+  QStringList images;
+
+  std::error_code error;
+  const auto packPath = getBGAssetsPath() / pack.toStdString();
+  if (!fs::is_directory(packPath, error)) {
+    return images;
+  }
+
+  for (const auto& entry : fs::directory_iterator(packPath, error)) {
+    if (!error && entry.is_regular_file()) {
+      images.append(QString::fromStdString(entry.path().string()));
+    }
+  }
+
+  images.sort(Qt::CaseInsensitive);
+  return images;
 }
 
 QString BackgroundLoader::getImage(const QString& pack_) {
@@ -69,14 +97,16 @@ QString BackgroundLoader::getImage(const QString& pack_) {
   fs::path bgAssetsFolder;
   try {
     bgAssetsFolder = getBGPackPath(pack);
-  } catch (const nonexistent_path& e) {
-    return ""; // Return null/empty QImage if path does not exist
+  } catch (const nonexistent_path&) {
+    return "";
   }
 
   std::vector<BgImageCandidate> candidates;
 
   // Collect and parse files
-  for (const auto& entry : fs::directory_iterator(bgAssetsFolder)) {
+  std::error_code error;
+  for (const auto& entry : fs::directory_iterator(bgAssetsFolder, error)) {
+      if (error) break;
       if (!entry.is_regular_file()) continue;
 
       std::string filename = entry.path().stem().string(); // filename without extension
@@ -108,7 +138,18 @@ QString BackgroundLoader::getImage(const QString& pack_) {
       }
   }
 
-  return ""; // Return null/empty QImage if no matching interval matches
+  const auto images = getImages(pack);
+  return images.isEmpty() ? QString() : images.first();
+}
+
+BackgroundLoader::BackgroundInfo BackgroundLoader::getBackgroundInfo() {
+  const auto pack = ProfileSettings::get()->value(STK_BGPACK).toString();
+  const auto images = getImages(pack);
+  return {
+    pack,
+    pack,
+    images.size() > 1 ? BackgroundInfo::Multiple : BackgroundInfo::Single
+  };
 }
 
 

@@ -5,10 +5,14 @@
 #include <QFileDialog>
 #include <QStandardPaths>
 #include <QComboBox>
+#include <QMouseEvent>
+#include <QPainter>
 #include "../ui/GradientBackground.hpp"
 #include "../ui/MESWidgets.hpp"
 #include "MainWindow.hpp"
 #include "consts.hpp"
+#include "utils/BackgroundLoader.hpp"
+#include "utils/FlowLayout.hpp"
 #include "ui/IconButton.hpp"
 #include "ui/PixmapWidget.hpp"
 #include "ui/Router.hpp"
@@ -17,6 +21,90 @@
 #include "utils/ProfileSingleApp.hpp"
 #include "utils/i18n.hpp"
 #include "utils/utils.hpp"
+
+class BackgroundPackItem : public QWidget {
+  Q_OBJECT
+  QString m_pack;
+  bool m_selected = false;
+  bool m_hovered = false;
+
+public:
+  explicit BackgroundPackItem(QString pack, QWidget* parent = nullptr)
+    : QWidget(parent), m_pack(std::move(pack)) {
+    setFixedSize(250, 174);
+    setCursor(Qt::PointingHandCursor);
+    setToolTip(m_pack);
+
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(5, 5, 5, 5);
+    layout->setSpacing(5);
+
+    auto* preview = new QLabel(this);
+    preview->setFixedSize(240, 135);
+    preview->setAlignment(Qt::AlignCenter);
+    preview->setPixmap(QPixmap(BackgroundLoader::getImage(m_pack)).scaled(
+      preview->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation
+    ));
+    layout->addWidget(preview);
+
+    auto* name = new QLabel(m_pack, this);
+    name->setAlignment(Qt::AlignCenter);
+    name->setFont(QFont("Quicksand", 11, QFont::Weight::DemiBold));
+    layout->addWidget(name);
+
+    for (auto* child : findChildren<QWidget*>()) {
+      child->setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+  }
+
+  void setSelected(bool selected) {
+    m_selected = selected;
+    update();
+  }
+
+  const QString& pack() const {
+    return m_pack;
+  }
+
+signals:
+  void clicked();
+
+protected:
+  void enterEvent(QEnterEvent* event) override {
+    m_hovered = true;
+    update();
+    QWidget::enterEvent(event);
+  }
+
+  void leaveEvent(QEvent* event) override {
+    m_hovered = false;
+    update();
+    QWidget::leaveEvent(event);
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      emit clicked();
+      event->accept();
+      return;
+    }
+    QWidget::mouseReleaseEvent(event);
+  }
+
+  void paintEvent(QPaintEvent* event) override {
+    QWidget::paintEvent(event);
+    if (!m_hovered && !m_selected) return;
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QLinearGradient gradient(rect().topLeft(), rect().bottomRight());
+    gradient.setColorAt(0.0, c_primaryLightColor);
+    gradient.setColorAt(1.0, c_secondaryLightColor);
+    painter.setPen(QPen(gradient, m_selected ? 4 : 2));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRoundedRect(rect().adjusted(2, 2, -2, -2), 5, 5);
+  }
+};
 
 SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent) {
   setWindowTitle("Settings");
@@ -179,6 +267,36 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
     basePathChangeButton->setText(tr("Change"));
   });
 
+  addSettingsHeader(QT_TR_NOOP("Background"));
+
+  auto* backgroundScroll = new QScrollArea(content);
+  backgroundScroll->setFrameShape(QFrame::NoFrame);
+  backgroundScroll->setWidgetResizable(true);
+  backgroundScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  backgroundScroll->setFixedHeight(208);
+  backgroundScroll->viewport()->setStyleSheet("background: transparent;");
+  auto* backgroundContent = new QWidget();
+  backgroundContent->setStyleSheet("background: transparent;");
+  auto* backgroundLayout = new FlowLayout(backgroundContent, 8, 8, 8);
+  backgroundLayout->setAlignment(Qt::AlignHCenter);
+  backgroundScroll->setWidget(backgroundContent);
+  contentLayout->addWidget(backgroundScroll);
+
+  const auto selectedPack = settings->value(STK_BGPACK).toString();
+  for (const auto& pack : BackgroundLoader::getPacks()) {
+    auto* item = new BackgroundPackItem(pack, backgroundContent);
+    item->setSelected(pack == selectedPack);
+    backgroundLayout->addWidget(item);
+    connect(item, &BackgroundPackItem::clicked, this, [this, settings, item, backgroundContent] {
+      settings->setValue(STK_BGPACK, item->pack());
+      for (auto* other : backgroundContent->findChildren<BackgroundPackItem*>()) {
+        other->setSelected(other == item);
+      }
+      if (auto* mainWindow = getMainWindow()) {
+        mainWindow->setBackgroundPack(item->pack());
+      }
+    });
+  }
 
   addSettingsHeader(QT_TR_NOOP("Application"));
 
@@ -207,3 +325,5 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
     languagesComboBox
   );
 }
+
+#include "Settings.moc"

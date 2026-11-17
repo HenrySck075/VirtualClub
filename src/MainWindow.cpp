@@ -55,6 +55,12 @@ void MainWindow::setPageTitleBar(const QString& pageTitle) {
   setWindowTitle(title);
 }
 
+void MainWindow::setBackgroundPack(const QString& pack) {
+  if (auto* background = qobject_cast<CoverImageWidget*>(m_mainContent)) {
+    background->setImagePath(BackgroundLoader::getImage(pack));
+  }
+}
+
 void MainWindow::initUI() {
   auto *tossaway = new QVBoxLayout(this);
   tossaway->setContentsMargins(0, 0, 0, 0);

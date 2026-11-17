@@ -88,7 +88,7 @@ void Button::paintEvent(QPaintEvent* event) {
     if (isEnabled()) {
         if (isDown()) {
             bgColor = QColor("#ffe0f0");
-        } else if (underMouse()) {
+        } else if (false && underMouse()) {
             bgColor = QColor("#fff2f8");
         }
     }
@@ -228,6 +228,7 @@ Dialog::Dialog(const QString& title,
 
   setAttribute(Qt::WA_TranslucentBackground, false);
   setMinimumSize(450, 120);
+  qApp->installEventFilter(this);
 
 
   // Root layout
@@ -238,6 +239,7 @@ Dialog::Dialog(const QString& title,
 
   // 1. Title Bar
   QWidget* titleBar = new QWidget(this);
+  titleBar->setProperty("dialogTitleBar", true);
   titleBar->installEventFilter(this);
   titleBar->setFixedHeight(TITLE_BAR_HEIGHT);
   titleBar->setStyleSheet("background: white;");
@@ -314,6 +316,33 @@ bool Dialog::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::MouseButtonPress) {
     auto* mouseEvent = static_cast<QMouseEvent*>(event);
     if (mouseEvent->button() == Qt::LeftButton) {
+      auto* widget = qobject_cast<QWidget*>(watched);
+      if (widget && (widget == this || isAncestorOf(widget)) && windowHandle()) {
+        constexpr int resizeMargin = 8;
+        const QPoint position = mapFromGlobal(mouseEvent->globalPosition().toPoint());
+        Qt::Edges edges;
+
+        if (position.x() <= resizeMargin) {
+          edges |= Qt::LeftEdge;
+        } else if (position.x() >= width() - resizeMargin) {
+          edges |= Qt::RightEdge;
+        }
+        if (position.y() <= resizeMargin) {
+          edges |= Qt::TopEdge;
+        } else if (position.y() >= height() - resizeMargin) {
+          edges |= Qt::BottomEdge;
+        }
+
+        if (edges != Qt::Edges{}) {
+          windowHandle()->startSystemResize(edges);
+          return true;
+        }
+      }
+
+      if (!watched->property("dialogTitleBar").toBool()) {
+        return false;
+      }
+
       if (windowHandle()) {
         windowHandle()->startSystemMove();
         return true;
