@@ -25,6 +25,9 @@ class MainWindow : public QWidget {
     std::string currentBackground = "tokyo"; // for now
   } m_settings;
   QImage m_currentBackgroundImage;
+
+  QSoundEffect m_topLevelNavSfx;
+  QSoundEffect m_subLevelNavSfx;
 public:
   explicit MainWindow(QWidget *parent = nullptr);
   ~MainWindow() {

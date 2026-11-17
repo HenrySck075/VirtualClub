@@ -1,5 +1,7 @@
 #include "OnlineModsIndex.hpp"
 #include "MainWindow.hpp"
+#include <QApplication>
+#include <QClipboard>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QScrollArea>
@@ -121,74 +123,74 @@ public:
             });
     connect(m_downloader, &FileDownloader::finished, this,
             [this, fallbackRoute](const QString& filePath) {
-            QThreadPool::globalInstance()->start([this, filePath, fallbackRoute]() {
-              m_statusLabel->setText(tr("Extracting mod..."));
-              const auto storagePath = QSettings().value(GSTK_STORAGE_PATH).toString();
-              QDir storageDir(storagePath);
-              if (storagePath.isEmpty() || !storageDir.mkpath(".")) {
-                m_statusLabel->setText(tr("Could not access the mod storage path."));
-                fallbackRoute();
-                return;
-              }
-              // set extract folder to a subdirectory
-              auto extractDir = storageDir.filePath(QString::fromStdString(m_mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_"));
-              std::string modDir = "";
+      QThreadPool::globalInstance()->start([this, filePath, fallbackRoute]() {
+        m_statusLabel->setText(tr("Extracting mod..."));
+        const auto storagePath = QSettings().value(GSTK_STORAGE_PATH).toString();
+        QDir storageDir(storagePath);
+        if (storagePath.isEmpty() || !storageDir.mkpath(".")) {
+          m_statusLabel->setText(tr("Could not access the mod storage path."));
+          fallbackRoute();
+          return;
+        }
+        // set extract folder to a subdirectory
+        auto extractDir = storageDir.filePath(QString::fromStdString(m_mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_"));
+        std::string modDir = "";
 
-              auto fp = filePath.toUtf8();
+        auto fp = filePath.toUtf8();
 
-              // get the number of files in the archive
-              // purely for progress bar purpose
+        // get the number of files in the archive
+        // purely for progress bar purpose
 
-              int numFiles = 0;
-              // TODO: maybe reuse za to extract the files
-              {
-                struct zip_t* za = zip_open(fp.constData(), 0, 'r');
+        int numFiles = 0;
+        // TODO: maybe reuse za to extract the files
+        {
+          struct zip_t* za = zip_open(fp.constData(), 0, 'r');
 
-                if (!za) {
-                  m_statusLabel->setText(tr("Could not open the downloaded archive."));
-                  zip_close(za);
-                  m_taskFinished = true;
-                  return;
-                }
+          if (!za) {
+            m_statusLabel->setText(tr("Could not open the downloaded archive."));
+            zip_close(za);
+            m_taskFinished = true;
+            return;
+          }
 
-                numFiles = zip_entries_total(za);
+          numFiles = zip_entries_total(za);
 
-                zip_close(za);
-              };
+          zip_close(za);
+        };
 
-              int extractedFiles = 0;
-              m_progressBar->setRange(0, numFiles);
+        int extractedFiles = 0;
+        m_progressBar->setRange(0, numFiles);
 
-              int result = zip_extract_cpp(fp.constData(),
-                                              extractDir.toUtf8().constData(),
-                                              [this, &modDir, &extractedFiles](const char* filename){
-                // if file name of fp is either "scripts.rpa" or "script.rpyc", 
-                // set modDir to the grandparent folder
-                std::string_view fpv(filename);
-                if (fpv.ends_with("scripts.rpa") || fpv.ends_with("script.rpyc")) {
-                  std::filesystem::path fp(filename);
-                  modDir = fp.parent_path().parent_path().string();
-                }
-                extractedFiles++;
-                m_progressBar->setValue(extractedFiles);
-                return 0;
-              });
-              if (result != 0) {
-                m_statusLabel->setText(
-                  tr("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
-                fallbackRoute();
-                return;
-              }
+        int result = zip_extract_cpp(fp.constData(),
+                                        extractDir.toUtf8().constData(),
+                                        [this, &modDir, &extractedFiles](const char* filename){
+          // if file name of fp is either "scripts.rpa" or "script.rpyc", 
+          // set modDir to the grandparent folder
+          std::string_view fpv(filename);
+          if (fpv.ends_with("scripts.rpa") || fpv.ends_with("script.rpyc")) {
+            std::filesystem::path fp(filename);
+            modDir = fp.parent_path().parent_path().string();
+          }
+          extractedFiles++;
+          m_progressBar->setValue(extractedFiles);
+          return 0;
+        });
+        if (result != 0) {
+          m_statusLabel->setText(
+            tr("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
+          fallbackRoute();
+          return;
+        }
 
-              QFile::remove(filePath);
-              m_statusLabel->setText(tr("Installing..."));
-              ModsIndex::get()->installMod(modDir);
-              m_progressBar->setValue(100);
-              m_statusLabel->setText(tr("Download complete."));
-              m_taskFinished = true;
-              closeDialog();
-            });
-          });
+        QFile::remove(filePath);
+        m_statusLabel->setText(tr("Installing..."));
+        ModsIndex::get()->installMod(modDir);
+        m_progressBar->setValue(100);
+        m_statusLabel->setText(tr("Download complete."));
+        m_taskFinished = true;
+        closeDialog();
+      });
+    });
     connect(m_downloader, &FileDownloader::failed, this,
             [this, fallbackRoute](const QString& reason) {
               m_statusLabel->setText(tr("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));
@@ -266,6 +268,12 @@ public:
     metadataLayout->addWidget(authorLabel);
     metadataLayout->addLayout(creationDateLineLayout);
 
+    auto* copyDownloadURLButton = new IconButton(LucideIcons::link, this);
+    connect(copyDownloadURLButton, &QPushButton::clicked, this, [mod, this]() {
+      QClipboard* clipboard = QApplication::clipboard();
+      clipboard->setText(QString::fromStdString(mod.url));
+    });
+
     auto* downloadButton = new Button(tr("Download"), LucideIcons::download, this);
     connect(downloadButton, &QPushButton::clicked, this, [mod, this]() {
       Dialog::showContentDialog(
@@ -279,6 +287,7 @@ public:
     metadataRow->setContentsMargins(0, 0, 0, 0);
     metadataRow->setSpacing(12);
     metadataRow->addWidget(metadata);
+    metadataRow->addWidget(copyDownloadURLButton, 0, Qt::AlignVCenter);
     metadataRow->addWidget(downloadButton, 0, Qt::AlignVCenter);
     layout->addLayout(metadataRow);
 

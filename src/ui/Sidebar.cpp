@@ -154,7 +154,7 @@ QDebug operator<<(QDebug debug, const SidebarItem *widget) {
 }
 
 
-Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent), m_optionClickSfx(this) {
+Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent) {
   // Set a fixed width for the sidebar
   setFixedWidth(Sidebar::WIDTH);
 
@@ -193,9 +193,6 @@ Sidebar::Sidebar(QWidget *parent) : GradientBackground2(parent), m_optionClickSf
   m_bottomSectionLayout->setContentsMargins(0, 0, 0, 0); // Spacing inside the layout itself
   m_bottomSectionLayout->setSpacing(0);
   m_bottomSectionLayout->setSizeConstraint(QLayout::SetFixedSize);
-
-  m_optionClickSfx.setSource(QUrl("qrc:/audio/sidebar_click.wav"));
-  m_optionClickSfx.setMuted(false);
 
 
 }
@@ -236,9 +233,6 @@ SidebarItem* Sidebar::addSidebarItem(LucideIcon icon, QString name, SidebarPosit
     auto* item = new SidebarItem(std::move(icon), name, doSwitch, layoutedWidget);
     targetLayout->addWidget(item);
     connect(item, &SidebarItem::selectedChanged, this, std::bind(&Sidebar::onSidebarItemClicked, this, item));
-    connect(item, &SidebarItem::clicked, this, [this](){
-      m_optionClickSfx.play();
-    });
     item->setSelected(selected);
 
     return item;

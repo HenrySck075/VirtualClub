@@ -20,6 +20,7 @@ protected:
 };
 
 inline void setupGradientWidget(QWidget* widget) {
+  widget->setAttribute(Qt::WA_StyledBackground, true);
   widget->installEventFilter(new GradientBackgroundFilter());
 }
 

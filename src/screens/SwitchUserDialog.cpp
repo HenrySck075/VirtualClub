@@ -293,7 +293,7 @@ public:
 
 
 void showSwitchUserDialog() {
-  Dialog::showContentDialog(getMainWindow(), qApp->translate("Sidebar", "Switch profile"), new SwitchUserDialogContent(), {300, 500}, "");
+  Dialog::showContentDialog(getMainWindow(), qApp->translate("Sidebar", "Switch profile"), new SwitchUserDialogContent(), {300, 500});
 }
 
 #include "SwitchUserDialog.moc"

@@ -107,7 +107,6 @@ public:
 private:
     void onSidebarItemClicked(SidebarItem* item);  
     
-  QSoundEffect m_optionClickSfx;
 }; 
 
 QDebug operator<<(QDebug debug, const SidebarItem *widget);

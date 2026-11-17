@@ -107,7 +107,7 @@ GlobalSettingsScreen::GlobalSettingsScreen(Router *router, QWidget *parent) : QW
   storagePath->setReadOnly(true);
   storageLayout->addWidget(storagePath);
 
-  auto *browseButton = new Button(tr("Change"), content);
+  auto *browseButton = new Button(qApp->translate("Settings", "Change"), LucideIcons::folder_pen, content);
   storageLayout->addWidget(browseButton);
 
   connect(browseButton, &QPushButton::clicked, this, [this, storagePath]() {

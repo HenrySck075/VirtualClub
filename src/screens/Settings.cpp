@@ -29,9 +29,12 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
   auto* scrollArea = new QScrollArea(this);
   scrollArea->setFrameShape(QFrame::NoFrame);
   scrollArea->setWidgetResizable(true);
+  scrollArea->viewport()->setStyleSheet("background: transparent;");
+  scrollArea->viewport()->setAutoFillBackground(true);
   setupGradientWidget(scrollArea);
 
   auto* content = new QWidget();
+  content->setAutoFillBackground(true);
   scrollArea->setWidget(content);
   layout->addWidget(scrollArea);
   auto* contentLayout = new QVBoxLayout(content);
@@ -181,7 +184,7 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
     auto currentLanguage = QLocale(settings->value(STK_LANGUAGE, "en").toString());
     int idx = 0;
     for (auto& l : getAvailableLocales()) {
-      languagesComboBox->addItem(QLocale::languageToString(l.language()), l);
+      languagesComboBox->addItem(l.nativeLanguageName(), l);
 
       if (currentLanguage == l) languagesComboBox->setCurrentIndex(idx);
       idx++;

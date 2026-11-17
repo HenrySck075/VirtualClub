@@ -31,7 +31,7 @@
 #include "utils/i18n.hpp"
 
 
-MainWindow::MainWindow(QWidget *parent) : QWidget(parent) {
+MainWindow::MainWindow(QWidget *parent) : QWidget(parent), m_topLevelNavSfx(this), m_subLevelNavSfx(this) {
   setPageTitleBar("");
   setMinimumSize(QSize(600,400));
   resize(1140, 600); // Set default starting size (Width, Height)
@@ -84,6 +84,13 @@ void MainWindow::initUI() {
   m_mainContent->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   mainLayout->addWidget(m_mainContent);
 
+
+  m_topLevelNavSfx.setSource(QUrl("qrc:/audio/sidebar_click.wav"));
+  m_topLevelNavSfx.setMuted(false);
+  m_subLevelNavSfx.setSource(QUrl("qrc:/audio/navigation.wav"));
+  m_subLevelNavSfx.setMuted(false);
+
+
   addNavigationItem(LucideIcons::house, QT_TRANSLATE_NOOP("Sidebar", "Home"), SidebarPosition::Top, "/home", new HomeScreen())->setSelected(true);
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, "/mods", new ModsScreen(m_router));
   m_router->addFixedRoute("/mods/online", new OnlineModsIndexScreen(m_router), std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
@@ -135,12 +142,16 @@ void MainWindow::routeTransitionHandler(QString path, QWidget* outgoing, QWidget
 
   if (m_currentPath == lastPath) return; 
 
+  auto* sfx = &m_topLevelNavSfx;
+
   // since lastPath and path are guaranteed not to be equal here, 
   // these checks can be used safely without implementing more guards
   if (lastPath.startsWith(path)) {
     direction = anime::SlideDirection::Right;
+    sfx = &m_subLevelNavSfx;
   } else if (path.startsWith(lastPath)) {
     direction = anime::SlideDirection::Left;
+    sfx = &m_subLevelNavSfx;
   } else {
     SidebarItem* oldItem = sidebarItemForPath(lastPath);
     SidebarItem* newItem = sidebarItemForPath(path);
@@ -170,6 +181,7 @@ void MainWindow::routeTransitionHandler(QString path, QWidget* outgoing, QWidget
   }
 
   setPageTitleBar(incoming->windowTitle());
+  sfx->play();
 
   // disconnect old one if exists
   // meaning g_titleBarUpdaterConnections in practice should have the size of however many MainWindow are there per process (1)

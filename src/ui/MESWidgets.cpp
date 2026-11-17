@@ -31,6 +31,7 @@ Button::Button(const QString& text, QWidget* parent)
   });
 
   setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+  setFixedHeight(32);
 }
 
 Button::Button(const QIcon& icon, QWidget* parent) : Button("", parent) {
@@ -321,6 +322,7 @@ bool Dialog::eventFilter(QObject* watched, QEvent* event) {
   }
   return QDialog::eventFilter(watched, event);
 }
+
 inline QColor editColor(QColor base, float a) {
   base.setAlphaF(a);
 

@@ -62,11 +62,11 @@ if(UNIX AND NOT APPLE)
   add_compile_definitions(ZIP_HAVE_SYMLINK=1)
 endif()
 
-file(GLOB_RECURSE TL_RC_FILES "resources/*.*")
+file(GLOB_RECURSE RC_FILES CONFIGURE_DEPENDS "resources/*.*")
 
-qt_add_resources(${PROJECT_NAME} "tl_rc"
+qt_add_resources(${PROJECT_NAME} "rc"
     BASE "resources"
-    FILES ${TL_RC_FILES}
+    FILES ${RC_FILES}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
