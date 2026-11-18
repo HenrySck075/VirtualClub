@@ -4,6 +4,7 @@
 #include <QFrame>
 #include <QMouseEvent>
 #include <functional>
+#include "ui/ElidedLabel.hpp"
 #include "ui/GradientBackground.hpp"
 #include "ui/Router.hpp"
 #include "consts.hpp"
@@ -42,11 +43,11 @@ public:
     icon->setAttribute(Qt::WA_TransparentForMouseEvents);
     cardLayout->addWidget(icon);
 
-    auto* name = new QLabel(QString::fromStdString(mod.name), this);
+    auto* name = new ElidedLabel(QString::fromStdString(mod.name), this);
     name->setFont(QFont("Quicksand", 11, QFont::Weight::DemiBold));
     //name->setStyleSheet("color: ;");
-    name->setAlignment(Qt::AlignCenter);
-    name->setWordWrap(true);
+    //name->setAlignment(Qt::AlignCenter);
+    name->setMaxLines(2);
     name->setAttribute(Qt::WA_TransparentForMouseEvents);
     cardLayout->addWidget(name);
 
@@ -133,7 +134,6 @@ void HomeScreen::updateRecentlyPlayed() {
     auto* emptyLabel = new QLabel(tr("No recently played mods yet."), m_cards);
     emptyLabel->setFont(QFont("Quicksand", 12));
     emptyLabel->setAlignment(Qt::AlignCenter);
-    emptyLabel->setStyleSheet("color: rgba(255, 255, 255, 180);");
     m_cardsLayout->addWidget(emptyLabel);
     return;
   }

@@ -2,6 +2,10 @@ name: Build and Release
 
 on:
   workflow_dispatch:
+    inputs:
+      nightly:
+        type: boolean
+        default: true
   push:
     branches: [qt-cpp-mes]
 
@@ -165,14 +169,30 @@ jobs:
           pattern: build-artifact-*
           merge-multiple: true
 
-      - name: Create Release
+      - name: Create Release (Nightly)
         uses: andelf/nightly-release@main
+        if: (github.event_name == 'workflow_dispatch' && inputs.nightly) || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[release]'))
         with:
           tag_name: 'nightly'
           name: Development release
           draft: false
           prerelease: true
           body: Build release for commit ${{ github.sha }}.
+          files: |
+            app-linux-x64.tar.gz
+            app-windows-x64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release (Stable)
+        uses: softprops/action-gh-release@v3
+        if: (ithub.event_name == 'workflow_dispatch' && !inputs.nightly) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]'))
+        with:
+          tag_name: v${{ needs.build.outputs.app_version }}
+          name: Release v${{ needs.build.outputs.app_version }}
+          draft: false
+          prerelease: false
+          body_path: .github/release_body.md
           files: |
             app-linux-x64.tar.gz
             app-windows-x64.zip

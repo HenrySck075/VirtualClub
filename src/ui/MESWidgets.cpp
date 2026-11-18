@@ -504,8 +504,9 @@ void Dialog::showContentDialog(QWidget* parent,
     dlg.setFixedSize(size);
   } else {
     // copy size constraints from content
-    dlg.setMinimumSize(content->minimumSize());
-    dlg.setMaximumSize(content->maximumSize()+QSize{0, BOTTOM_BAR_HEIGHT+TITLE_BAR_HEIGHT});
+    QSize extraSize{0, BOTTOM_BAR_HEIGHT+TITLE_BAR_HEIGHT};
+    dlg.setMinimumSize(content->minimumSize()+extraSize);
+    dlg.setMaximumSize(content->maximumSize()+extraSize);
   }
 
   content->m_dialog = &dlg;
@@ -540,7 +541,7 @@ QSize Switch::sizeHint() const
     return QSize(60, 32);
 }
 
-void Switch::paintEvent(QPaintEvent * /*event*/)
+void Switch::paintEvent(QPaintEvent* /*event*/)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
