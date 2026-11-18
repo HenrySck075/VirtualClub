@@ -63,6 +63,9 @@ if(UNIX AND NOT APPLE)
   add_compile_definitions(ZIP_HAVE_SYMLINK=1)
 endif()
 
+# this thing is for windows 
+add_compile_definitions(WIN32_LEAN_AND_MEAN)
+
 file(GLOB_RECURSE RC_FILES CONFIGURE_DEPENDS "resources/*.*")
 
 qt_add_resources(${PROJECT_NAME} "rc"
@@ -106,8 +109,19 @@ FetchContent_Declare(
     lexbor
     GIT_REPOSITORY https://github.com/lexbor/lexbor.git
     GIT_TAG        master
+    GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(lexbor)
+
+# Lexbor is third-party code and emits excessive compiler warnings in Release builds.
+# Keep warnings focused on VirtualClub sources.
+if(TARGET lexbor)
+  if(MSVC OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(lexbor PRIVATE /W0)
+  else()
+    target_compile_options(lexbor PRIVATE -w)
+  endif()
+endif()
 
 target_link_libraries(
   ${PROJECT_NAME} PRIVATE 

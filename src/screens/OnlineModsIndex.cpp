@@ -38,6 +38,10 @@
 #include "utils/FileDownloader.hpp"
 #include "utils/i18n.hpp"
 
+// fuck you windows in particular
+#undef min
+#undef max
+
 namespace {
 bool isSafeArchivePath(const char* filename) {
   const std::filesystem::path path(filename);

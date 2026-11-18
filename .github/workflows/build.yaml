@@ -108,9 +108,25 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          choco install winfsp -y
-          vcpkg install libarchive:x64-windows
+          choco install winfsp -y --no-progress
           echo "WINFSP_DIR=C:/Program Files (x86)/WinFsp" >> $env:GITHUB_ENV
+
+      - name: Create vcpkg directories (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "C:/vcpkg/downloads", "C:/vcpkg/installed"
+
+      - name: Cache vcpkg (Windows)
+        if: matrix.platform == 'windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:/vcpkg/downloads
+            C:/vcpkg/installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
 
       # Initialize MSVC and Windows SDK environment variables
       - name: Set up MSVC environment
