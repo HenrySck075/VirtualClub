@@ -1,5 +1,5 @@
 {
-  "name": "VirtualClub",
+  "name": "virtualclub",
   "version": "0.2.1",
   "dependencies": [
     "libarchive"
