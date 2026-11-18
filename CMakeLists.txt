@@ -31,6 +31,7 @@ message(STATUS "Python binary path: ${Python_EXECUTABLE}")
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Svg LinguistTools)
 
 find_package(pybind11 REQUIRED CONFIG)
+find_package(LibArchive REQUIRED)
 
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES vi)
 
@@ -112,6 +113,7 @@ target_link_libraries(
   ${PROJECT_NAME} PRIVATE 
   yaml-cpp::yaml-cpp lexbor
   Qt6::Widgets Qt6::Multimedia Qt6::Svg pybind11::embed
+  LibArchive::LibArchive
 )
 
 set(IS_ANDROID FALSE)

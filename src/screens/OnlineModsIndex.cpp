@@ -32,23 +32,132 @@
 #include <QSettings>
 #include <QtConcurrent/QtConcurrent>
 #include <string_view>
+#include <archive.h>
+#include <archive_entry.h>
 #include "consts.hpp"
-#include "third_party/kubazip/zip.h"
 #include "utils/FileDownloader.hpp"
 #include "utils/i18n.hpp"
 
-// :)
-template <typename F>
-requires std::invocable<F, const char*>
-int zip_extract_cpp(const char *zipname, const char *dir, F&& callback) {
-    return zip_extract(zipname, dir, 
-        [](const char *filename, void *arg) -> int {
-            return (*static_cast<std::remove_cvref_t<F>*>(arg))(filename);
-        }, 
-        &callback
-    );
+namespace {
+bool isSafeArchivePath(const char* filename) {
+  const std::filesystem::path path(filename);
+  if (path.is_absolute()) {
+    return false;
+  }
+  for (const auto& component : path) {
+    if (component == "..") {
+      return false;
+    }
+  }
+  return true;
 }
 
+int countArchiveEntries(const char* archiveName) {
+  auto* archive = archive_read_new();
+  archive_read_support_filter_all(archive);
+  archive_read_support_format_all(archive);
+  if (archive_read_open_filename(archive, archiveName, 10240) != ARCHIVE_OK) {
+    archive_read_free(archive);
+    return -1;
+  }
+
+  int count = 0;
+  archive_entry* entry = nullptr;
+  while (archive_read_next_header(archive, &entry) == ARCHIVE_OK) {
+    ++count;
+    archive_read_data_skip(archive);
+  }
+  const int result = archive_read_free(archive);
+  return result == ARCHIVE_OK ? count : -1;
+}
+
+template <typename F>
+int extractArchive(const char* archiveName, const char* extractDirectory,
+                   F&& callback, std::string& error) {
+  auto* archive = archive_read_new();
+  archive_read_support_filter_all(archive);
+  archive_read_support_format_all(archive);
+  if (archive_read_open_filename(archive, archiveName, 10240) != ARCHIVE_OK) {
+    error = archive_error_string(archive);
+    archive_read_free(archive);
+    return -1;
+  }
+
+  auto* disk = archive_write_disk_new();
+  archive_write_disk_set_options(
+      disk, ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM |
+                ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS |
+                ARCHIVE_EXTRACT_SECURE_SYMLINKS);
+  archive_write_disk_set_standard_lookup(disk);
+
+  const std::filesystem::path destination(extractDirectory);
+  archive_entry* entry = nullptr;
+  int result = ARCHIVE_OK;
+  while ((result = archive_read_next_header(archive, &entry)) == ARCHIVE_OK) {
+    const char* filename = archive_entry_pathname(entry);
+    if (filename == nullptr || !isSafeArchivePath(filename)) {
+      error = "Archive contains an unsafe path.";
+      result = ARCHIVE_FATAL;
+      break;
+    }
+    const std::string memberName(filename);
+
+    const auto outputPath = destination / std::filesystem::path(memberName);
+    archive_entry_set_pathname(entry, outputPath.string().c_str());
+    result = archive_write_header(disk, entry);
+    if (result < ARCHIVE_WARN) {
+      error = archive_error_string(disk);
+      break;
+    }
+
+    const void* buffer = nullptr;
+    size_t size = 0;
+    la_int64_t offset = 0;
+    int readResult = ARCHIVE_OK;
+    while ((readResult = archive_read_data_block(archive, &buffer, &size,
+                                                 &offset)) == ARCHIVE_OK) {
+      if (archive_write_data(disk, buffer, size) < 0) {
+        error = archive_error_string(disk);
+        result = ARCHIVE_FATAL;
+        break;
+      }
+    }
+    if (result == ARCHIVE_FATAL) {
+      break;
+    }
+    if (readResult != ARCHIVE_EOF) {
+      error = archive_error_string(archive);
+      result = ARCHIVE_FATAL;
+      break;
+    }
+    result = archive_write_finish_entry(disk);
+    if (result < ARCHIVE_WARN) {
+      error = archive_error_string(disk);
+      break;
+    }
+    callback(memberName.c_str());
+  }
+
+  if (result != ARCHIVE_EOF && result >= ARCHIVE_WARN && error.empty()) {
+    error = archive_error_string(archive);
+  }
+  archive_write_free(disk);
+  archive_read_free(archive);
+  return error.empty() ? 0 : -1;
+}
+}
+
+QString userReadableSize(qint64 bytes) {
+  if (bytes < 1024) {
+    return QString("%1 B").arg(bytes);
+  } else if (bytes < 1024 * 1024) {
+    return QString("%1 KB").arg(bytes / 1024.0, 0, 'f', 2);
+  } else if (bytes < 1024 * 1024 * 1024) {
+    return QString("%1 MB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 2);
+  } else {
+    return QString("%1 GB").arg(bytes / (1024.0 * 1024.0 * 1024.0), 0, 'f', 2);
+  }
+}
 
 class DownloadDialogContent : public DialogContent {
   Q_OBJECT
@@ -114,8 +223,8 @@ public:
               if (bytesTotal > 0) {
                 m_progressBar->setValue(static_cast<int>((bytesReceived * 100) / bytesTotal));
                 m_statusLabel->setText(tr("Downloading... %1 / %2")
-                                         .arg(bytesReceived)
-                                         .arg(bytesTotal));
+                                         .arg(userReadableSize(bytesReceived))
+                                         .arg(userReadableSize(bytesTotal)));
               } else {
                 m_progressBar->setRange(0, 0);
                 //m_statusLabel->setText(tr("Downloaded %1 bytes").arg(bytesReceived));
@@ -123,17 +232,19 @@ public:
             });
     connect(m_downloader, &FileDownloader::finished, this,
             [this, fallbackRoute](const QString& filePath) {
+      m_statusLabel->setText(tr("Extracting mod..."));
       QThreadPool::globalInstance()->start([this, filePath, fallbackRoute]() {
-        m_statusLabel->setText(tr("Extracting mod..."));
         const auto storagePath = QSettings().value(GSTK_STORAGE_PATH).toString();
         QDir storageDir(storagePath);
         if (storagePath.isEmpty() || !storageDir.mkpath(".")) {
-          m_statusLabel->setText(tr("Could not access the mod storage path."));
-          fallbackRoute();
+          QMetaObject::invokeMethod(this, [this, fallbackRoute]() {
+            m_statusLabel->setText(tr("Could not access the mod storage path."));
+            fallbackRoute();
+          }, Qt::QueuedConnection);
           return;
         }
         // set extract folder to a subdirectory
-        auto extractDir = storageDir.filePath(QString::fromStdString(m_mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_"));
+        auto extractDir = QDir(storageDir.filePath(QString::fromStdString(m_mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_")));
         std::string modDir = "";
 
         auto fp = filePath.toUtf8();
@@ -141,54 +252,66 @@ public:
         // get the number of files in the archive
         // purely for progress bar purpose
 
-        int numFiles = 0;
-        // TODO: maybe reuse za to extract the files
-        {
-          struct zip_t* za = zip_open(fp.constData(), 0, 'r');
-
-          if (!za) {
+        const int numFiles = countArchiveEntries(fp.constData());
+        if (numFiles < 0) {
+          QMetaObject::invokeMethod(this, [this]() {
             m_statusLabel->setText(tr("Could not open the downloaded archive."));
-            zip_close(za);
             m_taskFinished = true;
-            return;
-          }
+          }, Qt::QueuedConnection);
+          return;
+        }
 
-          numFiles = zip_entries_total(za);
+        QMetaObject::invokeMethod(this, [this, numFiles]() {
+          m_progressBar->setRange(0, numFiles);
+        }, Qt::QueuedConnection);
 
-          zip_close(za);
-        };
-
+        std::string error;
         int extractedFiles = 0;
-        m_progressBar->setRange(0, numFiles);
-
-        int result = zip_extract_cpp(fp.constData(),
-                                        extractDir.toUtf8().constData(),
-                                        [this, &modDir, &extractedFiles](const char* filename){
+        const int result = extractArchive(
+          fp.constData(), extractDir.path().toUtf8().constData(),
+          [this, &modDir, &extractedFiles, &extractDir](const char* filename) {
           // if file name of fp is either "scripts.rpa" or "script.rpyc", 
           // set modDir to the grandparent folder
           std::string_view fpv(filename);
           if (fpv.ends_with("scripts.rpa") || fpv.ends_with("script.rpyc")) {
             std::filesystem::path fp(filename);
-            modDir = fp.parent_path().parent_path().string();
+            modDir = extractDir.filePath(QString::fromStdString(fp.parent_path().parent_path().string())).toStdString();
           }
           extractedFiles++;
-          m_progressBar->setValue(extractedFiles);
-          return 0;
-        });
+          const int progress = extractedFiles;
+          QMetaObject::invokeMethod(this, [this, progress]() {
+            m_progressBar->setValue(progress);
+          }, Qt::QueuedConnection);
+          }, error);
         if (result != 0) {
-          m_statusLabel->setText(
-            tr("Could not extract the downloaded mod: %1").arg(zip_strerror(result)));
-          fallbackRoute();
+          QMetaObject::invokeMethod(this, [this, fallbackRoute, error]() {
+            m_statusLabel->setText(
+              tr("Could not extract the downloaded mod: %1")
+                  .arg(QString::fromStdString(error)));
+            fallbackRoute();
+          }, Qt::QueuedConnection);
           return;
         }
 
         QFile::remove(filePath);
-        m_statusLabel->setText(tr("Installing..."));
-        ModsIndex::get()->installMod(modDir);
-        m_progressBar->setValue(100);
-        m_statusLabel->setText(tr("Download complete."));
-        m_taskFinished = true;
-        closeDialog();
+        QMetaObject::invokeMethod(this, [this]() {
+          m_statusLabel->setText(tr("Installing..."));
+        }, Qt::QueuedConnection);
+
+        QMetaObject::invokeMethod(this, [this, fallbackRoute, modDir]() {
+          try {
+            ModsIndex::get()->installMod(modDir);
+            m_progressBar->setValue(100);
+            m_statusLabel->setText(tr("Download complete."));
+            m_taskFinished = true;
+            closeDialog();
+          } catch (const std::exception& e) {
+            m_statusLabel->setText(
+              tr("Could not install the downloaded mod: %1")
+                  .arg(QString::fromStdString(e.what())));
+            fallbackRoute();
+          }
+        }, Qt::QueuedConnection);
       });
     });
     connect(m_downloader, &FileDownloader::failed, this,

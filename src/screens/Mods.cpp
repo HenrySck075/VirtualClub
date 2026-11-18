@@ -303,19 +303,19 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
       true
     )) return;
 
-    findChildWidgetBy(m_contentLayout, [this](QWidget* w){
-      if (auto icon = qobject_cast<DesktopIconWidget*>(w)) {
-        if (icon->isSelected()) {
-          icon->disconnect();
-          m_contentLayout->removeWidget(icon);
-          icon->deleteLater();
-        }
+    std::vector<std::string> selectedModIds;
+    findChildWidgetBy(m_contentLayout, [&selectedModIds](QWidget* w){
+      if (auto icon = qobject_cast<DesktopIconWidget*>(w);
+          icon && icon->isSelected()) {
+        selectedModIds.push_back(icon->property("modId").toString().toStdString());
       }
       return false;
     });
 
-    updateModsCountLabel();
-    updateModsListDisplay();
+    for (const auto& modId : selectedModIds) {
+      auto mod = ModsIndex::get()->getModByID(modId);
+      ModsIndex::get()->removeMod(mod);
+    }
     enableMultiselectToolbar(false);
   });
   multiselectLayout->addWidget(deleteButton);
@@ -360,6 +360,11 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
   for (auto& mod : ModsIndex::get()->getMods()) {
     addModItem(mod);
   }
+
+  connect(ModsIndex::get().get(), &ModsIndex::modInstalled,
+          this, &ModsScreen::addModItem);
+  connect(ModsIndex::get().get(), &ModsIndex::modRemoved,
+          this, &ModsScreen::removeModItem);
 
   updateModsListDisplay();
 }
@@ -419,10 +424,10 @@ void ModsScreen::addModItem(ModsIndex::Mod mod) {
   updateModsListDisplay();
 }
 
-void ModsScreen::removeModItem(std::string modId) {
+void ModsScreen::removeModItem(QString modId) {
   auto icon = findChildWidgetBy(m_contentLayout, [&modId](QWidget* w){
     if (auto icon = qobject_cast<DesktopIconWidget*>(w)) {
-      return icon->property("modId").toString().toStdString() == modId;
+      return icon->property("modId").toString() == modId;
     }
     return false;
   });
@@ -437,7 +442,6 @@ void ModsScreen::removeModItem(std::string modId) {
 }
 
 void ModsScreen::openModInfo(const ModsIndex::Mod& mod) {
-  c_navigationSfx->play();
   m_router->navigate(QString("/mods/%1").arg(QString::fromStdString(mod.id)));
 }
 
@@ -458,12 +462,11 @@ void ModsScreen::onAddModButtonClicked() {
   if (directory == "") return;
     
   CPPTRACE_TRY {
-    auto m = ModsIndex::get()->installMod(directory.toStdString());
-    addModItem(m); 
+    ModsIndex::get()->installMod(directory.toStdString());
   } CPPTRACE_CATCH (std::exception& e) {
 #ifdef MVC_DEBUG
     qDebug() << "Exception:" << e.what();
-    cpptrace::from_current_exception().to_string();
+    cpptrace::from_current_exception().print();
 #endif
     Dialog::showActionDialog(
       getMainWindow(), 

@@ -19,6 +19,7 @@
 #include <qmetaobject.h>
 #include <random>
 #include <sstream>
+#include <QDebug>
 
 #include "macros.h"
 #ifdef MVC_DEBUG
@@ -80,19 +81,26 @@ QWidget* findChildWidgetBy(QLayout* layout, std::function<bool(QWidget*)> predic
 }
 
 bool askForBasePathChange() {
+  qDebug() << "Utils: prompting for base game path";
   auto settings = ProfileSettings::get();
   auto directory = QFileDialog::getExistingDirectory(
       nullptr, "Select a base game directory.");
   if (directory != "") {
+    qDebug() << "Utils: base game path selected" << directory;
     settings->setValue(STK_BASEPATH, directory);
     return true;
   }
+  qDebug() << "Utils: base game path selection cancelled";
   return false;
 }
 
 bool askForProfilePictureChange() {
+  qDebug() << "Utils: prompting for profile picture";
   auto pfpImagePath = QFileDialog::getOpenFileName(getMainWindow(), "Select a profile picture", "", "Images (*.png *.jpg *.jpeg *.bmp)");
-  if (pfpImagePath.isEmpty()) return false;
+  if (pfpImagePath.isEmpty()) {
+    qDebug() << "Utils: profile picture selection cancelled";
+    return false;
+  }
   auto pfpStore = std::filesystem::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()) / "profile_pictures";
   std::filesystem::create_directories(pfpStore);
   auto pfpFileName = std::filesystem::path(pfpImagePath.toStdString()).filename();
@@ -100,6 +108,7 @@ bool askForProfilePictureChange() {
   std::filesystem::copy_file(pfpImagePath.toStdString(), pfpDestPath, std::filesystem::copy_options::overwrite_existing);
 
   ProfileSettings::get()->setValue(STK_PFP, QString::fromStdString(pfpDestPath.string()));
+  qDebug() << "Utils: profile picture set to" << QString::fromStdString(pfpDestPath.string());
   return true;
 }
 
@@ -124,13 +133,16 @@ std::string generate_uuid_v4() {
        << std::setw(4) << (data[2] >> 16) << "-"
        << std::setw(4) << (data[2] & 0xFFFF)
        << std::setw(8) << data[3];
-
-    return ss.str();
+    std::string result = ss.str();
+    qDebug() << "Utils: generated UUID" << QString::fromStdString(result);
+    return result;
 }
 
 bool createDesktopShortcut(const QString &shortcutName,
                            const QString &launchArgument,
                            const QString &iconPath) {
+  qDebug() << "Utils: creating desktop shortcut" << shortcutName
+           << "argument" << launchArgument << "icon" << iconPath;
   QString executablePath = QCoreApplication::applicationFilePath();
 
 #if defined(Q_OS_WIN)
@@ -150,8 +162,10 @@ bool createDesktopShortcut(const QString &shortcutName,
           .arg(linkPath, executablePath, launchArgument,
                iconPath.isEmpty() ? executablePath : iconPath);
 
-  return QProcess::execute("powershell", {"-NoProfile", "-NonInteractive",
-                                          "-Command", psCommand}) == 0;
+  const int exitCode = QProcess::execute("powershell", {"-NoProfile", "-NonInteractive",
+                                          "-Command", psCommand});
+  qDebug() << "Utils: PowerShell shortcut creation result" << exitCode;
+  return exitCode == 0;
 
 #elif defined(Q_OS_LINUX)
   QString desktopPath =
@@ -171,6 +185,7 @@ bool createDesktopShortcut(const QString &shortcutName,
 
   QFile file(desktopFilePath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    qWarning() << "Utils: could not create desktop shortcut file" << desktopFilePath;
     return false;
   }
 
@@ -178,15 +193,18 @@ bool createDesktopShortcut(const QString &shortcutName,
   file.close();
 
   // Mark file as executable
-  return file.setPermissions(QFile::ExeUser | QFile::ReadUser |
+  const bool result = file.setPermissions(QFile::ExeUser | QFile::ReadUser |
                              QFile::WriteUser | QFile::ReadGroup |
                              QFile::ReadOther);
+  qDebug() << "Utils: desktop shortcut permissions set" << result;
+  return result;
 
 #else
   return false;
 #endif
 }
 QNetworkAccessManager* createNetworkAccessManager(QObject *context) {
+  qDebug() << "Utils: creating network access manager";
   auto *manager = new QNetworkAccessManager(context);
   QNetworkDiskCache* diskCache = new QNetworkDiskCache(context);
 
@@ -196,6 +214,7 @@ QNetworkAccessManager* createNetworkAccessManager(QObject *context) {
   diskCache->setCacheDirectory(cacheDir);
   diskCache->setMaximumCacheSize(50 * 1024 * 1024);
   manager->setCache(diskCache);
+  qDebug() << "Utils: network cache directory" << cacheDir;
 
   return manager;
 }
@@ -203,6 +222,7 @@ QNetworkAccessManager* createNetworkAccessManager(QObject *context) {
 
 
 QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& url) {
+  qDebug() << "Utils: starting async URL fetch" << url;
   auto promise = std::make_shared<QPromise<QByteArray>>();
   QFuture<QByteArray> future = promise->future();
 
@@ -214,10 +234,16 @@ QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& ur
   QNetworkReply* reply = manager->get(request);
 
   QObject::connect(reply, &QNetworkReply::finished, [url, reply, promise]() {
+    qDebug() << "Utils: async URL fetch finished" << url
+             << "status" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute)
+             << "bytes" << reply->bytesAvailable();
     promise->start();
     if (reply->error() == QNetworkReply::NoError) {
-      promise->addResult(reply->readAll());
+      QByteArray data = reply->readAll();
+      qDebug() << "Utils: URL fetch succeeded, bytes" << data.size();
+      promise->addResult(data);
     } else {
+      qWarning() << "Utils: URL fetch failed" << url << reply->errorString();
       promise->setException(network_error(reply->error(), url.toString()));
     }
     promise->finish();
@@ -229,6 +255,7 @@ QFuture<QByteArray> fetchUrlAsync(QNetworkAccessManager* manager, const QUrl& ur
 }
 
 QFuture<nlohmann::json> fetchJsonAsync(QNetworkAccessManager* manager, const QUrl& url) {
+  qDebug() << "Utils: starting async JSON fetch" << url;
   auto promise = std::make_shared<QPromise<nlohmann::json>>();
   QFuture<nlohmann::json> future = promise->future();
 
@@ -242,16 +269,21 @@ QFuture<nlohmann::json> fetchJsonAsync(QNetworkAccessManager* manager, const QUr
   QNetworkReply* reply = manager->get(request);
 
   QObject::connect(reply, &QNetworkReply::finished, [reply, promise, url]() {
+    qDebug() << "Utils: async JSON fetch finished" << url
+             << "status" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     promise->start();
     if (reply->error() == QNetworkReply::NoError) {
       CPPTRACE_TRY {
         nlohmann::json jsonData = nlohmann::json::parse(reply->readAll().toStdString());
+        qDebug() << "Utils: JSON fetch parsed successfully";
         promise->addResult(jsonData);
       } CPPTRACE_CATCH (...) {
+        qWarning() << "Utils: failed to parse JSON response from" << url;
         promise->setException(std::current_exception()); 
         MVC_DEBUG_EVAL(cpptrace::from_current_exception().print());
       }
     } else {
+      qWarning() << "Utils: JSON fetch failed" << url << reply->errorString();
       promise->setException(network_error(reply->error(), url.toString()));
     }
     promise->finish();

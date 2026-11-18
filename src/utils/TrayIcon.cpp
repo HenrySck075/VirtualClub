@@ -9,13 +9,17 @@
 
 #include "ProfileSingleApp.hpp"
 #include "SessionManager.hpp"
+#include <QDebug>
 
 namespace {
 QSystemTrayIcon* trayIcon = nullptr;
 }
 
 void TrayIcon::updateTooltip() {
-  if (!trayIcon) return;
+  if (!trayIcon) {
+    qDebug() << "TrayIcon: tooltip update ignored; tray not initialized";
+    return;
+  }
 
   QString sessionStatus;
 
@@ -31,6 +35,7 @@ void TrayIcon::updateTooltip() {
     ProfileSingleApp::instance()->profileName(),
     sessionStatus
   ));
+  qDebug() << "TrayIcon: tooltip updated:" << trayIcon->toolTip();
 }
 
 void TrayIcon::setup(QWidget* mainWindow, std::function<bool()> confirmQuit) {

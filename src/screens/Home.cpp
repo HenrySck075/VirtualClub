@@ -46,7 +46,7 @@ public:
     auto* name = new ElidedLabel(QString::fromStdString(mod.name), this);
     name->setFont(QFont("Quicksand", 11, QFont::Weight::DemiBold));
     //name->setStyleSheet("color: ;");
-    //name->setAlignment(Qt::AlignCenter);
+    name->setAlignment(Qt::AlignCenter);
     name->setMaxLines(2);
     name->setAttribute(Qt::WA_TransparentForMouseEvents);
     cardLayout->addWidget(name);

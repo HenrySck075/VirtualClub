@@ -29,7 +29,7 @@ public:
   void onAddModButtonClicked();
 private:
   void addModItem(ModsIndex::Mod mod);
-  void removeModItem(std::string modId);
+  void removeModItem(QString modId);
   void deselectOtherItems(DesktopIconWidget* selectedItem);
   void openModInfo(const ModsIndex::Mod& mod);
 

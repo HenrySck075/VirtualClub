@@ -7,6 +7,7 @@
 #include <vector>
 #include "consts.hpp"
 #include "utils/ProfileSettings.hpp"
+#include <QDebug>
 
 // Helper to parse times like "18", "18.30", "6.15", "6" into QTime
 QTime parseFlexibleTime(const std::string& str) {
@@ -52,6 +53,7 @@ inline fs::path getBGPackPath(const QString& pack) {
 }
 
 QStringList BackgroundLoader::getPacks() {
+  qDebug() << "BackgroundLoader: enumerating packs";
   QStringList packs;
   const auto assetsPath = getBGAssetsPath();
   std::error_code error;
@@ -66,6 +68,7 @@ QStringList BackgroundLoader::getPacks() {
   }
 
   packs.sort(Qt::CaseInsensitive);
+  qDebug() << "BackgroundLoader: found" << packs.size() << "packs";
   return packs;
 }
 
@@ -74,6 +77,7 @@ QStringList BackgroundLoader::getImages(const QString& pack_) {
     ? ProfileSettings::get()->value(STK_BGPACK).toString()
     : pack_;
   QStringList images;
+  qDebug() << "BackgroundLoader: enumerating images for pack" << pack_;
 
   std::error_code error;
   const auto packPath = getBGAssetsPath() / pack.toStdString();
@@ -88,6 +92,7 @@ QStringList BackgroundLoader::getImages(const QString& pack_) {
   }
 
   images.sort(Qt::CaseInsensitive);
+  qDebug() << "BackgroundLoader: found" << images.size() << "images";
   return images;
 }
 

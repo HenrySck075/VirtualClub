@@ -11,6 +11,7 @@
 #include "macros.h"
 #include "utils/ProfileSingleApp.hpp"
 #include "utils/utils.hpp"
+#include <QDebug>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third_party/stb/stb_image.h"
@@ -22,11 +23,15 @@
 
 ModsIndex::ModsIndex(const QString &path)
 : QObject(nullptr), m_store(std::make_shared<YamlSettings>(path)) {
+  qRegisterMetaType<ModsIndex::Mod>();
+  qDebug() << "ModsIndex: initializing store at" << path;
   m_modsList.clear();
 
   auto mods = m_store->value("mods").toMap();
+  qDebug() << "ModsIndex: loaded" << mods.size() << "stored mods";
 
   for (const auto& modVariant : mods.asKeyValueRange()) {
+    qDebug() << "ModsIndex: deserializing mod" << modVariant.first;
     auto modMap = modVariant.second.toMap();
     Mod mod {
       modVariant.first.toStdString(),
@@ -39,34 +44,44 @@ ModsIndex::ModsIndex(const QString &path)
     };
     m_modsList.push_back(mod);
   }
+  qDebug() << "ModsIndex: initialization complete; cached" << m_modsList.size() << "mods";
 }
 
 std::shared_ptr<ModsIndex> ModsIndex::get() {
+  qDebug() << "ModsIndex::get: resolving singleton";
   static auto newInstance =
      std::shared_ptr<ModsIndex>(new ModsIndex(QString("profiles/mods/%1.yaml").arg(
         ProfileSingleApp::instance()->profileId()
       )));
+  qDebug() << "ModsIndex::get: singleton ready for profile"
+           << ProfileSingleApp::instance()->profileId();
   return newInstance;
 }
 
 const std::vector<ModsIndex::Mod>& ModsIndex::getMods() {
+  qDebug() << "ModsIndex::getMods: returning" << m_modsList.size() << "mods";
   return m_modsList;
 }
 
 const ModsIndex::Mod& ModsIndex::getModByID(std::string id) {
+  qDebug() << "ModsIndex::getModByID: looking up" << QString::fromStdString(id);
   auto it = std::find_if(m_modsList.begin(), m_modsList.end(), [&id](const Mod& mod) {
     return mod.id == id;
   });
 
   if (it != m_modsList.end()) {
+    qDebug() << "ModsIndex::getModByID: found" << QString::fromStdString(it->name)
+             << "at" << QString::fromStdString(it->modPath);
     return *it;
   } else {
+    qWarning() << "ModsIndex::getModByID: mod not found:" << QString::fromStdString(id);
     throw std::runtime_error("Mod with ID " + id + " not found.");
   }
 }
 
 
 ModsIndex::~ModsIndex() { 
+  qDebug() << "ModsIndex: saving" << m_modsList.size() << "mods";
   QMap<QString, QVariant> mods;
   for (const auto& mod : m_modsList) {
     QVariantMap modMap;
@@ -81,15 +96,21 @@ ModsIndex::~ModsIndex() {
   }
 
   m_store->setValue("mods", mods);
+  qDebug() << "ModsIndex: destructor store update complete";
 }
 
 void writeIcons(std::string id, unsigned char* buffer, int len) {
+  qDebug() << "ModsIndex: decoding icon for mod" << QString::fromStdString(id)
+           << "size" << len;
   int x,y,comp;
   unsigned char* content = stbi_load_from_memory(buffer, len, &x, &y, &comp, 0);
   
   if (!content) {
+    qWarning() << "ModsIndex: failed to decode icon for mod" << QString::fromStdString(id)
+               << ":" << stbi_failure_reason();
     throw std::invalid_argument(std::string("Failed to decode image: ") + stbi_failure_reason());
   }
+  qDebug() << "ModsIndex: decoded icon" << x << "x" << y << "channels" << comp;
 
   static auto iconsDir = std::filesystem::path(
     QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
@@ -99,32 +120,48 @@ void writeIcons(std::string id, unsigned char* buffer, int len) {
   // and a 80x80 downscaled version under {id}.scaled.png
 
   if (!std::filesystem::exists(iconsDir)) {
-    std::filesystem::create_directories(iconsDir);
+    qDebug() << "ModsIndex: creating icon directory" << QString::fromStdString(iconsDir.string());
+    std::error_code ec;
+    std::filesystem::create_directories(iconsDir, ec);
+    if (ec) {
+      qWarning() << "ModsIndex: could not create icon directory:" << QString::fromStdString(ec.message());
+      throw std::filesystem::filesystem_error("Could not create icon directory", iconsDir, ec);
+    }
   }
 
   std::filesystem::path originalPath = iconsDir / (id + ".png");
   std::filesystem::path scaledPath = iconsDir / (id + ".scaled.png");
 
-  stbi_write_png(originalPath.string().c_str(), x, y, comp, content, x * comp);
+  qDebug() << "ModsIndex: writing original icon" << QString::fromStdString(originalPath.string());
+  if (!stbi_write_png(originalPath.string().c_str(), x, y, comp, content, x * comp)) {
+    qWarning() << "ModsIndex: failed to write original icon";
+  }
   unsigned char* scaledContent = new unsigned char[80 * 80 * comp];
   stbir_resize_uint8_linear(content, x, y, 0, scaledContent, 80, 80, 0, (stbir_pixel_layout)(comp));
-  stbi_write_png(scaledPath.string().c_str(), 80, 80, comp, scaledContent, 80 * comp);
+  qDebug() << "ModsIndex: writing scaled icon" << QString::fromStdString(scaledPath.string());
+  if (!stbi_write_png(scaledPath.string().c_str(), 80, 80, comp, scaledContent, 80 * comp)) {
+    qWarning() << "ModsIndex: failed to write scaled icon";
+  }
 
   stbi_image_free(content);
   delete[] scaledContent;
 }
 void writeIconsFromFile(std::string id, std::string file) {
+  qDebug() << "ModsIndex: loading icon from file" << QString::fromStdString(file);
   std::ifstream inputFile(file, std::ios::binary);
   if (!inputFile) {
+      qWarning() << "ModsIndex: could not open icon file" << QString::fromStdString(file);
       throw std::runtime_error("Could not open file: " + file);
   }
   auto fileSize = std::filesystem::file_size(file);
+  qDebug() << "ModsIndex: icon file size" << static_cast<quint64>(fileSize);
   std::vector<unsigned char> buffer(fileSize);
   inputFile.read(reinterpret_cast<char*>(buffer.data()), fileSize);
   writeIcons(id, buffer.data(), fileSize);
 }
 
 std::string ModsIndex::Mod::getIconPath() const {
+  qDebug() << "ModsIndex: resolving icon path for mod" << QString::fromStdString(id);
   const auto iconsDir = std::filesystem::path(
     QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
   ) / "icons";
@@ -132,9 +169,18 @@ std::string ModsIndex::Mod::getIconPath() const {
 };
 
 ModsIndex::Mod ModsIndex::installMod(std::filesystem::path path) {
+  qDebug() << "ModsIndex::installMod: starting installation for"
+           << QString::fromStdString(path.string());
+  // installMod() may be invoked by a QThreadPool worker. pybind11 objects
+  // require an active GIL whenever they are created or destroyed.
+  py::gil_scoped_acquire gil;
+
   auto settings = ProfileSettings::get();
   auto modGameDir = path / "game";
   auto baseGameDir = std::filesystem::path(settings->value(STK_BASEPATH).toString().toStdString()) / "game";
+  qDebug() << "ModsIndex::installMod: mod game dir"
+           << QString::fromStdString(modGameDir.string())
+           << "base game dir" << QString::fromStdString(baseGameDir.string());
 
   // TODO: Analyze EVERY files
   auto readGameFile = [&modGameDir, &baseGameDir](const std::string& filepath) {
@@ -143,8 +189,10 @@ ModsIndex::Mod ModsIndex::installMod(std::filesystem::path path) {
   auto optionsRpyc = readGameFile("options.rpyc");
   // by standard this shouldnt be none, but if will be here just in case my ported logic has a flaw idk
   if (optionsRpyc.is_none()) {
+    qWarning() << "ModsIndex::installMod: options.rpyc not found";
     throw std::runtime_error("Could not find options.rpyc in mod or base game.");
   }
+  qDebug() << "ModsIndex::installMod: options.rpyc resolved";
 
   auto rpycReaderModule = ArchiveReader::rpycReaderModule();
   auto statements = rpycReaderModule.attr("get_rpyc_statements")(rpycReaderModule.attr("peek_rpyc")(optionsRpyc)).cast<py::list>();
@@ -185,11 +233,18 @@ ModsIndex::Mod ModsIndex::installMod(std::filesystem::path path) {
   std::string icon = defines.contains("config.window_icon") ? defines["config.window_icon"].cast<py::str>().attr("removeprefix")("/").cast<std::string>() : "";
   std::string buildId = defines.contains("build.name") ? defines["build.name"].cast<std::string>() : "DDLC";
   std::string saveDirectory = defines.contains("config.save_directory") ? defines["config.save_directory"].cast<std::string>() : "DDLC";
+  qDebug() << "ModsIndex::installMod: metadata name=" << QString::fromStdString(name)
+           << "version=" << QString::fromStdString(version)
+           << "buildId=" << QString::fromStdString(buildId)
+           << "saveDirectory=" << QString::fromStdString(saveDirectory)
+           << "icon=" << QString::fromStdString(icon);
 
   std::string id = generate_uuid_v4();
+  qDebug() << "ModsIndex::installMod: generated mod id" << QString::fromStdString(id);
 
   auto iconContentPy = readGameFile(icon);
   if (iconContentPy.is_none()) {
+    qWarning() << "ModsIndex::installMod: icon content is null for mod" << QString::fromStdString(name);
     // im just too tired
     throw std::runtime_error("Create an issue on GitHub to tell me to implement the edge case of icon content being null.");
   }
@@ -209,25 +264,46 @@ ModsIndex::Mod ModsIndex::installMod(std::filesystem::path path) {
     false
   };
   m_modsList.push_back(mod);
+  qDebug() << "ModsIndex::installMod: installed" << QString::fromStdString(name)
+           << "id" << QString::fromStdString(id)
+           << "total mods" << m_modsList.size();
 
+  emit modInstalled(mod);
   return mod;
 }
 void ModsIndex::removeMod(Mod& mod) {
+  qDebug() << "ModsIndex::removeMod: removing" << QString::fromStdString(mod.id)
+           << QString::fromStdString(mod.name);
+  const auto modId = mod.id;
   auto i = std::find(m_modsList.begin(), m_modsList.end(), mod);
-  if (i == m_modsList.end()) throw std::invalid_argument("Supplied mod of ID " + mod.id + " does not exist.");
+  if (i == m_modsList.end()) {
+    qWarning() << "ModsIndex::removeMod: mod not found:" << QString::fromStdString(mod.id);
+    throw std::invalid_argument("Supplied mod of ID " + mod.id + " does not exist.");
+  }
   m_modsList.erase(i);
 
   // delete the icons
   auto iconsDir = std::filesystem::path(
     QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
   ) / "icons";
-  std::filesystem::remove(iconsDir / (mod.id + ".png"));
-  std::filesystem::remove(iconsDir / (mod.id + ".scaled.png"));
+  auto originalIcon = iconsDir / (modId + ".png");
+  auto scaledIcon = iconsDir / (modId + ".scaled.png");
+  std::error_code ec;
+  qDebug() << "ModsIndex::removeMod: deleting icon files" << QString::fromStdString(originalIcon.string())
+           << QString::fromStdString(scaledIcon.string());
+  std::filesystem::remove(originalIcon, ec);
+  if (ec) qWarning() << "ModsIndex::removeMod: could not remove original icon:" << QString::fromStdString(ec.message());
+  ec.clear();
+  std::filesystem::remove(scaledIcon, ec);
+  if (ec) qWarning() << "ModsIndex::removeMod: could not remove scaled icon:" << QString::fromStdString(ec.message());
+  qDebug() << "ModsIndex::removeMod: complete; remaining mods" << m_modsList.size();
 
+  emit modRemoved(QString::fromStdString(modId));
 }
 
 
 void ModsIndex::addModToRecentlyPlayed(const std::string& id) {
+  qDebug() << "ModsIndex::recent: adding mod" << QString::fromStdString(id);
   auto qid = QString::fromStdString(id);
   auto list = m_store->value(STK_RECENTLIST, QVariantList()).toList();
 
@@ -239,14 +315,17 @@ void ModsIndex::addModToRecentlyPlayed(const std::string& id) {
   }
   list.prepend(qid);
   m_store->setValue(STK_RECENTLIST, list);
+  qDebug() << "ModsIndex::recent: updated list size" << list.size();
   emit recentlyPlayedUpdated();
 }
 
 const std::vector<ModsIndex::Mod>& ModsIndex::getRecentlyPlayed() {
+  qDebug() << "ModsIndex::recent: resolving recently played mods";
   static std::vector<Mod> recentlyPlayed;
   recentlyPlayed.clear();
 
   auto list = m_store->value(STK_RECENTLIST, QVariantList()).toList();
+  qDebug() << "ModsIndex::recent: stored entries" << list.size();
 
   for (const auto& idVariant : list) {
     QString id = idVariant.toString();
@@ -255,8 +334,11 @@ const std::vector<ModsIndex::Mod>& ModsIndex::getRecentlyPlayed() {
     });
     if (it != m_modsList.end()) {
       recentlyPlayed.push_back(*it);
+    } else {
+      qWarning() << "ModsIndex::recent: skipping missing mod" << id;
     }
   }
+  qDebug() << "ModsIndex::recent: resolved entries" << recentlyPlayed.size();
 
   return recentlyPlayed;
 }
@@ -269,9 +351,12 @@ std::optional<ModsIndex::Mod::PlaytimePair> ModsIndex::Mod::getPlaytime() const 
 
   const std::filesystem::path filePath =
       std::filesystem::path(qSavedir.toStdString()) / ".mvc_playtime";
+  qDebug() << "ModsIndex::playtime: reading" << QString::fromStdString(filePath.string())
+           << "for mod" << QString::fromStdString(id);
 
   std::ifstream file(filePath);
   if (!file.is_open()) {
+    qDebug() << "ModsIndex::playtime: no playtime file for mod" << QString::fromStdString(id);
     return std::nullopt;
   }
 
@@ -279,9 +364,12 @@ std::optional<ModsIndex::Mod::PlaytimePair> ModsIndex::Mod::getPlaytime() const 
   long long activeSeconds = 0;
 
   if (file >> rawSeconds >> activeSeconds) {
+    qDebug() << "ModsIndex::playtime: mod" << QString::fromStdString(id)
+             << "raw seconds" << rawSeconds << "active seconds" << activeSeconds;
     return std::make_pair(std::chrono::seconds(rawSeconds),
                           std::chrono::seconds(activeSeconds));
   }
 
+  qWarning() << "ModsIndex::playtime: malformed playtime file" << QString::fromStdString(filePath.string());
   return std::nullopt;
 }

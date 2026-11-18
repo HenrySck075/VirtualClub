@@ -8,28 +8,36 @@
 #include <qlogging.h>
 
 YamlSettings::YamlSettings(const QString& fileName) {
+    qDebug() << "YamlSettings: constructing" << fileName;
     // Standard AppData/AppConfig path (~/.config/<AppName>/ on Linux)
     QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     
     m_filePath = QDir(configDir).filePath(fileName);
+    qDebug() << "YamlSettings: resolved file path" << m_filePath;
 
-    std::filesystem::create_directories(std::filesystem::path(m_filePath.toStdString()).parent_path());
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::path(m_filePath.toStdString()).parent_path(), ec);
+    if (ec) qWarning() << "YamlSettings: could not create parent directory:"
+                       << QString::fromStdString(ec.message());
     load();
 }
 
 YamlSettings::~YamlSettings() {
+    qDebug() << "YamlSettings: destroying and saving" << m_filePath;
     save();
 }
 
 bool YamlSettings::load() {
     QFile file(m_filePath);
     if (!file.exists()) {
+        qDebug() << "YamlSettings: file does not exist, creating empty map:" << m_filePath;
         m_rootNode = YAML::Node(YAML::NodeType::Map);
         return true;
     }
 
     try {
         m_rootNode = YAML::LoadFile(m_filePath.toStdString());
+        qDebug() << "YamlSettings: loaded" << m_filePath;
         return true;
     } catch (const YAML::Exception& e) {
         qWarning() << "Failed to parse YAML file:" << e.what();
@@ -39,9 +47,12 @@ bool YamlSettings::load() {
 }
 
 bool YamlSettings::save() {
+    qDebug() << "YamlSettings: saving" << m_filePath;
     try {
         QFile file(m_filePath);
         if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            qWarning() << "YamlSettings: could not open for writing:" << m_filePath
+                       << "error" << file.errorString();
             return false;
         }
 
@@ -50,6 +61,7 @@ bool YamlSettings::save() {
 
         QTextStream stream(&file);
         stream << out.c_str() << "\n";
+        qDebug() << "YamlSettings: save complete:" << m_filePath;
         return true;
     } catch (const std::exception& e) {
         qWarning() << "Failed to write YAML file:" << e.what();
@@ -97,6 +109,7 @@ const YAML::Node YamlSettings::navigateToKeyConst(const QString& key) const {
 }
 
 void YamlSettings::setValue(const QString& key, const QVariant& value) {
+    qDebug() << "YamlSettings: set" << key << "=" << value << "in" << m_filePath;
     YAML::Node node = navigateToKey(key, true);
 
     node = qvariantToYaml(value);
@@ -105,9 +118,13 @@ void YamlSettings::setValue(const QString& key, const QVariant& value) {
 QVariant YamlSettings::value(const QString& key, const QVariant& defaultValue) const {
     YAML::Node node = navigateToKeyConst(key);
     if (!node || node.IsNull()) {
+        qDebug() << "YamlSettings: missing" << key << "in" << m_filePath
+                 << "using default" << defaultValue;
         return defaultValue;
     }
-    return yamlToQVariant(node);
+    QVariant result = yamlToQVariant(node);
+    qDebug() << "YamlSettings: read" << key << "=" << result << "from" << m_filePath;
+    return result;
 }
 
 void YamlSettings::setArray(const QString& key, const QVariantList& list) {

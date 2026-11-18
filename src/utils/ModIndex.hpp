@@ -49,6 +49,8 @@ public:
 
 signals:
   void recentlyPlayedUpdated();
+  void modInstalled(Mod mod);
+  void modRemoved(QString modId);
 
 public:
   const std::vector<Mod>& getMods();
@@ -56,5 +58,7 @@ public:
   void removeMod(Mod& mod);
   const Mod& getModByID(std::string id);
 };
+
+Q_DECLARE_METATYPE(ModsIndex::Mod)
 
 #endif

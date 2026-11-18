@@ -3,6 +3,7 @@
 #include "utils/ProfileSettings.hpp"
 #include <QDataStream>
 #include <QCryptographicHash>
+#include <QDebug>
 
 ProfileSingleApp::ProfileSingleApp(int &argc, char **argv)
     : QApplication(argc, argv)
@@ -20,10 +21,14 @@ ProfileSingleApp::~ProfileSingleApp() {
 }
 
 bool ProfileSingleApp::notifyPrimaryInstance(const QStringList &args) {
+    qDebug() << "ProfileSingleApp: notifying primary instance" << m_serverName
+             << "with args" << args;
     QLocalSocket socket;
     socket.connectToServer(m_serverName);
     
     if (!socket.waitForConnected(1000)) {
+        qWarning() << "ProfileSingleApp: could not connect to primary instance"
+                   << m_serverName;
         return false;
     }
 
@@ -37,6 +42,7 @@ bool ProfileSingleApp::notifyPrimaryInstance(const QStringList &args) {
     socket.flush();
     socket.waitForBytesWritten(1000);
     socket.disconnectFromServer();
+    qDebug() << "ProfileSingleApp: notification sent";
     
     return true;
 }
@@ -47,7 +53,11 @@ QString ProfileSingleApp::profileName() {
 }
 
 const void ProfileSingleApp::setProfileId(const QString &profileId) {
-  if (m_initComplete) return;
+  if (m_initComplete) {
+    qWarning() << "ProfileSingleApp: profile ID change ignored after initialization";
+    return;
+  }
+  qDebug() << "ProfileSingleApp: initializing profile" << profileId;
 
   m_profileId = profileId;
     // 1. Hash profile ID to create a safe cross-platform resource string
@@ -63,6 +73,7 @@ const void ProfileSingleApp::setProfileId(const QString &profileId) {
 
     // 3. Try to acquire the primary lock for this profile
     if (!m_lockFile->tryLock()) {
+        qWarning() << "ProfileSingleApp: profile lock already held:" << profileId;
         // Another process is already running this profile
         m_isSecondary = true;
         return;
@@ -73,7 +84,10 @@ const void ProfileSingleApp::setProfileId(const QString &profileId) {
     m_localServer = new QLocalServer(this);
     
     if (m_localServer->listen(m_serverName)) {
+        qDebug() << "ProfileSingleApp: IPC server listening on" << m_serverName;
         connect(m_localServer, &QLocalServer::newConnection, this, &ProfileSingleApp::handleNewConnection);
+    } else {
+        qWarning() << "ProfileSingleApp: could not start IPC server" << m_serverName;
     }
 
   m_initComplete = true;

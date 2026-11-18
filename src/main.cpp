@@ -440,6 +440,9 @@ QProgressBar::chunk {
 #ifdef MVC_DEBUG
   CPPTRACE_TRY {
 #endif
+  // Keep the embedded interpreter available to worker threads while Qt owns
+  // the event loop. Python work acquires/releases the GIL explicitly.
+  py::gil_scoped_release gilRelease;
   return app.exec();
 #ifdef MVC_DEBUG
   } CPPTRACE_CATCH (std::exception& e) {

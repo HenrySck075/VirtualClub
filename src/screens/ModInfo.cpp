@@ -11,16 +11,67 @@
 #include "utils/FlowLayout.hpp"
 #include "utils/ModIndex.hpp"
 #include "utils/SessionManager.hpp"
-#include "utils/i18n.hpp"
 #include "utils/utils.hpp"
 #include <QDesktopServices>
 #include <QPointer>
 #include <QFileInfo>
 #include <vector>
-#include <third_party/kubazip/zip.h>
+#include <archive.h>
+#include <archive_entry.h>
 #include <nlohmann/json.hpp>
-
+#include <initializer_list>
+#include <string_view>
+#include <unordered_map>
 #include <QVariantAnimation>
+
+namespace {
+std::unordered_map<std::string, std::vector<unsigned char>> readArchiveEntry(
+    const std::string& archiveName,
+    std::initializer_list<std::string_view> entryNames) {
+  std::unordered_map<std::string, std::vector<unsigned char>> entries;
+  auto* archive = archive_read_new();
+  archive_read_support_filter_all(archive);
+  archive_read_support_format_all(archive);
+  if (archive_read_open_filename(archive, archiveName.c_str(), 10240) !=
+      ARCHIVE_OK) {
+    archive_read_free(archive);
+    return entries;
+  }
+
+  size_t entriesRead = 0;
+  archive_entry* entry = nullptr;
+  while (archive_read_next_header(archive, &entry) == ARCHIVE_OK) {
+    const char* name = archive_entry_pathname(entry);
+    const auto matchingEntry =
+        name == nullptr
+            ? entryNames.end()
+            : std::find(entryNames.begin(), entryNames.end(), name);
+    if (matchingEntry != entryNames.end()) {
+      auto [it, inserted] = entries.try_emplace(std::string(*matchingEntry));
+      if (!inserted) {
+        archive_read_data_skip(archive);
+        continue;
+      }
+
+      const void* block = nullptr;
+      size_t blockSize = 0;
+      la_int64_t offset = 0;
+      while (archive_read_data_block(archive, &block, &blockSize, &offset) ==
+             ARCHIVE_OK) {
+        const auto* bytes = static_cast<const unsigned char*>(block);
+        it->second.insert(it->second.end(), bytes, bytes + blockSize);
+      }
+      ++entriesRead;
+      if (entriesRead == entryNames.size())
+        break;
+    } else {
+      archive_read_data_skip(archive);
+    }
+  }
+  archive_read_free(archive);
+  return entries;
+}
+}
 
 class SSDCItem : public QWidget {
   Q_OBJECT
@@ -193,41 +244,25 @@ public:
       for (const auto &savePath : saveFiles) {
         auto zip_filename = savePath.string();
 
-        auto* zip_archive = zip_open(zip_filename.c_str(), 0, 'r');
-
         auto* thumbnailWidget = new PixmapWidget();
         thumbnailWidget->setFixedSize({256, 144});
 
         std::string saveName = savePath.filename().string();
-        {
-          void* buffer;
-          size_t bufsize;
-
-          zip_entry_open(zip_archive, "screenshot.png");
-          zip_entry_read(zip_archive, &buffer, &bufsize);
-          zip_entry_close(zip_archive);
+        const auto entries =
+            readArchiveEntry(zip_filename, {"screenshot.png", "json"});
+        if (const auto screenshot = entries.find("screenshot.png");
+            screenshot != entries.end()) {
           QPixmap pixmap;
-          if (pixmap.loadFromData((unsigned char *)buffer,
-                                  static_cast<int>(bufsize))) {
-            // renpy save screenshots is 256x144 i checked
+          if (pixmap.loadFromData(screenshot->second.data(),
+                                  static_cast<int>(screenshot->second.size()))) {
             thumbnailWidget->setPixmap(pixmap);
           }
         }
 
-        {
-          void* buffer;
-          size_t bufsize;
-
-          // Get additional data just in case
-          // we just need to load this file (as json) for ["_save_name"]
-          zip_entry_open(zip_archive, "json");
-          zip_entry_read(zip_archive, &buffer, &bufsize);
-          zip_entry_close(zip_archive);
-
+        if (const auto metadata = entries.find("json");
+            metadata != entries.end() && !metadata->second.empty()) {
           try {
-            std::vector<unsigned char> bufferVec(
-                (unsigned char *)buffer, (unsigned char *)buffer + bufsize);
-            auto jsonData = nlohmann::json::parse(bufferVec);
+            auto jsonData = nlohmann::json::parse(metadata->second);
             if (jsonData.contains("_save_name") &&
                 jsonData["_save_name"].is_string()) {
               auto maybeSaveName = jsonData["_save_name"].get<std::string>();
@@ -240,8 +275,6 @@ public:
                      << "because:" << e.what();
           }
         }
-
-        zip_close(zip_archive);
 
         QFileInfo fileInfo(QString::fromStdString(savePath.string()));
         QString dateTimeStr =
@@ -455,18 +488,22 @@ void ModInfoScreen::play(const QString& saveId) {
 #ifdef MVC_VFS_AVAILABLE
   if (m_displayingMod.has_value()) {
     ModsIndex::Mod currentMod = m_displayingMod.value();
-    SessionManager::launch(m_displayingMod.value(), [this](){
-      setMutationWidgetsEnabled(false); 
+    try {
+      SessionManager::launch(m_displayingMod.value(), [this](){
+        setMutationWidgetsEnabled(false); 
 
-      setWindowTitle(QString::fromStdString(m_displayingMod->name)+" [Playing]");
-    }, [this,currentMod](){
-      if (currentMod != m_displayingMod.value()) return;
-      setMutationWidgetsEnabled(true);
+        setWindowTitle(QString::fromStdString(m_displayingMod->name)+" [Playing]");
+      }, [this,currentMod](){
+        if (currentMod != m_displayingMod.value()) return;
+        setMutationWidgetsEnabled(true);
 
-      setWindowTitle(QString::fromStdString(m_displayingMod->name));
+        setWindowTitle(QString::fromStdString(m_displayingMod->name));
 
-      updatePlaytimeLabel();
-    }, saveId);
+        updatePlaytimeLabel();
+      }, saveId);
+    } catch (std::exception& e) {
+      Dialog::showActionDialog(getMainWindow(), tr("Error"), tr("Failed to launch the mod: %1").arg(e.what()), "", Dialog::Confirm);
+    }
   }
 #endif
 }
@@ -482,6 +519,7 @@ void ModInfoScreen::onDeleteButtonClicked() {
   )) {
     ModsIndex::get()->removeMod(m_displayingMod.value());
     emit modUninstalled(m_displayingMod->id); 
+    m_router->navigate("/mods");
   }
 }
 

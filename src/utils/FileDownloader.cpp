@@ -10,14 +10,18 @@ extern "C" {
 #include <QUrlQuery>
 #include <QTimer>
 #include <QRandomGenerator>
+#include <QDebug>
 
 FileDownloader::FileDownloader(QObject *parent) : QObject(parent) {}
 
 void FileDownloader::download(const QString &sharingUrl, const QString &destinationFilePath) {
+    qDebug() << "FileDownloader: download requested from" << sharingUrl
+             << "to" << destinationFilePath;
     m_originalUrl = sharingUrl;
     m_destinationPath = destinationFilePath;
 
     if (m_currentReply) {
+        qDebug() << "FileDownloader: aborting previous reply";
         m_currentReply->abort();
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
@@ -25,10 +29,12 @@ void FileDownloader::download(const QString &sharingUrl, const QString &destinat
 
     // 1. Handle Google Drive Sharing Links
     if (sharingUrl.contains("drive.google.com")) {
+        qDebug() << "FileDownloader: detected Google Drive link";
         parseGoogleDriveUrl(sharingUrl);
     } 
     // 2. Handle MediaFire Sharing Links (Requires scraping layout)
     else if (sharingUrl.contains("mediafire.com")) {
+        qDebug() << "FileDownloader: detected MediaFire link";
         QNetworkRequest request{QUrl(sharingUrl)};
         request.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0");
         
@@ -37,6 +43,7 @@ void FileDownloader::download(const QString &sharingUrl, const QString &destinat
     } 
     // 3. Handle Standard Direct URLs (Validates if it points to an archive first)
     else {
+        qDebug() << "FileDownloader: treating link as direct URL";
         checkDirectUrl(QUrl(sharingUrl));
     }
 }
@@ -62,14 +69,20 @@ void FileDownloader::parseGoogleDriveUrl(const QString &urlStr) {
 }
 
 void FileDownloader::onInitialPageFinished() {
-    if (!m_currentReply) return;
+    if (!m_currentReply) {
+        qWarning() << "FileDownloader: initial response callback without reply";
+        return;
+    }
     
     QByteArray data = m_currentReply->readAll();
     int statusCode = m_currentReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     QString contentType = m_currentReply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
+    qDebug() << "FileDownloader: initial response status" << statusCode
+             << "content type" << contentType << "bytes" << data.size();
     
     if (m_currentReply->error() != QNetworkReply::NoError || (statusCode >= 400 && statusCode < 600)) {
         QString err = m_currentReply->errorString();
+        qWarning() << "FileDownloader: initial request failed:" << err;
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
         emit failed(QString("Failed to contact server landing page: %1").arg(err));

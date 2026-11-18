@@ -4,6 +4,7 @@
 #include <optional>
 #include <pybind11/embed.h>
 #include <stdexcept>
+#include <QDebug>
 
 namespace py = pybind11;
 
@@ -15,8 +16,10 @@ namespace ArchiveReader {
   py::module_ rpycReaderModule() {return rpycReader.value();};
 
   static py::bytes readFileToBytes(const std::filesystem::path& filepath) {
+    qDebug() << "ArchiveReader: reading loose file" << QString::fromStdString(filepath.string());
     std::ifstream file(filepath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
+      qWarning() << "ArchiveReader: could not open" << QString::fromStdString(filepath.string());
       throw std::runtime_error("Could not open file: " + filepath.string());
     }
 
@@ -24,22 +27,28 @@ namespace ArchiveReader {
     file.seekg(0, std::ios::beg);
     std::vector<char> buffer(static_cast<size_t>(size));
     if (!file.read(buffer.data(), size)) {
+      qWarning() << "ArchiveReader: short read for" << QString::fromStdString(filepath.string());
       throw std::runtime_error("Failed to read file contents: " + filepath.string());
     }
+    qDebug() << "ArchiveReader: loose file read" << buffer.size() << "bytes";
     return py::bytes(buffer.data(), buffer.size());
   }
 
   py::object readGameFile(const std::vector<std::filesystem::path>& gameDirs,
                           const std::string& filepath) {
+    qDebug() << "ArchiveReader: resolving game file" << QString::fromStdString(filepath);
     std::map<std::string, std::pair<std::string, py::object>, std::greater<std::string>> indexes;
 
     for (const auto& gameDir : gameDirs) {
       const auto looseFile = gameDir / filepath;
       if (std::filesystem::exists(looseFile)) {
+        qDebug() << "ArchiveReader: found loose file" << QString::fromStdString(looseFile.string());
         return readFileToBytes(looseFile);
       }
 
       if (!std::filesystem::exists(gameDir)) {
+        qWarning() << "ArchiveReader: game directory does not exist"
+                   << QString::fromStdString(gameDir.string());
         continue;
       }
       for (const auto& entry : std::filesystem::recursive_directory_iterator(gameDir)) {
@@ -52,6 +61,7 @@ namespace ArchiveReader {
         if (indexes.contains(archiveName)) {
           continue;
         }
+        qDebug() << "ArchiveReader: indexing RPA" << QString::fromStdString(archivePath);
         indexes[archiveName] = {
           archivePath,
           rpaReaderModule().attr("read_rpa_index")(archivePath)
@@ -62,15 +72,19 @@ namespace ArchiveReader {
     for (const auto& [archiveName, archive] : indexes) {
       const auto& archiveIndex = archive.second;
       if (archiveIndex.contains(filepath.c_str())) {
+        qDebug() << "ArchiveReader: extracting" << QString::fromStdString(filepath)
+                 << "from" << QString::fromStdString(archive.first);
         return rpaReaderModule().attr("extract_single_file")(
           archive.first, filepath, archiveIndex
         );
       }
     }
+    qDebug() << "ArchiveReader: file not found" << QString::fromStdString(filepath);
     return py::none{};
   }
 
   std::string readBuildId(const std::filesystem::path& gameDir) {
+    qDebug() << "ArchiveReader: reading build ID from" << QString::fromStdString(gameDir.string());
     auto optionsRpyc = readGameFile({gameDir}, "options.rpyc");
     if (optionsRpyc.is_none()) {
       throw std::runtime_error("Could not find options.rpyc in base game.");
@@ -94,6 +108,7 @@ namespace ArchiveReader {
   }
 
   void loadArchiveReaderModules() {
+    qDebug() << "ArchiveReader: loading embedded RPA/RPYC modules";
     rpaReader = py::module_::create_extension_module("rpaReader", "very simple .rpa reader", new PyModuleDef{});
 
     py::exec(R"(
