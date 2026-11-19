@@ -218,6 +218,8 @@ public:
     layout->addWidget(m_statusLabel);
 
     m_downloader = new FileDownloader(this);
+    // opens the mod url in the default browser if the download fails or extraction fails
+    // might not be ideal in a few cases though
     auto fallbackRoute = [this]() {
       QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
       m_taskFinished = true;
@@ -297,6 +299,22 @@ public:
           return;
         }
 
+        // if modDir is still empty, the archive possibly 
+        // does not contain a conventional renpy game packaging
+        //
+        // open the extracted folder and instruct user to install according to instructions if any
+
+        if (modDir.empty()) {
+          QMetaObject::invokeMethod(this, [this, fallbackRoute, extractDir]() {
+            m_statusLabel->setText(
+              tr("The downloaded mod does not contain a recognizable Ren'Py game structure. Please check the extracted folder at %1 for installation instructions.")
+                  .arg(extractDir.path()));
+            QDesktopServices::openUrl(QUrl::fromLocalFile(extractDir.path())); 
+            m_taskFinished = true;
+          }, Qt::QueuedConnection);
+          return;
+        }
+
         QFile::remove(filePath);
         QMetaObject::invokeMethod(this, [this]() {
           m_statusLabel->setText(tr("Installing..."));
@@ -320,9 +338,9 @@ public:
     });
     connect(m_downloader, &FileDownloader::failed, this,
             [this, fallbackRoute](const QString& reason) {
-              m_statusLabel->setText(tr("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));
-              fallbackRoute();
-            });
+        m_statusLabel->setText(tr("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));
+        fallbackRoute();
+      });
 
     const auto storagePath = QSettings().value(GSTK_STORAGE_PATH).toString();
     if (storagePath.isEmpty()) {
