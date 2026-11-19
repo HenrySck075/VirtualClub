@@ -4,12 +4,70 @@
 #include <QPainterPath>
 #include <QCheckBox>
 #include <QStyleOptionButton>
-#include <qgraphicseffect.h>
+#include <QGraphicsEffect>
 #include <QWindow>
 
 #include "../utils/EventFilters.hpp"
 #include "consts.hpp"
 #include "utils/LucideIcons.hpp"
+#include "utils/utils.hpp"
+
+void setupDesignStylesheet() {
+  qApp->setStyleSheet(QString(R"(
+QLabel, ElidedLabel {
+  font-family: Quicksand, Segoe UI;
+  color: %1;
+}
+
+QLineEdit {
+  border: 0px;
+  border-bottom: 2px solid %2;
+  font-family: Quicksand, Segoe UI;
+  padding: 4px;
+}
+
+QScrollBar {
+  background-color: transparent;
+}
+QScrollBar:vertical {
+  width: 14px;
+  margin: 4px 7px 4px 0px;
+}
+QScrollBar:horizontal {
+  height: 14px;
+  margin: 0px 4px 7px 4px;
+}
+QScrollBar::handle {
+  background-color: %1;
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+  width: 0px;
+  height: 0px;
+}
+
+QComboBox {
+  background-color: transparent;
+  border: 2px solid %1;
+  border-radius: 4px;
+  color: %2;
+  padding: 4px 8px;
+}
+
+QProgressBar {
+  border: 2px solid %1;
+  border-radius: 14px;
+  text-align: center;
+  height: 24px;
+  color: transparent;
+  background-color: transparent;
+}
+QProgressBar::chunk {
+  background-color: %2;
+  border-radius: 8px;
+  margin: 4px;
+}
+)").arg(qColorToCSSrgb(c_primaryColor)).arg(qColorToCSSrgb(c_secondaryColor)));
+}
 
 // ==========================================
 // Button Implementation

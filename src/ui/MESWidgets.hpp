@@ -156,4 +156,8 @@ protected:
         return rect().contains(pos);
     }
 };
+
+
+// QWidgets restyled
+void setupDesignStylesheet();
 #endif

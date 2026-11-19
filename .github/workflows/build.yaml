@@ -9,6 +9,9 @@ on:
   push:
     branches: [qt-cpp-mes]
 
+env:
+  NIGHTLY: ${{ (github.event_name == 'workflow_dispatch' && inputs.nightly) || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[release]')) }}
+
 jobs:
   build:
     name: Build on ${{ matrix.os }}
@@ -140,7 +143,7 @@ jobs:
           CC: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang' }}
           CXX: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang++' }}
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }}
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}"', github.sha) || '' }}
 
       # Build application
       - name: Build Project
@@ -189,7 +192,7 @@ jobs:
 
       - name: Create Release (Nightly)
         uses: andelf/nightly-release@main
-        if: (github.event_name == 'workflow_dispatch' && inputs.nightly) || (github.event_name == 'push' && !contains(github.event.head_commit.message, '[release]'))
+        if: env.NIGHTLY == 'true' 
         with:
           tag_name: 'nightly'
           name: Development release
@@ -204,7 +207,7 @@ jobs:
 
       - name: Create Release (Stable)
         uses: softprops/action-gh-release@v3
-        if: (github.event_name == 'workflow_dispatch' && !inputs.nightly) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]'))
+        if: env.NIGHTLY != 'true' 
         with:
           tag_name: v${{ needs.build.outputs.app_version }}
           name: Release v${{ needs.build.outputs.app_version }}

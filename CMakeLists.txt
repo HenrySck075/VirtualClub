@@ -5,8 +5,12 @@ if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported. Please use Clang instead. (i used clang extensively for development sorry abt that)")
 endif()
 
+if(NOT DEFINED MVC_VERSION)
+  set(MVC_VERSION "\"${PROJECT_VERSION}\"")
+endif()
+
 add_compile_definitions(
-  MVC_VERSION="${PROJECT_VERSION}"
+  MVC_VERSION=${MVC_VERSION}
 )
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
