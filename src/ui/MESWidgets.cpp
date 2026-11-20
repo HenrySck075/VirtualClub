@@ -259,7 +259,7 @@ void OverlayWidget::paintEvent(QPaintEvent*) {
   painter.fillRect(rect(), QColor(0, 0, 0, 110)); 
 }
 
-void OverlayWidget::mousePressEvent(QMouseEvent* event) {
+void OverlayWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton) {
     emit clicked();
   }
@@ -279,7 +279,7 @@ Dialog::Dialog(const QString& title,
   if (parent) {
     m_overlay = new OverlayWidget(parent);
     m_overlay->show();
-    connect(m_overlay, &OverlayWidget::clicked, this, &QDialog::reject);
+    connect(m_overlay, &OverlayWidget::clicked, this, &Dialog::close);
   }
 
   setWindowTitle(title);
@@ -316,7 +316,7 @@ Dialog::Dialog(const QString& title,
   closeButton->setCursor(Qt::PointingHandCursor);
   auto* eventFilter = new ClickEventFilter(closeButton);
   connect(eventFilter, &ClickEventFilter::clicked, this, [this](QWidget*) {
-      this->reject();
+      this->close();
   });
   closeButton->installEventFilter(eventFilter);
   titleLayout->addWidget(closeButton);
@@ -442,14 +442,11 @@ inline QColor editColor(QColor base, float a) {
 }
 
 void Dialog::closeEvent(QCloseEvent* event) {
-  if (m_content) {
-    event->setAccepted(m_content->allowClosing());
-    if (m_content->allowClosing()) {
-      reject();
-    }
+  if (m_content && !m_content->allowClosing()) {
+    event->ignore();
     return;
   }
-  reject();
+  QDialog::closeEvent(event);
 }
 void Dialog::paintEvent(QPaintEvent* /*event*/) {
   static const int titleBarHeight = TITLE_BAR_HEIGHT;
@@ -485,6 +482,21 @@ void Dialog::paintEvent(QPaintEvent* /*event*/) {
 void Dialog::showEvent(QShowEvent* event) {
   m_openSfx.play();
   QDialog::showEvent(event);
+}
+
+
+void Dialog::close() {
+  QDialog::close();
+}
+
+void Dialog::accept() {
+  if (!m_content || m_content->allowClosing()) {
+    QDialog::accept();
+  }
+}
+
+void Dialog::reject() {
+  close();
 }
 
 bool Dialog::showActionDialog(QWidget* parent, 

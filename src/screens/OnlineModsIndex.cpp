@@ -198,6 +198,7 @@ public:
   explicit DownloadDialogContent(OnlineMod mod, QWidget* parent = nullptr)
     : DialogContent(parent), m_mod(std::move(mod)) {
     setFixedWidth(420);
+    QPointer<DownloadDialogContent> self(this);
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(25, 20, 25, 20);
@@ -220,37 +221,41 @@ public:
     m_downloader = new FileDownloader(this);
     // opens the mod url in the default browser if the download fails or extraction fails
     // might not be ideal in a few cases though
-    auto fallbackRoute = [this]() {
-      QDesktopServices::openUrl(QUrl(QString::fromStdString(m_mod.url)));
-      m_taskFinished = true;
+    auto fallbackRoute = [self, modUrl = m_mod.url]() {
+      if (!self) return;
+      QDesktopServices::openUrl(QUrl(QString::fromStdString(modUrl)));
+      self->m_taskFinished = true;
     };
     connect(m_downloader, &FileDownloader::progress, this,
-            [this](qint64 bytesReceived, qint64 bytesTotal) {
+            [self](qint64 bytesReceived, qint64 bytesTotal) {
+              if (!self) return;
               if (bytesTotal > 0) {
-                m_progressBar->setValue(static_cast<int>((bytesReceived * 100) / bytesTotal));
-                m_statusLabel->setText(tr("Downloading... %1 / %2")
+                self->m_progressBar->setValue(static_cast<int>((bytesReceived * 100) / bytesTotal));
+                self->m_statusLabel->setText(tr("Downloading... %1 / %2")
                                          .arg(userReadableSize(bytesReceived))
                                          .arg(userReadableSize(bytesTotal)));
               } else {
-                m_progressBar->setRange(0, 0);
+                self->m_progressBar->setRange(0, 0);
                 //m_statusLabel->setText(tr("Downloaded %1 bytes").arg(bytesReceived));
               }
             });
     connect(m_downloader, &FileDownloader::finished, this,
-            [this, fallbackRoute](const QString& filePath) {
-      m_statusLabel->setText(tr("Extracting mod..."));
-      QThreadPool::globalInstance()->start([this, filePath, fallbackRoute]() {
+            [self, fallbackRoute, modName = m_mod.name](const QString& filePath) {
+      if (!self) return;
+      self->m_statusLabel->setText(tr("Extracting mod..."));
+      QThreadPool::globalInstance()->start([self, filePath, fallbackRoute, modName]() {
         const auto storagePath = QSettings().value(GSTK_STORAGE_PATH).toString();
         QDir storageDir(storagePath);
         if (storagePath.isEmpty() || !storageDir.mkpath(".")) {
-          QMetaObject::invokeMethod(this, [this, fallbackRoute]() {
-            m_statusLabel->setText(tr("Could not access the mod storage path."));
+          QMetaObject::invokeMethod(qApp, [self, fallbackRoute]() {
+            if (!self) return;
+            self->m_statusLabel->setText(tr("Could not access the mod storage path."));
             fallbackRoute();
           }, Qt::QueuedConnection);
           return;
         }
         // set extract folder to a subdirectory
-        auto extractDir = QDir(storageDir.filePath(QString::fromStdString(m_mod.name).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_")));
+        auto extractDir = QDir(storageDir.filePath(QString::fromStdString(modName).replace(QRegularExpression("[^A-Za-z0-9._-]+"), "_")));
         std::string modDir = "";
 
         auto fp = filePath.toUtf8();
@@ -260,22 +265,24 @@ public:
 
         const int numFiles = countArchiveEntries(fp.constData());
         if (numFiles < 0) {
-          QMetaObject::invokeMethod(this, [this]() {
-            m_statusLabel->setText(tr("Could not open the downloaded archive."));
-            m_taskFinished = true;
+          QMetaObject::invokeMethod(qApp, [self]() {
+            if (!self) return;
+            self->m_statusLabel->setText(tr("Could not open the downloaded archive."));
+            self->m_taskFinished = true;
           }, Qt::QueuedConnection);
           return;
         }
 
-        QMetaObject::invokeMethod(this, [this, numFiles]() {
-          m_progressBar->setRange(0, numFiles);
+        QMetaObject::invokeMethod(qApp, [self, numFiles]() {
+          if (!self) return;
+          self->m_progressBar->setRange(0, numFiles);
         }, Qt::QueuedConnection);
 
         std::string error;
         int extractedFiles = 0;
         const int result = extractArchive(
           fp.constData(), extractDir.path().toUtf8().constData(),
-          [this, &modDir, &extractedFiles, &extractDir](const char* filename) {
+          [self, &modDir, &extractedFiles, &extractDir](const char* filename) {
           // if file name of fp is either "scripts.rpa" or "script.rpyc", 
           // set modDir to the grandparent folder
           std::string_view fpv(filename);
@@ -285,13 +292,14 @@ public:
           }
           extractedFiles++;
           const int progress = extractedFiles;
-          QMetaObject::invokeMethod(this, [this, progress]() {
-            m_progressBar->setValue(progress);
+          QMetaObject::invokeMethod(qApp, [self, progress]() {
+            if (self) self->m_progressBar->setValue(progress);
           }, Qt::QueuedConnection);
           }, error);
         if (result != 0) {
-          QMetaObject::invokeMethod(this, [this, fallbackRoute, error]() {
-            m_statusLabel->setText(
+          QMetaObject::invokeMethod(qApp, [self, fallbackRoute, error]() {
+            if (!self) return;
+            self->m_statusLabel->setText(
               tr("Could not extract the downloaded mod: %1")
                   .arg(QString::fromStdString(error)));
             fallbackRoute();
@@ -305,30 +313,32 @@ public:
         // open the extracted folder and instruct user to install according to instructions if any
 
         if (modDir.empty()) {
-          QMetaObject::invokeMethod(this, [this, fallbackRoute, extractDir]() {
-            m_statusLabel->setText(
+          QMetaObject::invokeMethod(qApp, [self, extractDir]() {
+            if (!self) return;
+            self->m_statusLabel->setText(
               tr("The downloaded mod does not contain a recognizable Ren'Py game structure. Please check the extracted folder at %1 for installation instructions.")
                   .arg(extractDir.path()));
             QDesktopServices::openUrl(QUrl::fromLocalFile(extractDir.path())); 
-            m_taskFinished = true;
+            self->m_taskFinished = true;
           }, Qt::QueuedConnection);
           return;
         }
 
         QFile::remove(filePath);
-        QMetaObject::invokeMethod(this, [this]() {
-          m_statusLabel->setText(tr("Installing..."));
+        QMetaObject::invokeMethod(qApp, [self]() {
+          if (self) self->m_statusLabel->setText(tr("Installing..."));
         }, Qt::QueuedConnection);
 
-        QMetaObject::invokeMethod(this, [this, fallbackRoute, modDir]() {
+        QMetaObject::invokeMethod(qApp, [self, fallbackRoute, modDir]() {
+          if (!self) return;
           try {
             ModsIndex::get()->installMod(modDir);
-            m_progressBar->setValue(100);
-            m_statusLabel->setText(tr("Download complete."));
-            m_taskFinished = true;
-            closeDialog();
+            self->m_progressBar->setValue(100);
+            self->m_statusLabel->setText(tr("Download complete."));
+            self->m_taskFinished = true;
+            self->closeDialog();
           } catch (const std::exception& e) {
-            m_statusLabel->setText(
+            self->m_statusLabel->setText(
               tr("Could not install the downloaded mod: %1")
                   .arg(QString::fromStdString(e.what())));
             fallbackRoute();
@@ -337,8 +347,9 @@ public:
       });
     });
     connect(m_downloader, &FileDownloader::failed, this,
-            [this, fallbackRoute](const QString& reason) {
-        m_statusLabel->setText(tr("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));
+            [self, fallbackRoute](const QString& reason) {
+        if (!self) return;
+        self->m_statusLabel->setText(tr("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));
         fallbackRoute();
       });
 

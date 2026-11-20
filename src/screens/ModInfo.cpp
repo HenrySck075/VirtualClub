@@ -488,18 +488,19 @@ void ModInfoScreen::play(const QString& saveId) {
 #ifdef MVC_VFS_AVAILABLE
   if (m_displayingMod.has_value()) {
     ModsIndex::Mod currentMod = m_displayingMod.value();
+    QPointer<ModInfoScreen> screen(this);
     try {
-      SessionManager::launch(m_displayingMod.value(), [this](){
-        setMutationWidgetsEnabled(false); 
-
-        setWindowTitle(QString::fromStdString(m_displayingMod->name)+" [Playing]");
-      }, [this,currentMod](){
-        if (currentMod != m_displayingMod.value()) return;
-        setMutationWidgetsEnabled(true);
-
-        setWindowTitle(QString::fromStdString(m_displayingMod->name));
-
-        updatePlaytimeLabel();
+      SessionManager::launch(m_displayingMod.value(), [screen, currentMod](){
+      if (!screen || !screen->m_displayingMod.has_value() ||
+          currentMod != screen->m_displayingMod.value()) return;
+        screen->setMutationWidgetsEnabled(false);
+        screen->setWindowTitle(QString::fromStdString(currentMod.name)+" [Playing]");
+      }, [screen,currentMod](){
+        if (!screen || !screen->m_displayingMod.has_value() ||
+            currentMod != screen->m_displayingMod.value()) return;
+        screen->setMutationWidgetsEnabled(true);
+        screen->setWindowTitle(QString::fromStdString(currentMod.name));
+        screen->updatePlaytimeLabel();
       }, saveId);
     } catch (std::exception& e) {
       Dialog::showActionDialog(getMainWindow(), tr("Error"), tr("Failed to launch the mod: %1").arg(e.what()), "", Dialog::Confirm);

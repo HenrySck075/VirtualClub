@@ -14,9 +14,12 @@ ProfileSingleApp::~ProfileSingleApp() {
     if (m_localServer) {
         m_localServer->close();
     }
-    if (m_lockFile && m_lockFile->isLocked()) {
-        m_lockFile->unlock();
+    if (m_lockFile) {
+        if (m_lockFile->isLocked()) {
+            m_lockFile->unlock();
+        }
         delete m_lockFile;
+        m_lockFile = nullptr;
     }
 }
 
@@ -69,7 +72,6 @@ const void ProfileSingleApp::setProfileId(const QString &profileId) {
                        + QString("/vcprofile_%1.lock").arg(QString(hash));
     
     m_lockFile = new QLockFile(lockPath);
-    m_lockFile->setStaleLockTime(0); // Prevent delayed takeover if crashed
 
     // 3. Try to acquire the primary lock for this profile
     if (!m_lockFile->tryLock()) {
@@ -99,13 +101,25 @@ void ProfileSingleApp::handleNewConnection() {
     if (!socket) return;
 
     connect(socket, &QLocalSocket::readyRead, this, [this, socket]() {
-        QDataStream in(socket);
+        QByteArray &pending = m_pendingMessages[socket];
+        pending.append(socket->readAll());
+
+        QDataStream in(pending);
         in.setVersion(QDataStream::Qt_6_0);
 
         QStringList receivedArgs;
         in >> receivedArgs;
+        if (in.status() != QDataStream::Ok) {
+            return;
+        }
 
+        m_pendingMessages.remove(socket);
         emit messageReceivedFromSecondary(receivedArgs);
+        socket->deleteLater();
+    });
+
+    connect(socket, &QLocalSocket::disconnected, this, [this, socket]() {
+        m_pendingMessages.remove(socket);
         socket->deleteLater();
     });
 }

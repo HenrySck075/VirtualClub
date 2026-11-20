@@ -61,7 +61,7 @@ signals:
     void clicked();
 protected:
     void paintEvent(QPaintEvent* event) override;
-    void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
 };
 
 class Dialog;
@@ -118,6 +118,11 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
+
+    void close();
+
+    void accept() override;
+    void reject() override;
 
     bool eventFilter(QObject* watched, QEvent* event) override;
 

@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <qsharedpointer.h>
+#include <QHash>
 
 class ProfileSingleApp : public QApplication {
     Q_OBJECT
@@ -43,6 +44,7 @@ private:
 
     QLockFile *m_lockFile = nullptr;
     QLocalServer *m_localServer = nullptr;
+    QHash<QLocalSocket*, QByteArray> m_pendingMessages;
 };
 
 #endif // PROFILESINGLEAPP_H

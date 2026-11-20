@@ -54,7 +54,10 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
     mod
   );
 
-  instance->mount();
+  if (!instance->mount()) {
+    m_mountedMods.erase(mod.id);
+    throw std::runtime_error("Could not mount the mod virtual filesystem.");
+  }
   qDebug() << "SessionManager: mounted mod" << QString::fromStdString(mod.id)
            << "at" << instance->mountPath();
 
