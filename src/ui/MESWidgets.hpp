@@ -71,15 +71,14 @@ class DialogContent : public QWidget {
 private:
   // contrary to what you might think, this variable is only valid for the duration of Dialog::showContentDialog. its null at any other moments.
   Dialog* m_dialog = nullptr;
+  bool m_allowClosing = true;
   friend class Dialog;
 protected:
   // the stack "owns this pointer", so if you do weird stuff to it like delete then good luck handling the aftermath :)
   Dialog* dialog() {return m_dialog;}
+  void setAllowClosing(bool allowClosing);
 public:
   void closeDialog();
-
-  // called when the dialog is about to close.
-  virtual bool allowClosing() {return true;};
   
   explicit DialogContent(QWidget* parent = nullptr) : QWidget(parent) {};
 };
@@ -114,6 +113,9 @@ public:
                            QSize size = {},
                            QString openSfx = "qrc:/audio/sidebar_click.wav");
 
+signals:
+    void closed();
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void showEvent(QShowEvent* event) override;
@@ -121,10 +123,17 @@ protected:
 
     void close();
 
+    virtual bool allowClosing() const;
+
     void accept() override;
     void reject() override;
 
     bool eventFilter(QObject* watched, QEvent* event) override;
+
+public:
+    void setAllowClosing(bool allowClosing);
+    void setClosable(bool closable) { setAllowClosing(closable); }
+    void setCloseButtonVisible(bool visible);
 
 private:
     static constexpr int BOTTOM_BAR_HEIGHT = 20;
@@ -142,6 +151,8 @@ private:
     OverlayWidget* m_overlay = nullptr;
 
     DialogContent* m_content = nullptr;
+    QLabel* m_closeButton = nullptr;
+    bool m_allowClosing = true;
 };
 
 

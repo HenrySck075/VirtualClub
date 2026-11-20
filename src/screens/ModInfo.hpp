@@ -23,6 +23,7 @@ private:
   void play(const QString& saveId = "");
   void onOpenModDirClicked();
   void onDeleteButtonClicked();
+  void onEditButtonClicked();
   void updatePlaytimeLabel();
 
   void setMutationWidgetsEnabled(bool enabled);
@@ -30,11 +31,13 @@ private:
   PixmapWidget* m_modIconLabel = nullptr;
   QLabel* m_modNameLabel = nullptr;
   QLabel* m_modVersionLabel = nullptr;
+  QLabel* m_modIdLabel = nullptr;
   QLabel* m_playtimeLabel = nullptr;
 
   Button* m_playButton = nullptr;
   Button* m_playFromSaveButton = nullptr;
   Button* m_deleteButton = nullptr;
+  Button* m_editButton = nullptr;
 
   Switch* m_developerModeSwitch = nullptr;
   Switch* m_forceRecompileSwitch = nullptr;

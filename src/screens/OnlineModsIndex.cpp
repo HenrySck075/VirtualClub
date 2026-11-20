@@ -170,8 +170,14 @@ private:
   FileDownloader* m_downloader = nullptr;
   QProgressBar* m_progressBar = nullptr;
   QLabel* m_statusLabel = nullptr;
+  Button* m_cancelButton = nullptr;
 
-  bool m_taskFinished = false;
+  void finishTask() {
+    setAllowClosing(true);
+    if (m_cancelButton) {
+      m_cancelButton->setEnabled(false);
+    }
+  }
 
   static QString downloadFileName(const OnlineMod& mod) {
     /*
@@ -191,12 +197,9 @@ private:
   }
 
 public:
-  bool allowClosing() override {
-    return m_taskFinished;
-  }
-
   explicit DownloadDialogContent(OnlineMod mod, QWidget* parent = nullptr)
     : DialogContent(parent), m_mod(std::move(mod)) {
+    setAllowClosing(true);
     setFixedWidth(420);
     QPointer<DownloadDialogContent> self(this);
 
@@ -218,13 +221,28 @@ public:
     m_statusLabel->setWordWrap(true);
     layout->addWidget(m_statusLabel);
 
+    m_cancelButton = new Button(tr("Cancel"), this);
+    m_cancelButton->setEnabled(true);
+    layout->addWidget(m_cancelButton, 0, Qt::AlignHCenter);
+
     m_downloader = new FileDownloader(this);
-    // opens the mod url in the default browser if the download fails or extraction fails
+    auto onCancel = [self]() {
+      if (!self || !self->m_downloader) return;
+      self->m_downloader->cancel();
+    };
+    connect(m_cancelButton, &Button::clicked, this, onCancel);
+    connect(dialog(), &Dialog::closed, this, onCancel);
+    connect(m_downloader, &FileDownloader::cancelled, this, [self]() {
+      if (!self) return;
+      self->m_statusLabel->setText(tr("Download cancelled."));
+      self->finishTask();
+    });
+    // opens the mod url in the default browser if the download fails 
     // might not be ideal in a few cases though
     auto fallbackRoute = [self, modUrl = m_mod.url]() {
       if (!self) return;
       QDesktopServices::openUrl(QUrl(QString::fromStdString(modUrl)));
-      self->m_taskFinished = true;
+      self->finishTask();
     };
     connect(m_downloader, &FileDownloader::progress, this,
             [self](qint64 bytesReceived, qint64 bytesTotal) {
@@ -242,6 +260,8 @@ public:
     connect(m_downloader, &FileDownloader::finished, this,
             [self, fallbackRoute, modName = m_mod.name](const QString& filePath) {
       if (!self) return;
+      self->m_cancelButton->setEnabled(false);
+      self->setAllowClosing(false);
       self->m_statusLabel->setText(tr("Extracting mod..."));
       QThreadPool::globalInstance()->start([self, filePath, fallbackRoute, modName]() {
         const auto storagePath = QSettings().value(GSTK_STORAGE_PATH).toString();
@@ -268,7 +288,7 @@ public:
           QMetaObject::invokeMethod(qApp, [self]() {
             if (!self) return;
             self->m_statusLabel->setText(tr("Could not open the downloaded archive."));
-            self->m_taskFinished = true;
+            self->finishTask();
           }, Qt::QueuedConnection);
           return;
         }
@@ -319,7 +339,7 @@ public:
               tr("The downloaded mod does not contain a recognizable Ren'Py game structure. Please check the extracted folder at %1 for installation instructions.")
                   .arg(extractDir.path()));
             QDesktopServices::openUrl(QUrl::fromLocalFile(extractDir.path())); 
-            self->m_taskFinished = true;
+            self->finishTask();
           }, Qt::QueuedConnection);
           return;
         }
@@ -335,7 +355,7 @@ public:
             ModsIndex::get()->installMod(modDir);
             self->m_progressBar->setValue(100);
             self->m_statusLabel->setText(tr("Download complete."));
-            self->m_taskFinished = true;
+            self->finishTask();
             self->closeDialog();
           } catch (const std::exception& e) {
             self->m_statusLabel->setText(
@@ -358,7 +378,7 @@ public:
       // this only happens if the user edits the configs file.
       // or maybe unreachable because it's reset to the default in main
       m_statusLabel->setText("Mod storage path is not set. Please set it in the settings.");
-      m_taskFinished = true;
+      finishTask();
       return;
     }
     const auto tempPath = QDir(storagePath).filePath("tempdl");

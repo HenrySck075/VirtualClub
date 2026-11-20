@@ -160,6 +160,72 @@ void writeIconsFromFile(std::string id, std::string file) {
   writeIcons(id, buffer.data(), fileSize);
 }
 
+void ModsIndex::updateMod(const Mod& mod, const QString& iconPath) {
+  auto it = std::find_if(m_modsList.begin(), m_modsList.end(),
+                         [&mod](const Mod& candidate) {
+                           return candidate.id == mod.id;
+                         });
+  if (it == m_modsList.end()) {
+    throw std::invalid_argument("Supplied mod of ID " + mod.id + " does not exist.");
+  }
+
+  *it = mod;
+
+  if (!iconPath.isEmpty()) {
+    QPixmap source(iconPath);
+    if (source.isNull()) {
+      throw std::invalid_argument("Could not load the selected icon image.");
+    }
+
+    QSize squareSize(std::max(source.width(), source.height()),
+                     std::max(source.width(), source.height()));
+    QPixmap square = source.scaled(squareSize, Qt::KeepAspectRatioByExpanding,
+                                   Qt::SmoothTransformation);
+    QRect crop((square.width() - std::min(source.width(), source.height())) / 2,
+               (square.height() - std::min(source.width(), source.height())) / 2,
+               std::min(source.width(), source.height()),
+               std::min(source.width(), source.height()));
+    square = square.copy(crop);
+    square = square.scaled(512, 512, Qt::IgnoreAspectRatio,
+                           Qt::SmoothTransformation);
+
+    const auto iconsDir = std::filesystem::path(
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
+    ) / "icons";
+    std::error_code ec;
+    std::filesystem::create_directories(iconsDir, ec);
+    if (ec) {
+      throw std::filesystem::filesystem_error("Could not create icon directory", iconsDir, ec);
+    }
+
+    const auto originalPath = iconsDir / (mod.id + ".png");
+    const auto scaledPath = iconsDir / (mod.id + ".scaled.png");
+    if (!square.save(QString::fromStdString(originalPath.string()), "PNG")) {
+      throw std::runtime_error("Could not write the mod icon.");
+    }
+    const QPixmap scaled = square.scaled(80, 80, Qt::IgnoreAspectRatio,
+                                         Qt::SmoothTransformation);
+    if (!scaled.save(QString::fromStdString(scaledPath.string()), "PNG")) {
+      throw std::runtime_error("Could not write the scaled mod icon.");
+    }
+  }
+
+  QMap<QString, QVariant> mods;
+  for (const auto& storedMod : m_modsList) {
+    QVariantMap modMap;
+    modMap["name"] = QString::fromStdString(storedMod.name);
+    modMap["version"] = QString::fromStdString(storedMod.version);
+    modMap["buildId"] = QString::fromStdString(storedMod.buildId);
+    modMap["path"] = QString::fromStdString(storedMod.modPath);
+    modMap["enableDeveloper"] = storedMod.enableDeveloper;
+    modMap["forceRecompile"] = storedMod.forceRecompile;
+    mods[QString::fromStdString(storedMod.id)] = modMap;
+  }
+  m_store->setValue("mods", mods);
+  m_store->save();
+  emit modUpdated(mod);
+}
+
 std::string ModsIndex::Mod::getIconPath() const {
   qDebug() << "ModsIndex: resolving icon path for mod" << QString::fromStdString(id);
   const auto iconsDir = std::filesystem::path(

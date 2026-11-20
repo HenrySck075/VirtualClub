@@ -14,7 +14,26 @@ extern "C" {
 
 FileDownloader::FileDownloader(QObject *parent) : QObject(parent) {}
 
+void FileDownloader::cancel() {
+    if (m_cancelled) return;
+    m_cancelled = true;
+
+    if (m_saveFile) {
+        m_saveFile->cancelWriting();
+        m_saveFile.reset();
+    }
+
+    if (m_currentReply) {
+        m_currentReply->abort();
+        m_currentReply->deleteLater();
+        m_currentReply = nullptr;
+    }
+
+    emit cancelled();
+}
+
 void FileDownloader::download(const QString &sharingUrl, const QString &destinationFilePath) {
+    m_cancelled = false;
     qDebug() << "FileDownloader: download requested from" << sharingUrl
              << "to" << destinationFilePath;
     m_originalUrl = sharingUrl;
@@ -276,6 +295,7 @@ void FileDownloader::parseMediaFirePage(const QString &htmlContent) {
     // Delay download by a random interval between 3-4s on purpose
     // idk just in case
     QTimer::singleShot(QRandomGenerator::global()->bounded(3000, 4000), this, [this, downloadUrl]() {
+        if (m_cancelled) return;
         processDirectUrl(QUrl(downloadUrl));
     });
 }
@@ -351,6 +371,7 @@ bool FileDownloader::isArchiveFile(const QUrl &url, QNetworkReply *headReply) {
 }
 
 void FileDownloader::processDirectUrl(const QUrl &directUrl) {
+    if (m_cancelled) return;
     qDebug() << "Downloading" << directUrl;
     QNetworkRequest request(directUrl);
     // FollowRedirectAttribute is omitted; Qt6 handles safe redirects automatically.

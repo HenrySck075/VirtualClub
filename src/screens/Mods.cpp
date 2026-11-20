@@ -365,6 +365,11 @@ ModsScreen::ModsScreen(Router* router, QWidget *parent)
           this, &ModsScreen::addModItem);
   connect(ModsIndex::get().get(), &ModsIndex::modRemoved,
           this, &ModsScreen::removeModItem);
+  connect(ModsIndex::get().get(), &ModsIndex::modUpdated,
+          this, [this](ModsIndex::Mod mod) {
+    removeModItem(QString::fromStdString(mod.id));
+    addModItem(mod);
+  });
 
   updateModsListDisplay();
 }

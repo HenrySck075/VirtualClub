@@ -23,6 +23,11 @@
 #include <string_view>
 #include <unordered_map>
 #include <QVariantAnimation>
+#include <QApplication>
+#include <QClipboard>
+#include <QFileDialog>
+#include <QLineEdit>
+#include "../utils/EventFilters.hpp"
 
 namespace {
 std::unordered_map<std::string, std::vector<unsigned char>> readArchiveEntry(
@@ -301,6 +306,108 @@ public:
   }
 };
 
+class EditModDialogContent : public DialogContent {
+  Q_OBJECT
+  ModsIndex::Mod m_mod;
+  QPointer<ModInfoScreen> m_modInfoScreen;
+  PixmapWidget* m_logoPreview = nullptr;
+  QLineEdit* m_nameEdit = nullptr;
+  QLineEdit* m_versionEdit = nullptr;
+  QString m_selectedIconPath;
+
+public:
+  explicit EditModDialogContent(const ModsIndex::Mod& mod,
+                                ModInfoScreen* modInfoScreen)
+    : m_mod(mod), m_modInfoScreen(modInfoScreen) {
+    auto* layout = new QVBoxLayout(this);
+    layout->setSpacing(8);
+    layout->setAlignment(Qt::AlignTop);
+
+    auto* logoRow = new QHBoxLayout();
+    m_logoPreview = new PixmapWidget();
+    m_logoPreview->setFixedSize(160, 160);
+    m_logoPreview->setPixmap(QPixmap(QString::fromStdString(mod.getIconPath())));
+    logoRow->addWidget(m_logoPreview);
+
+    auto* logoSide = new QVBoxLayout();
+    logoSide->setAlignment(Qt::AlignTop);
+    auto* logoLabel = new QLabel(tr("Logo"));
+    logoSide->addWidget(logoLabel);
+    auto* chooseLogoButton =
+        new Button(tr("Choose image"), LucideIcons::image_up, this);
+    logoSide->addWidget(chooseLogoButton, 0, Qt::AlignLeft);
+    auto* logoHint = new QLabel(
+        tr("The image will be center-cropped to a square."));
+    logoHint->setWordWrap(true);
+    logoSide->addWidget(logoHint);
+    logoRow->addLayout(logoSide);
+    layout->addLayout(logoRow);
+
+    connect(chooseLogoButton, &Button::clicked, this, [this]() {
+      const QString path = QFileDialog::getOpenFileName(
+          this, tr("Choose mod logo"), QString(),
+          tr("Images (*.png *.jpg *.jpeg *.webp *.bmp)"));
+      if (path.isEmpty()) return;
+      QPixmap image(path);
+      if (image.isNull()) {
+        Dialog::showActionDialog(getMainWindow(), tr("Error"),
+                                 tr("Could not load the selected image."),
+                                 "", Dialog::Confirm);
+        return;
+      }
+      m_selectedIconPath = path;
+      m_logoPreview->setPixmap(image);
+    });
+
+    auto addField = [layout](const QString& labelText, QLineEdit* edit) {
+      auto* fieldLayout = new QVBoxLayout();
+      fieldLayout->setSpacing(2);
+      fieldLayout->addWidget(new QLabel(labelText));
+      fieldLayout->addWidget(edit);
+      layout->addLayout(fieldLayout);
+    };
+
+    m_nameEdit = new QLineEdit(QString::fromStdString(mod.name), this);
+    addField(tr("Name"), m_nameEdit);
+    m_versionEdit = new QLineEdit(QString::fromStdString(mod.version), this);
+    addField(tr("Version"), m_versionEdit);
+
+    layout->addStretch(1);
+
+    auto* buttons = new QHBoxLayout();
+    buttons->addStretch();
+    auto* cancelButton = new Button(tr("Cancel"), this);
+    auto* saveButton = new Button(tr("Save"), this);
+    buttons->addWidget(cancelButton);
+    buttons->addWidget(saveButton);
+    layout->addLayout(buttons);
+
+    connect(cancelButton, &Button::clicked, this, &EditModDialogContent::closeDialog);
+    connect(saveButton, &Button::clicked, this, [this]() {
+      if (m_nameEdit->text().trimmed().isEmpty()) {
+        m_nameEdit->setFocus();
+        return;
+      }
+
+      ModsIndex::Mod updated = m_mod;
+      updated.name = m_nameEdit->text().trimmed().toStdString();
+      updated.version = m_versionEdit->text().trimmed().toStdString();
+      try {
+        ModsIndex::get()->updateMod(
+            updated, m_selectedIconPath.isEmpty() ? QString() : m_selectedIconPath);
+      } catch (const std::exception& error) {
+        Dialog::showActionDialog(getMainWindow(), tr("Error"),
+                                 tr("Failed to update the mod: %1")
+                                     .arg(error.what()),
+                                 "", Dialog::Confirm);
+        return;
+      }
+      if (m_modInfoScreen) m_modInfoScreen->setDisplayingMod(updated);
+      closeDialog();
+    });
+  }
+};
+
 
 ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent), m_router(router) {
   // Set up the layout for the ModInfo screen
@@ -346,6 +453,21 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   m_modVersionLabel->setFont(QFont("Quicksand", 16));
   headerLayout2->addWidget(m_modVersionLabel);
 
+  m_modIdLabel = new QLabel();
+  m_modIdLabel->setFont(QFont("Quicksand", 9));
+  m_modIdLabel->setStyleSheet("color: #777777;");
+  m_modIdLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  m_modIdLabel->setCursor(Qt::PointingHandCursor);
+  m_modIdLabel->setToolTip(tr("Click to copy mod ID"));
+  auto* idClickFilter = new ClickEventFilter(m_modIdLabel);
+  m_modIdLabel->installEventFilter(idClickFilter);
+  connect(idClickFilter, &ClickEventFilter::clicked, this, [this]() {
+    if (!m_displayingMod) return;
+    QApplication::clipboard()->setText(
+        QString::fromStdString(m_displayingMod->id));
+  });
+  headerLayout2->addWidget(m_modIdLabel);
+
   auto* openModDirButton = new Button(LucideIcons::folder);
   openModDirButton->setText(tr("Open mod directory"));
   connect(openModDirButton, &Button::clicked, this, &ModInfoScreen::onOpenModDirClicked);
@@ -386,6 +508,11 @@ ModInfoScreen::ModInfoScreen(Router* router, QWidget* parent) : QWidget(parent),
   m_deleteButton = new Button(tr("Uninstall"), LucideIcons::trash);
   connect(m_deleteButton, &Button::clicked, this, &ModInfoScreen::onDeleteButtonClicked);
   contentLayout->addWidget(m_deleteButton);
+
+  m_editButton = new Button(tr("Edit metadata"), LucideIcons::pen);
+  connect(m_editButton, &Button::clicked, this,
+          &ModInfoScreen::onEditButtonClicked);
+  contentLayout->addWidget(m_editButton);
 
   auto openMountDirButton = new Button(tr("Open mount folder"),LucideIcons::folder_open_dot);
   connect(openMountDirButton, &Button::clicked, this, [this](){
@@ -524,12 +651,20 @@ void ModInfoScreen::onDeleteButtonClicked() {
   }
 }
 
+void ModInfoScreen::onEditButtonClicked() {
+  if (!m_displayingMod) return;
+  Dialog::showContentDialog(getMainWindow(), tr("Edit mod metadata"),
+                            new EditModDialogContent(m_displayingMod.value(), this),
+                            {520, 520});
+}
+
 void ModInfoScreen::setMutationWidgetsEnabled(bool enabled) {
   m_playButton->setEnabled(enabled);
   m_playFromSaveButton->setEnabled(enabled);
   m_developerModeSwitch->setEnabled(enabled);
   m_forceRecompileSwitch->setEnabled(enabled);
   m_deleteButton->setEnabled(enabled);
+  m_editButton->setEnabled(enabled);
 }
 
 void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
@@ -541,6 +676,7 @@ void ModInfoScreen::setDisplayingMod(const ModsIndex::Mod& mod) {
 
   m_modNameLabel->setText(mod.name.c_str());
   m_modVersionLabel->setText(tr("Version: %1").arg(QString::fromStdString(mod.version)));
+  m_modIdLabel->setText(tr("ID: %1").arg(QString::fromStdString(mod.id)));
 
   m_developerModeSwitch->setChecked(m_displayingMod->enableDeveloper);
   m_forceRecompileSwitch->setChecked(m_displayingMod->forceRecompile);

@@ -31,7 +31,7 @@ void TrayIcon::updateTooltip() {
     }
   }
 
-  if (!sessionStatus.isEmpty()) sessionStatus = "(" + sessionStatus + ")";
+  if (!sessionStatus.isEmpty()) sessionStatus = " (" + sessionStatus + ")";
 
   trayIcon->setToolTip(QString("VirtualClub - %1%2").arg(
     ProfileSingleApp::instance()->profileName(),

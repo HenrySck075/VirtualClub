@@ -50,11 +50,13 @@ public:
 signals:
   void recentlyPlayedUpdated();
   void modInstalled(Mod mod);
+  void modUpdated(Mod mod);
   void modRemoved(QString modId);
 
 public:
   const std::vector<Mod>& getMods();
   Mod installMod(std::filesystem::path path);
+  void updateMod(const Mod& mod, const QString& iconPath = {});
   void removeMod(Mod& mod);
   const Mod& getModByID(std::string id);
 };

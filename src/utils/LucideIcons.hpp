@@ -64,6 +64,7 @@ inline static const LucideIcon folder_open_dot{":/icons/folder_open_dot.svg"};
 inline static const LucideIcon folder_pen{":/icons/folder_pen.svg"};
 inline static const LucideIcon globe{":/icons/globe.svg"};
 inline static const LucideIcon house{":/icons/house.svg"};
+inline static const LucideIcon image_up{":/icons/image_up.svg"};
 inline static const LucideIcon library{":/icons/library.svg"};
 inline static const LucideIcon link{":/icons/link.svg"};
 inline static const LucideIcon loader_circle{":/icons/loader_circle.svg"};

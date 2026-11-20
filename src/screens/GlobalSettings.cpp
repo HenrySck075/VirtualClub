@@ -11,6 +11,7 @@
 
 #include "../ui/GradientBackground.hpp"
 #include "../ui/MESWidgets.hpp"
+#include "MainWindow.hpp"
 #include "consts.hpp"
 #include "ui/IconButton.hpp"
 #include "ui/Router.hpp"
@@ -21,18 +22,18 @@ bool moveStorageContents(const QString& sourcePath, const QString& destinationPa
   QDir source(sourcePath);
   QDir destination(destinationPath);
 
-  if (!source.exists() || !destination.exists()) {
-    return false;
-  }
+#define verify(condition,...) if (condition) {qDebug() << "moveStorageContents():"<<__VA_ARGS__; return false;}
+
+  verify(!source.exists() || !destination.exists(), (source.exists() ? "destination" : "source") << "doesn't exist");
 
   const QString sourceCanonicalPath = QFileInfo(sourcePath).canonicalFilePath();
   const QString destinationCanonicalPath = QFileInfo(destinationPath).canonicalFilePath();
-  if (sourceCanonicalPath.isEmpty() || destinationCanonicalPath.isEmpty()
-      || destinationCanonicalPath == sourceCanonicalPath
-      || destinationCanonicalPath.startsWith(sourceCanonicalPath + QDir::separator())
-      || sourceCanonicalPath.startsWith(destinationCanonicalPath + QDir::separator())) {
-    return false;
-  }
+
+  verify(sourceCanonicalPath.isEmpty(), "source directory is somehow empty");
+  verify(!destinationCanonicalPath.isEmpty(), "destination directory is not empty");
+  verify(destinationCanonicalPath == sourceCanonicalPath, "source is the same as dest");
+  verify(destinationCanonicalPath.startsWith(sourceCanonicalPath + QDir::separator()), "dest is a subfolder of source");
+  verify(sourceCanonicalPath.startsWith(destinationCanonicalPath + QDir::separator()), "source is a subfolder of dest");
 
   const auto entries = source.entryInfoList(
       QDir::AllEntries | QDir::NoDotAndDotDot,
@@ -125,7 +126,7 @@ GlobalSettingsScreen::GlobalSettingsScreen(Router *router, QWidget *parent) : QW
     const QString message = tr("Move all launcher data from \"%1\" to \"%2\"?")
                                 .arg(currentPath, selectedPath);
     if (!Dialog::showActionDialog(
-            this,
+            getMainWindow(),
             tr("Confirm storage path"),
             message,
             tr("The existing storage directory will be emptied after its contents are moved."),
@@ -137,7 +138,7 @@ GlobalSettingsScreen::GlobalSettingsScreen(Router *router, QWidget *parent) : QW
 
     if (!moveStorageContents(currentPath, selectedPath)) {
       Dialog::showActionDialog(
-          this,
+          getMainWindow(),
           tr("Storage path not changed"),
           tr("Could not move all launcher data to the selected directory."),
           tr("Choose an empty directory and try again."),

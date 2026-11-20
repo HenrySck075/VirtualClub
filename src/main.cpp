@@ -15,6 +15,7 @@
 #include <QSet>
 #include <algorithm>
 #include <filesystem>
+#include <iostream>
 #include <memory>
 #include <set>
 
@@ -391,6 +392,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
   // Keep the embedded interpreter available to worker threads while Qt owns
   // the event loop. Python work acquires/releases the GIL explicitly.
   py::gil_scoped_release gilRelease;
+  std::cout << "==== Welcome to VirtualClub " MVC_VERSION " ====" << std::endl;
   return app.exec();
 #ifdef MVC_DEBUG
   } CPPTRACE_CATCH (std::exception& e) {

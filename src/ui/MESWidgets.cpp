@@ -25,6 +25,13 @@ QLineEdit {
   font-family: Quicksand, Segoe UI;
   padding: 4px;
 }
+QLineEdit[readOnly="true"] {
+  border-bottom-color: #cccccc;
+}
+QLineEdit:disabled {
+  border-bottom-color: #cccccc;
+  color: #999999;
+}
 
 QScrollBar {
   background-color: transparent;
@@ -288,6 +295,10 @@ Dialog::Dialog(const QString& title,
   setMinimumSize(450, 120);
   qApp->installEventFilter(this);
 
+  if (auto dlgContent = qobject_cast<DialogContent*>(content)) {
+    m_content = dlgContent;
+    m_allowClosing = dlgContent->m_allowClosing;
+  }
 
   // Root layout
   QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -311,15 +322,16 @@ Dialog::Dialog(const QString& title,
 
   titleLayout->addStretch(1);
 
-  QLabel* closeButton = new QLabel(titleBar);
-  closeButton->setPixmap(LucideIcons::x.pixmap({16, 16}, c_primaryColor));
-  closeButton->setCursor(Qt::PointingHandCursor);
-  auto* eventFilter = new ClickEventFilter(closeButton);
+  m_closeButton = new QLabel(titleBar);
+  m_closeButton->setPixmap(LucideIcons::x.pixmap({16, 16}, c_primaryColor));
+  m_closeButton->setCursor(Qt::PointingHandCursor);
+  auto* eventFilter = new ClickEventFilter(m_closeButton);
   connect(eventFilter, &ClickEventFilter::clicked, this, [this](QWidget*) {
       this->close();
   });
-  closeButton->installEventFilter(eventFilter);
-  titleLayout->addWidget(closeButton);
+  m_closeButton->installEventFilter(eventFilter);
+  titleLayout->addWidget(m_closeButton);
+  m_closeButton->setVisible(m_allowClosing);
 
   mainLayout->addWidget(titleBar);
 
@@ -355,7 +367,7 @@ Dialog::Dialog(const QString& title,
     anim->start(QVariantAnimation::DeleteWhenStopped);
   }
 
-  connect(this, &QDialog::finished, this, [this](int result) {
+  connect(this, &Dialog::closed, this, [this]() {
     if (m_overlay) {
       m_overlay->deleteLater();
       m_overlay = nullptr;
@@ -363,11 +375,8 @@ Dialog::Dialog(const QString& title,
     m_enterEffectProgress = 0;
     update();
   });
+  
 
-
-  if (auto dlgContent = qobject_cast<DialogContent*>(content)) {
-    m_content = dlgContent;  
-  }
 }
 
 bool Dialog::eventFilter(QObject* watched, QEvent* event) {
@@ -442,11 +451,12 @@ inline QColor editColor(QColor base, float a) {
 }
 
 void Dialog::closeEvent(QCloseEvent* event) {
-  if (m_content && !m_content->allowClosing()) {
+  if (!allowClosing()) {
     event->ignore();
     return;
   }
-  QDialog::closeEvent(event);
+  close();
+  emit closed();
 }
 void Dialog::paintEvent(QPaintEvent* /*event*/) {
   static const int titleBarHeight = TITLE_BAR_HEIGHT;
@@ -486,17 +496,37 @@ void Dialog::showEvent(QShowEvent* event) {
 
 
 void Dialog::close() {
+  qDebug() << "hi";
   QDialog::close();
 }
 
 void Dialog::accept() {
-  if (!m_content || m_content->allowClosing()) {
+  if (allowClosing()) {
     QDialog::accept();
   }
 }
 
 void Dialog::reject() {
-  close();
+  if (allowClosing()) {
+    QDialog::reject();
+  }
+}
+
+bool Dialog::allowClosing() const {
+  return m_allowClosing;
+}
+
+void Dialog::setAllowClosing(bool allowClosing) {
+  m_allowClosing = allowClosing;
+  if (m_closeButton) {
+    m_closeButton->setVisible(allowClosing);
+  }
+}
+
+void Dialog::setCloseButtonVisible(bool visible) {
+  if (m_closeButton) {
+    m_closeButton->setVisible(visible);
+  }
 }
 
 bool Dialog::showActionDialog(QWidget* parent, 
@@ -544,14 +574,14 @@ bool Dialog::showActionDialog(QWidget* parent,
         Button* btnYes = new Button("Yes", &dlg);
         Button* btnNo  = new Button("No", &dlg);
 
-        connect(btnYes, &QPushButton::clicked, &dlg, &QDialog::accept);
-        connect(btnNo,  &QPushButton::clicked, &dlg, &QDialog::reject);
+        connect(btnYes, &QPushButton::clicked, &dlg, &Dialog::accept);
+        connect(btnNo,  &QPushButton::clicked, &dlg, &Dialog::reject);
 
         buttonLayout->addWidget(btnYes);
         buttonLayout->addWidget(btnNo);
     } else { // Confirm (1 button)
         Button* btnOk = new Button("OK", &dlg);
-        connect(btnOk, &QPushButton::clicked, &dlg, &QDialog::accept);
+        connect(btnOk, &QPushButton::clicked, &dlg, &Dialog::close);
         buttonLayout->addWidget(btnOk);
     }
     if (parent) {
@@ -580,6 +610,7 @@ void Dialog::showContentDialog(QWidget* parent,
   }
 
   content->m_dialog = &dlg;
+  dlg.setAllowClosing(content->m_allowClosing);
 
   if (parent) {
       // Center dialog over parent window
@@ -593,7 +624,14 @@ void Dialog::showContentDialog(QWidget* parent,
 
 void DialogContent::closeDialog() {
   if (m_dialog) {
-    m_dialog->accept();
+    m_dialog->close();
+  }
+}
+
+void DialogContent::setAllowClosing(bool allowClosing) {
+  m_allowClosing = allowClosing;
+  if (m_dialog) {
+    m_dialog->setAllowClosing(allowClosing);
   }
 }
 

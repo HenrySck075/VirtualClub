@@ -13,6 +13,7 @@ class UserSetupDialogContent : public DialogContent {
 public:
   UserSetupDialogContent() {
     auto s = ProfileSettings::get();
+    setAllowClosing(s->contains(STK_BASEPATH));
 
     auto* layout = new QVBoxLayout(this);
     layout->setAlignment(Qt::AlignTop);
@@ -51,14 +52,11 @@ public:
 
     auto* changeButton = new Button("Change", LucideIcons::folder, this);
     layout->addWidget(changeButton, 0, Qt::AlignHCenter);
-    connect(changeButton, &QPushButton::clicked, this, [basePathText,s]() {
+    connect(changeButton, &QPushButton::clicked, this, [this, basePathText,s]() {
       askForBasePathChange();
       basePathText->setText(s->value(STK_BASEPATH).toString());
+      setAllowClosing(s->contains(STK_BASEPATH));
     });
-  }
-
-  bool allowClosing() override {
-    return ProfileSettings::get()->contains(STK_BASEPATH);
   }
 };
 

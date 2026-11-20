@@ -19,11 +19,13 @@ public:
   
   // Starts the download process for Google Drive, MediaFire, or direct URLs
   void download(const QString &sharingUrl, const QString &destinationFilePath);
+  void cancel();
 
 signals:
   void progress(qint64 bytesReceived, qint64 bytesTotal);
   void finished(const QString &filePath);
   void failed(const QString &errorString);
+  void cancelled();
 
 private slots:
   void onInitialPageFinished();
@@ -44,4 +46,5 @@ private:
   std::unique_ptr<QSaveFile> m_saveFile;
   QString m_destinationPath;
   QString m_originalUrl;
+  bool m_cancelled = false;
 };

@@ -1,13 +1,32 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.2.1 LANGUAGES C CXX)
+project(VirtualClub VERSION 0.2.2 LANGUAGES C CXX)
 
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported. Please use Clang instead. (i used clang extensively for development sorry abt that)")
 endif()
 
+# assume Debug if unset
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
+
 if(NOT DEFINED MVC_VERSION)
   set(MVC_VERSION "\"${PROJECT_VERSION}\"")
 endif()
+
+# if build type is not release, ask git for the current commit hash and append it to the version string
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+  find_package(Git REQUIRED)
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  set(MVC_VERSION "\"${PROJECT_VERSION}-local-${GIT_COMMIT_HASH}\"")
+endif()
+
+
 
 add_compile_definitions(
   MVC_VERSION=${MVC_VERSION}
@@ -21,10 +40,6 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-# assume Debug if unset
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
-endif()
 
 find_package(Python REQUIRED COMPONENTS Interpreter Development)
 
