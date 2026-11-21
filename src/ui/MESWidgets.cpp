@@ -26,10 +26,10 @@ QLineEdit {
   padding: 4px;
 }
 QLineEdit[readOnly="true"] {
-  border-bottom-color: #cccccc;
+  border-bottom-color: %3;
 }
 QLineEdit:disabled {
-  border-bottom-color: #cccccc;
+  border-bottom-color: %3;
   color: #999999;
 }
 
@@ -59,6 +59,10 @@ QComboBox {
   color: %2;
   padding: 4px 8px;
 }
+QComboBox:disabled {
+  border-color: %3;
+  color: %3;
+}
 
 QProgressBar {
   border: 2px solid %1;
@@ -73,7 +77,7 @@ QProgressBar::chunk {
   border-radius: 8px;
   margin: 4px;
 }
-)").arg(qColorToCSSrgb(c_primaryColor)).arg(qColorToCSSrgb(c_secondaryColor)));
+)").arg(qColorToCSSrgb(c_primaryColor), qColorToCSSrgb(c_secondaryColor), qColorToCSSrgb(c_disabledColor)));
 }
 
 // ==========================================

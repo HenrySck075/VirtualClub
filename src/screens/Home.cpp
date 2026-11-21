@@ -11,8 +11,14 @@
 #include "utils/FlowLayout.hpp"
 #include "utils/ModIndex.hpp"
 #include "utils/ProfileSettings.hpp"
+#include "utils/AutoUpdater.hpp"
+#include "ui/MESWidgets.hpp"
+#include "utils/LucideIcons.hpp"
+#include <QHBoxLayout>
+#include <QPushButton>
 
 class RecentModCard : public QFrame {
+  Q_OBJECT
 public:
   RecentModCard(const ModsIndex::Mod& mod, std::function<void()> onClicked,
                 QWidget* parent = nullptr)
@@ -26,6 +32,7 @@ public:
       "}"
     );
     setFixedWidth(150);
+    setCursor(Qt::PointingHandCursor);
 
     auto* cardLayout = new QVBoxLayout(this);
     cardLayout->setContentsMargins(10, 10, 10, 8);
@@ -102,24 +109,56 @@ HomeScreen::HomeScreen(Router* router, QWidget* parent)
   contentLayout->setSpacing(0);
   contentLayout->setAlignment(Qt::AlignTop);
 
+  m_updater = new AutoUpdater(this);
+
+  m_updateRow = new QFrame(content);
+  m_updateRow->setObjectName("updateRow");
+  m_updateRow->setStyleSheet(
+      "#updateRow {"
+      " background-color: rgba(137, 35, 137, 45);"
+      " border: 1px solid rgba(137, 35, 137, 120);"
+      " border-radius: 8px;"
+      "}"
+  );
+  m_updateRow->setHidden(true);
+  auto* updateRowLayout = new QHBoxLayout(m_updateRow);
+  updateRowLayout->setContentsMargins(12, 8, 12, 8);
+  m_updateLabel = new QLabel(m_updateRow);
+  m_updateLabel->setWordWrap(true);
+  updateRowLayout->addWidget(m_updateLabel, 1);
+  auto* installButton = new Button(tr("Update"), LucideIcons::download, m_updateRow);
+  updateRowLayout->addWidget(installButton, 0, Qt::AlignRight);
+  contentLayout->addWidget(m_updateRow);
+  connect(installButton, &QPushButton::clicked, this, [this]() {
+    if (!m_updateManifest.empty()) {
+      m_updater->downloadUpdate(m_updateManifest);
+    }
+  });
+
   {
     auto* label = new QLabel("Recently played", content);
     label->setFont(QFont("Quicksand", 18, QFont::Weight::Bold));
     contentLayout->addWidget(label);
   }
-  {
-    m_cards = new QWidget(content);
-    m_cards->setFixedHeight(170);
-    m_cardsLayout = new FlowLayout(m_cards);
-    m_cardsLayout->setContentsMargins(0, 4, 0, 4);
-    m_cardsLayout->setSpacing(12);
-    m_cardsLayout->setAlignment(Qt::AlignLeft);
-    contentLayout->addWidget(m_cards);
+  m_cards = new QWidget(content);
+  m_cards->setFixedHeight(170);
+  m_cardsLayout = new FlowLayout(m_cards);
+  m_cardsLayout->setContentsMargins(0, 4, 0, 4);
+  m_cardsLayout->setSpacing(12);
+  m_cardsLayout->setAlignment(Qt::AlignLeft);
+  contentLayout->addWidget(m_cards);
 
-    updateRecentlyPlayed();
-    connect(ModsIndex::get().get(), &ModsIndex::recentlyPlayedUpdated,
-            this, &HomeScreen::updateRecentlyPlayed);
-  }
+  updateRecentlyPlayed();
+  connect(ModsIndex::get().get(), &ModsIndex::recentlyPlayedUpdated,
+          this, &HomeScreen::updateRecentlyPlayed);
+}
+
+void HomeScreen::showUpdateAvailable(const nlohmann::json& manifest) {
+  m_updateManifest = manifest;
+  const QString version = QString::fromStdString(
+      manifest.value("version", ""));
+  m_updateLabel->setText(tr("Update available: VirtualClub %1").arg(version));
+  m_updateRow->setHidden(false);
 }
 
 void HomeScreen::updateRecentlyPlayed() {
@@ -148,3 +187,5 @@ void HomeScreen::updateRecentlyPlayed() {
     m_cardsLayout->addWidget(card);
   }
 }
+
+#include "Home.moc"

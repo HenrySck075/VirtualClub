@@ -8,6 +8,9 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QVBoxLayout>
+#include <QComboBox>
+#include <QDateTime>
+#include <string_view>
 
 #include "../ui/GradientBackground.hpp"
 #include "../ui/MESWidgets.hpp"
@@ -16,6 +19,7 @@
 #include "ui/IconButton.hpp"
 #include "ui/Router.hpp"
 #include "utils/LucideIcons.hpp"
+#include "utils/AutoUpdater.hpp"
 
 namespace {
 bool moveStorageContents(const QString& sourcePath, const QString& destinationPath) {
@@ -152,4 +156,63 @@ GlobalSettingsScreen::GlobalSettingsScreen(Router *router, QWidget *parent) : QW
     settings.setValue(GSTK_STORAGE_PATH, QDir::cleanPath(selectedPath));
     storagePath->setText(QDir::cleanPath(selectedPath));
   });
+
+  auto* updatesLabel = new QLabel(tr("Updates"), content);
+  updatesLabel->setFont(QFont("Quicksand", 12, QFont::Bold));
+  contentLayout->addWidget(updatesLabel);
+
+  auto* updateLayout = new QHBoxLayout();
+  contentLayout->addLayout(updateLayout);
+
+  auto* channelLabel = new QLabel(tr("Channel"), content);
+  updateLayout->addWidget(channelLabel);
+  auto* channel = new QComboBox(content);
+  channel->addItem(tr("Stable"), "stable");
+  channel->addItem(tr("Nightly"), "nightly");
+  channel->setCurrentIndex(channel->findData(
+      QSettings().value(GSTK_UPDATE_CHANNEL, QStringLiteral(MVC_CHANNEL)).toString()));
+  updateLayout->addWidget(channel);
+
+  auto* frequency = new QComboBox(content);
+  frequency->addItem(tr("Every startup"), "startup");
+  frequency->addItem(tr("Daily"), "daily");
+  frequency->addItem(tr("Weekly"), "weekly");
+  frequency->addItem(tr("Never"), "never");
+  frequency->setCurrentIndex(frequency->findData(QSettings().value(GSTK_UPDATE_FREQUENCY, "startup").toString()));
+  updateLayout->addWidget(frequency);
+
+
+  auto* checkButton = new Button(tr("Check for updates"), LucideIcons::refresh_cw, content);
+  contentLayout->addWidget(checkButton, 0, Qt::AlignLeft);
+
+  
+  if constexpr (std::string_view(MVC_CHANNEL) == "local") {
+    channel->setEnabled(false);
+    frequency->setEnabled(false);
+    checkButton->setEnabled(false);
+  } else {
+    connect(channel, &QComboBox::currentIndexChanged, this, [channel](int index) {
+      QSettings().setValue(GSTK_UPDATE_CHANNEL, channel->itemData(index).toString());
+    });
+    connect(frequency, &QComboBox::currentIndexChanged, this, [frequency](int index) {
+      QSettings().setValue(GSTK_UPDATE_FREQUENCY, frequency->itemData(index).toString());
+    });
+    connect(checkButton, &QPushButton::clicked, this, [this]() {
+      QSettings().setValue(GSTK_UPDATE_LAST_CHECK, QDateTime::currentDateTime());
+      auto* updater = new AutoUpdater(this);
+      connect(updater, &AutoUpdater::updateAvailable, this,
+          [](const nlohmann::json& manifest) {
+            if (auto* mainWindow = getMainWindow()) {
+              mainWindow->showUpdateAvailable(manifest);
+            }
+          });
+      connect(updater, &AutoUpdater::noUpdate, this, []() {
+        Dialog::showActionDialog(getMainWindow(), tr("No updates"), tr("VirtualClub is up to date."), QString(), Dialog::Confirm, false);
+      });
+      connect(updater, &AutoUpdater::checkFailed, this, [](const QString& error) {
+        Dialog::showActionDialog(getMainWindow(), tr("Update check failed"), error, QString(), Dialog::Confirm, false);
+      });
+      updater->checkForUpdate();
+    });
+  }
 }

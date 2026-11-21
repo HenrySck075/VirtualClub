@@ -143,7 +143,7 @@ jobs:
           CC: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang' }}
           CXX: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang++' }}
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}"', github.sha) || '' }}
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }}
 
       # Build application
       - name: Build Project
@@ -169,12 +169,34 @@ jobs:
         run: |
           Compress-Archive -Path dist\* -DestinationPath app-windows-x64.zip
 
+      - name: Create Update Manifest
+        shell: bash
+        run: |
+          VERSION=$(grep -E 'project\(.*VERSION [0-9.]+' CMakeLists.txt | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          if [ "${{ env.NIGHTLY }}" = "true" ]; then
+            MANIFEST_VERSION="nightly-${GITHUB_SHA}"
+          else
+            MANIFEST_VERSION="${VERSION}"
+          fi
+          python3 .github/scripts/create_update_manifest.py \
+            --channel "${{ env.NIGHTLY == 'true' && 'nightly' || 'stable' }}" \
+            --version "${MANIFEST_VERSION}" \
+            --build-id "${GITHUB_SHA}" \
+            --platform "${{ matrix.platform }}" \
+            --minimum-version "${VERSION}" \
+            --release-url "https://github.com/${{ github.repository }}/releases" \
+            --linux-archive app-linux-x64.tar.gz \
+            --windows-archive app-windows-x64.zip
+
       # Upload artifacts temporarily for the release job
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifact-${{ matrix.platform }}
-          path: ${{ matrix.platform == 'windows' && 'app-windows-x64.zip' || 'app-linux-x64.tar.gz' }}
+          path: |
+            ${{ matrix.platform == 'windows' && 'app-windows-x64.zip' || 'app-linux-x64.tar.gz' }}
+            update-manifest-${{ matrix.platform }}.json
+            ${{ matrix.platform == 'windows' && 'app-windows-x64.zip.sha256' || 'app-linux-x64.tar.gz.sha256' }}
 
   release:
     name: Create GitHub Release
@@ -184,6 +206,15 @@ jobs:
       contents: write # Required to create releases
     
     steps:
+
+      - name: Checkout release body file
+        uses: actions/checkout@v7 
+        if: env.NIGHTLY != 'true' 
+        with:
+          sparse-checkout: |
+            .github/release_body.md
+          sparse-checkout-cone-mode: false
+
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -202,6 +233,10 @@ jobs:
           files: |
             app-linux-x64.tar.gz
             app-windows-x64.zip
+            update-manifest-linux.json
+            update-manifest-windows.json
+            app-linux-x64.tar.gz.sha256
+            app-windows-x64.zip.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -217,6 +252,10 @@ jobs:
           files: |
             app-linux-x64.tar.gz
             app-windows-x64.zip
+            update-manifest-linux.json
+            update-manifest-windows.json
+            app-linux-x64.tar.gz.sha256
+            app-windows-x64.zip.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

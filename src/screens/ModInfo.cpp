@@ -346,7 +346,7 @@ public:
     connect(chooseLogoButton, &Button::clicked, this, [this]() {
       const QString path = QFileDialog::getOpenFileName(
           this, tr("Choose mod logo"), QString(),
-          tr("Images (*.png *.jpg *.jpeg *.webp *.bmp)"));
+          tr("Images") + " (*.png *.jpg *.jpeg *.webp *.bmp)");
       if (path.isEmpty()) return;
       QPixmap image(path);
       if (image.isNull()) {

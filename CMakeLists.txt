@@ -14,6 +14,19 @@ if(NOT DEFINED MVC_VERSION)
   set(MVC_VERSION "\"${PROJECT_VERSION}\"")
 endif()
 
+if(NOT DEFINED MVC_CHANNEL)
+  set(MVC_CHANNEL "stable")
+endif()
+
+if(NOT DEFINED MVC_BUILD_ID)
+  execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE MVC_BUILD_ID
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+endif()
+
 # if build type is not release, ask git for the current commit hash and append it to the version string
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
   find_package(Git REQUIRED)
@@ -24,12 +37,16 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   set(MVC_VERSION "\"${PROJECT_VERSION}-local-${GIT_COMMIT_HASH}\"")
+  set(MVC_CHANNEL "local")
 endif()
 
 
 
 add_compile_definitions(
   MVC_VERSION=${MVC_VERSION}
+  MVC_CHANNEL="${MVC_CHANNEL}"
+  MVC_BUILD_ID="${MVC_BUILD_ID}"
+  MVC_LAUNCHER_VERSION="${PROJECT_VERSION}"
 )
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -59,6 +76,12 @@ qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     #resources.qrc
 )
+
+file(GLOB_RECURSE UPDATER_SOURCES CONFIGURE_DEPENDS "updater_src/*.cpp" "updater_src/*.hpp")
+qt_add_executable(VirtualClub-Updater ${UPDATER_SOURCES})
+target_compile_features(VirtualClub-Updater PRIVATE cxx_std_20)
+target_include_directories(VirtualClub-Updater PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/updater_src)
+target_link_libraries(VirtualClub-Updater PRIVATE Qt6::Core Qt6::Widgets LibArchive::LibArchive)
 
 qt_add_translations(
   ${PROJECT_NAME} 
@@ -236,6 +259,10 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION .
+    BUNDLE DESTINATION .
+)
+install(TARGETS VirtualClub-Updater
     RUNTIME DESTINATION .
     BUNDLE DESTINATION .
 )

@@ -26,11 +26,13 @@
 #include "utils/i18n.hpp"
 #include "utils/macros.h"
 #include "utils/utils.hpp"
+#include "utils/AutoUpdater.hpp"
 
 #include <pybind11/embed.h>
 #include <QTranslator>
 #include <pylifecycle.h>
 #include <qsettings.h>
+#include <QDateTime>
 
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current_macros.hpp>
@@ -357,6 +359,30 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
 
   if (!initialModId.isEmpty()) {
       launchMod(initialModId);
+  }
+
+  auto* autoUpdater = new AutoUpdater(window.get());
+  QObject::connect(autoUpdater, &AutoUpdater::updateAvailable, window.get(),
+      [](const nlohmann::json& manifest) {
+          if (auto* mainWindow = getMainWindow()) {
+             mainWindow->showUpdateAvailable(manifest);
+          }
+      });
+  QObject::connect(autoUpdater, &AutoUpdater::checkFailed, window.get(),
+      [](const QString& error) {
+          qWarning() << "Update check failed:" << error;
+      });
+
+  const QString frequency = qsettings.value(GSTK_UPDATE_FREQUENCY, "startup").toString();
+  const QString channel =
+      qsettings.value(GSTK_UPDATE_CHANNEL, QStringLiteral(MVC_CHANNEL)).toString();
+  const QDateTime lastCheck = qsettings.value(GSTK_UPDATE_LAST_CHECK).toDateTime();
+  bool checkDue = frequency == "startup";
+  if (frequency == "daily") checkDue = !lastCheck.isValid() || lastCheck.addDays(1) <= QDateTime::currentDateTime();
+  if (frequency == "weekly") checkDue = !lastCheck.isValid() || lastCheck.addDays(7) <= QDateTime::currentDateTime();
+  if (checkDue && initialModId.isEmpty() && channel != "local") {
+      qsettings.setValue(GSTK_UPDATE_LAST_CHECK, QDateTime::currentDateTime());
+      autoUpdater->checkForUpdate();
   }
 
 

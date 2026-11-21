@@ -5,6 +5,9 @@
 #include <QStackedWidget>
 #include <QMainWindow>
 #include "utils/LucideIcons.hpp"
+#include <nlohmann/json.hpp>
+
+class HomeScreen;
 
 class MainWindow : public QWidget {
   Q_OBJECT
@@ -15,6 +18,7 @@ class MainWindow : public QWidget {
   QWidget* m_mainContent;
   Router* m_router;
   Sidebar* m_sidebar; // idk what i should use this for.
+  HomeScreen* m_homeScreen = nullptr;
   
   std::unordered_map<SidebarItem*, QString> m_navigationMap;
   std::list<SidebarItem*> m_actionMap;
@@ -36,6 +40,7 @@ public:
 
   void setPageTitleBar(const QString& pageTitle);
   void setBackgroundPack(const QString& pack);
+  void showUpdateAvailable(const nlohmann::json& manifest);
 protected:
   void initUI();
 
@@ -52,6 +57,7 @@ protected:
   SidebarItem* addActionItem(LucideIcon icon, QString name, SidebarPosition position, std::function<void()> onClicked);
 
   bool confirmQuit();
+
 };
 
 MainWindow *getMainWindow();

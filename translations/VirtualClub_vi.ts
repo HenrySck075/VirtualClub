@@ -2,6 +2,69 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="vi" sourcelanguage="en">
 <context>
+    <name>AutoUpdater</name>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="113"/>
+        <source>The update manifest does not match this platform.</source>
+        <translation>Tệp manifest cập nhật không phù hợp với nền tảng này.</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="131"/>
+        <source>The update manifest is incomplete.</source>
+        <translation>Tệp manifest cập nhật không được đầy đủ.</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="138"/>
+        <source>Could not create an update staging directory.</source>
+        <translation>Không thể tạo thư mục tạm thời để cập nhật.</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="148"/>
+        <source>Downloading update...</source>
+        <translation>Đang tải xuống bản cập nhật...</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="148"/>
+        <source>Cancel</source>
+        <translation>Hủy bỏ</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="171"/>
+        <source>Could not save the downloaded update.</source>
+        <translation>Không thể lưu bản cập nhật đã tải xuống.</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="177"/>
+        <source>Could not verify the downloaded update.</source>
+        <translation>Không thể xác minh bản cập nhật đã tải xuống.</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="182"/>
+        <source>Update verification failed: archive size mismatch.</source>
+        <translation>Xác minh bản cập nhật thất bại: kích thước tệp nén không khớp.</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="191"/>
+        <source>Update verification failed: SHA-256 mismatch.</source>
+        <translation>Xác minh bản cập nhật thất bại: SHA-256 không khớp.</translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="208"/>
+        <source>The update helper is missing.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="219"/>
+        <source>Could not prepare the update helper.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/utils/AutoUpdater.cpp" line="233"/>
+        <source>Could not launch the update helper.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DownloadDialogContent</name>
     <message>
         <location filename="../src/screens/OnlineModsIndex.cpp" line="501"/>
@@ -16,7 +79,7 @@
     <message>
         <location filename="../src/screens/OnlineModsIndex.cpp" line="515"/>
         <source>Cancel</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Hủy bỏ</translation>
     </message>
     <message>
         <location filename="../src/screens/OnlineModsIndex.cpp" line="528"/>
@@ -86,79 +149,79 @@ Lý do: %1</translation>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="334"/>
         <source>Logo</source>
-        <translation type="unfinished"></translation>
+        <translation>Logo</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="337"/>
         <source>Choose image</source>
-        <translation type="unfinished"></translation>
+        <translation>Chọn ảnh</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="340"/>
         <source>The image will be center-cropped to a square.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hình ảnh sẽ được cắt trung tâm thành hình vuông.</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="348"/>
         <source>Choose mod logo</source>
-        <translation type="unfinished"></translation>
+        <translation>Chọn logo mod</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="349"/>
-        <source>Images (*.png *.jpg *.jpeg *.webp *.bmp)</source>
-        <translation type="unfinished"></translation>
+        <source>Images</source>
+        <translation>Hình ảnh</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="353"/>
         <location filename="../src/screens/ModInfo.cpp" line="399"/>
         <source>Error</source>
-        <translation type="unfinished">Lỗi</translation>
+        <translation>Lỗi</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="354"/>
         <source>Could not load the selected image.</source>
-        <translation type="unfinished"></translation>
+        <translation>Không thể tải hình ảnh được chọn.</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="371"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Tên</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="373"/>
         <source>Version</source>
-        <translation type="unfinished"></translation>
+        <translation>Phiên bản</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="379"/>
         <source>Cancel</source>
-        <translation type="unfinished"></translation>
+        <translation>Hủy bỏ</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="380"/>
         <source>Save</source>
-        <translation type="unfinished"></translation>
+        <translation>Lưu</translation>
     </message>
     <message>
         <location filename="../src/screens/ModInfo.cpp" line="400"/>
         <source>Failed to update the mod: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Không thể cập nhật mod: %1</translation>
     </message>
 </context>
 <context>
     <name>GlobalSettingsScreen</name>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="88"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="91"/>
         <source>These settings apply to all profiles.</source>
         <translation>Những cài đặt này áp dụng cho tất cả hồ sơ.</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="92"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="95"/>
         <source>Launcher storage path</source>
         <translation>Thư mục lưu trữ của launcher</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="97"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="100"/>
         <source>The directory used to store downloaded mods and launcher data.</source>
         <translation>Thư mục được sử dụng để lưu trữ các mod đã tải xuống và dữ liệu của launcher.</translation>
     </message>
@@ -167,47 +230,107 @@ Lý do: %1</translation>
         <translation type="vanished">Thay đổi</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="118"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="121"/>
         <source>Select launcher storage directory</source>
         <translation>Chọn thư mục lưu trữ của launcher</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="126"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="129"/>
         <source>Move all launcher data from &quot;%1&quot; to &quot;%2&quot;?</source>
         <translation>Di chuyển tất cả dữ liệu của launcher từ &quot;%1&quot; sang &quot;%2&quot;?</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="130"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="133"/>
         <source>Confirm storage path</source>
         <translation>Xác nhận thư mục lưu trữ</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="132"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="135"/>
         <source>The existing storage directory will be emptied after its contents are moved.</source>
         <translation>Thư mục lưu trữ hiện tại sẽ bị xóa sau khi các nội dung của nó được di chuyển.</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="142"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="145"/>
         <source>Storage path not changed</source>
         <translation>Thư mục lưu trữ không được thay đổi</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="143"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="146"/>
         <source>Could not move all launcher data to the selected directory.</source>
         <translation>Không thể di chuyển tất cả dữ liệu của launcher sang thư mục đã chọn.</translation>
     </message>
     <message>
-        <location filename="../src/screens/GlobalSettings.cpp" line="144"/>
+        <location filename="../src/screens/GlobalSettings.cpp" line="147"/>
         <source>Choose an empty directory and try again.</source>
         <translation>Chọn một thư mục trống và thử lại.</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="159"/>
+        <source>Updates</source>
+        <translation>Cập nhật</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="166"/>
+        <source>Channel</source>
+        <translation>Kênh</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="177"/>
+        <source>Every startup</source>
+        <translation>Mỗi lần mở</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="178"/>
+        <source>Daily</source>
+        <translation>Hàng ngày</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="179"/>
+        <source>Weekly</source>
+        <translation>Hàng tuần</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="180"/>
+        <source>Never</source>
+        <translation>Không bao giờ</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="191"/>
+        <source>Check for updates</source>
+        <translation>Kiểm tra cập nhật</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="203"/>
+        <source>No updates</source>
+        <translation>Không cố bản cập nhật</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="203"/>
+        <source>VirtualClub is up to date.</source>
+        <translation>VirtualClub đã ở bản mới nhất.</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/GlobalSettings.cpp" line="206"/>
+        <source>Update check failed</source>
+        <translation>Kiểm tra cập nhật thất bại.</translation>
     </message>
 </context>
 <context>
     <name>HomeScreen</name>
     <message>
-        <location filename="../src/screens/Home.cpp" line="134"/>
+        <location filename="../src/screens/Home.cpp" line="129"/>
+        <source>Update</source>
+        <translation>Cập nhật</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/Home.cpp" line="160"/>
+        <source>Update available: VirtualClub %1</source>
+        <translation>Có bản cập nhật: VirtualClub %1</translation>
+    </message>
+    <message>
+        <location filename="../src/screens/Home.cpp" line="173"/>
         <source>No recently played mods yet.</source>
-        <translation type="unfinished"></translation>
+        <translation>Chưa có mod nào chơi gần đây.</translation>
     </message>
 </context>
 <context>
@@ -469,7 +592,7 @@ Lý do: %1</translation>
 <context>
     <name>RecentModCard</name>
     <message>
-        <location filename="../src/screens/Home.cpp" line="55"/>
+        <location filename="../src/screens/Home.cpp" line="62"/>
         <source>Version: %1</source>
         <translation type="unfinished">Phiên bản: %1</translation>
     </message>
@@ -563,17 +686,17 @@ Lý do: %1</translation>
 <context>
     <name>Sidebar</name>
     <message>
-        <location filename="../src/MainWindow.cpp" line="100"/>
+        <location filename="../src/MainWindow.cpp" line="101"/>
         <source>Home</source>
         <translation>Trang chủ</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="111"/>
+        <location filename="../src/MainWindow.cpp" line="112"/>
         <source>Settings</source>
         <translation>Cài đặt</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="115"/>
+        <location filename="../src/MainWindow.cpp" line="116"/>
         <source>Switch profile</source>
         <translation>Chuyển hồ sơ</translation>
     </message>

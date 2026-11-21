@@ -30,5 +30,8 @@ inline constexpr auto STK_RECENTLIST = "recentList"; // storing states as settin
 inline constexpr auto STK_LANGUAGE = "lang";
 inline constexpr auto GSTK_STORAGE_PATH = "launcherStoragePath";
 inline constexpr auto GSTK_SESSION_DATA_MIGRATED = "sessionDataMigrated";
+inline constexpr auto GSTK_UPDATE_CHANNEL = "updateChannel";
+inline constexpr auto GSTK_UPDATE_FREQUENCY = "updateFrequency";
+inline constexpr auto GSTK_UPDATE_LAST_CHECK = "updateLastCheck";
 
 #endif

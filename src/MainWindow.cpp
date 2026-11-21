@@ -97,7 +97,8 @@ void MainWindow::initUI() {
   m_subLevelNavSfx.setMuted(false);
 
 
-  addNavigationItem(LucideIcons::house, QT_TRANSLATE_NOOP("Sidebar", "Home"), SidebarPosition::Top, "/home", new HomeScreen(m_router))->setSelected(true);
+  m_homeScreen = new HomeScreen(m_router);
+  addNavigationItem(LucideIcons::house, QT_TRANSLATE_NOOP("Sidebar", "Home"), SidebarPosition::Top, "/home", m_homeScreen)->setSelected(true);
   addNavigationItem(LucideIcons::library, "Mods", SidebarPosition::Top, "/mods", new ModsScreen(m_router));
   m_router->addFixedRoute("/mods/online", new OnlineModsIndexScreen(m_router), std::bind(&MainWindow::routeTransitionHandler, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   m_router->addRoute("/mods/:id", [this](const RouteParams& params) {
@@ -137,6 +138,15 @@ SidebarItem* MainWindow::sidebarItemForPath(QString& path) {
     }
   }
   return nullptr;
+}
+
+void MainWindow::showUpdateAvailable(const nlohmann::json& manifest) {
+  if (m_homeScreen) {
+    m_homeScreen->showUpdateAvailable(manifest);
+  }
+  if (m_router) {
+    m_router->navigate("/home");
+  }
 }
 
 std::unordered_map<QWidget*, QMetaObject::Connection> g_titleBarUpdaterConnections;

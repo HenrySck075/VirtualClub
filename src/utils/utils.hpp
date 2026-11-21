@@ -32,6 +32,7 @@ std::string generate_uuid_v4();
 bool createDesktopShortcut(const QString &shortcutName,
                            const QString &launchArgument,
                            const QString &iconPath);
+/// Creates a cached QNetworkAccessManager
 QNetworkAccessManager* createNetworkAccessManager(QObject *context);
 #include <chrono>
 template <typename Rep, typename Period>
