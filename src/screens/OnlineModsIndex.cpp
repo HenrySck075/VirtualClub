@@ -29,13 +29,22 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProgressBar>
+#include <QRegularExpression>
+#include <QRandomGenerator>
 #include <QSettings>
 #include <QtConcurrent/QtConcurrent>
+#include <QTimer>
+#include <QUrlQuery>
 #include <string_view>
 #include <archive.h>
 #include <archive_entry.h>
-#include "consts.hpp"
 #include "utils/FileDownloader.hpp"
+extern "C" {
+#include <lexbor/html/parser.h>
+#include <lexbor/dom/interfaces/element.h>
+#include <lexbor/dom/collection.h>
+}
+#include "consts.hpp"
 #include "utils/i18n.hpp"
 
 // fuck you windows in particular
@@ -151,6 +160,288 @@ int extractArchive(const char* archiveName, const char* extractDirectory,
 }
 }
 
+class OnlineModDownloader : public QObject {
+  Q_OBJECT
+public:
+  explicit OnlineModDownloader(QObject* parent = nullptr)
+    : QObject(parent), m_downloader(new FileDownloader(this)) {
+    connect(m_downloader, &FileDownloader::progress, this, &OnlineModDownloader::progress);
+    connect(m_downloader, &FileDownloader::failed, this, &OnlineModDownloader::failed);
+    connect(m_downloader, &FileDownloader::cancelled, this, &OnlineModDownloader::cancelled);
+    connect(m_downloader, &FileDownloader::finished, this, &OnlineModDownloader::finished);
+  }
+
+  void download(const QString& sharingUrl, const QString& destinationFilePath) {
+    m_cancelled = false;
+    m_originalUrl = sharingUrl;
+    m_destinationPath = destinationFilePath;
+
+    if (m_currentReply) {
+      m_currentReply->abort();
+      m_currentReply->deleteLater();
+      m_currentReply = nullptr;
+    }
+
+    if (sharingUrl.contains("drive.google.com")) {
+      QRegularExpression rx("(?:/d/|[?&]id=)([a-zA-Z0-9_-]{25,})");
+      const auto match = rx.match(sharingUrl);
+      if (!match.hasMatch()) {
+        emit failed("Invalid Google Drive URL. Could not find a valid File ID.");
+        return;
+      }
+      const QString fileId = match.captured(1);
+      const QUrl initialUrl(QString("https://drive.google.com/uc?export=download&id=%1").arg(fileId));
+      requestInitialPage(initialUrl);
+    } else if (sharingUrl.contains("mediafire.com")) {
+      requestInitialPage(QUrl(sharingUrl));
+    } else {
+      checkDirectUrl(QUrl(sharingUrl));
+    }
+  }
+
+  void cancel() {
+    m_cancelled = true;
+    if (m_currentReply) {
+      m_currentReply->abort();
+      m_currentReply->deleteLater();
+      m_currentReply = nullptr;
+    }
+    m_downloader->cancel();
+  }
+
+signals:
+  void progress(qint64 bytesReceived, qint64 bytesTotal);
+  void finished(const QString& filePath);
+  void failed(const QString& errorString);
+  void cancelled();
+
+private slots:
+  void onInitialPageFinished() {
+    if (!m_currentReply) return;
+    QByteArray data = m_currentReply->readAll();
+    const int statusCode = m_currentReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString contentType = m_currentReply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
+    const QUrl finalUrl = m_currentReply->url();
+    if (m_currentReply->error() != QNetworkReply::NoError || (statusCode >= 400 && statusCode < 600)) {
+      const QString error = m_currentReply->errorString();
+      m_currentReply->deleteLater();
+      m_currentReply = nullptr;
+      emit failed(QString("Failed to contact server landing page: %1").arg(error));
+      return;
+    }
+    m_currentReply->deleteLater();
+    m_currentReply = nullptr;
+
+    if (m_originalUrl.contains("drive.google.com") && !contentType.contains("text/html")) {
+      m_downloader->download(finalUrl, m_destinationPath);
+    } else if (m_originalUrl.contains("mediafire.com")) {
+      parseMediaFirePage(QString::fromUtf8(data));
+    } else if (m_originalUrl.contains("drive.google.com")) {
+      parseGoogleDrivePage(QString::fromUtf8(data));
+    }
+  }
+
+  void onHeadFinished() {
+    if (!m_currentReply) return;
+    const int statusCode = m_currentReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QUrl finalUrl = m_currentReply->url();
+    if (m_currentReply->error() != QNetworkReply::NoError || (statusCode >= 400 && statusCode < 600)) {
+      const QString error = m_currentReply->errorString();
+      m_currentReply->deleteLater();
+      m_currentReply = nullptr;
+      emit failed(QString("Direct URL validation failed: %1").arg(error));
+      return;
+    }
+    const bool valid = isArchiveFile(finalUrl, m_currentReply);
+    m_currentReply->deleteLater();
+    m_currentReply = nullptr;
+    if (valid) {
+      m_downloader->download(finalUrl, m_destinationPath);
+    } else {
+      emit failed("Validation failed: The direct URL does not point to a supported archive file format.");
+    }
+  }
+
+private:
+  void requestInitialPage(const QUrl& url) {
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0");
+    m_currentReply = m_networkManager.get(request);
+    connect(m_currentReply, &QNetworkReply::finished,
+            this, &OnlineModDownloader::onInitialPageFinished);
+  }
+
+  void checkDirectUrl(const QUrl& url) {
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::UserAgentHeader,
+                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+    m_currentReply = m_networkManager.head(request);
+    connect(m_currentReply, &QNetworkReply::finished,
+            this, &OnlineModDownloader::onHeadFinished);
+  }
+
+  static bool isArchiveFile(const QUrl& url, QNetworkReply* headReply) {
+    const QString path = url.path().toLower();
+    static const QStringList extensions = {
+      ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
+      ".tgz", ".tbz2", ".zst", ".iso"
+    };
+    for (const QString& extension : extensions) {
+      if (path.endsWith(extension)) return true;
+    }
+    if (!headReply) return false;
+    const QString disposition =
+      headReply->header(QNetworkRequest::ContentDispositionHeader).toString().toLower();
+    for (const QString& extension : extensions) {
+      if (disposition.contains(extension)) return true;
+    }
+    const QString contentType =
+      headReply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
+    return contentType.contains("zip") || contentType.contains("compressed");
+  }
+
+  void parseGoogleDrivePage(const QString& htmlContent) {
+    const QByteArray utf8Data = htmlContent.toUtf8();
+    lxb_html_document_t* document = lxb_html_document_create();
+    if (!document) {
+      emit failed("Failed to create Lexbor HTML document instance.");
+      return;
+    }
+    if (lxb_html_document_parse(document, reinterpret_cast<const lxb_char_t*>(utf8Data.constData()),
+                                utf8Data.size()) != LXB_STATUS_OK) {
+      lxb_html_document_destroy(document);
+      emit failed("Lexbor failed to parse Google Drive warning page HTML.");
+      return;
+    }
+    lxb_dom_collection_t* collection =
+      lxb_dom_collection_make(&document->dom_document, 16);
+    if (!collection) {
+      lxb_html_document_destroy(document);
+      emit failed("Failed to allocate Lexbor DOM collection.");
+      return;
+    }
+
+    lxb_dom_element_t* root = lxb_dom_interface_element(document->body);
+    QString actionUrl;
+    if (lxb_dom_elements_by_tag_name(root, collection,
+                                     reinterpret_cast<const lxb_char_t*>("form"), 4) == LXB_STATUS_OK &&
+        lxb_dom_collection_length(collection) > 0) {
+      lxb_dom_element_t* form = lxb_dom_collection_element(collection, 0);
+      size_t length = 0;
+      const lxb_char_t* action =
+        lxb_dom_element_get_attribute(form, reinterpret_cast<const lxb_char_t*>("action"), 6, &length);
+      if (action) actionUrl = QString::fromUtf8(reinterpret_cast<const char*>(action), length);
+    }
+    lxb_dom_collection_clean(collection);
+    if (actionUrl.isEmpty()) {
+      lxb_dom_collection_destroy(collection, true);
+      lxb_html_document_destroy(document);
+      emit failed("Could not locate download form action URL via Lexbor parser.");
+      return;
+    }
+    actionUrl.replace("&amp;", "&");
+    if (actionUrl.startsWith("/")) actionUrl.prepend("https://drive.google.com");
+
+    QUrl url(actionUrl);
+    QUrlQuery query;
+    if (lxb_dom_elements_by_tag_name(root, collection,
+                                     reinterpret_cast<const lxb_char_t*>("input"), 5) == LXB_STATUS_OK) {
+      const size_t length = lxb_dom_collection_length(collection);
+      for (size_t i = 0; i < length; ++i) {
+        lxb_dom_element_t* input = lxb_dom_collection_element(collection, i);
+        size_t nameLength = 0, valueLength = 0, typeLength = 0;
+        const lxb_char_t* typeValue =
+          lxb_dom_element_get_attribute(input, reinterpret_cast<const lxb_char_t*>("type"), 4, &typeLength);
+        const QString type = typeValue
+          ? QString::fromUtf8(reinterpret_cast<const char*>(typeValue), typeLength).toLower()
+          : QString();
+        if (type == "hidden" || type == "submit" || type.isEmpty()) {
+          const lxb_char_t* nameValue =
+            lxb_dom_element_get_attribute(input, reinterpret_cast<const lxb_char_t*>("name"), 4, &nameLength);
+          if (nameValue) {
+            const QString name =
+              QString::fromUtf8(reinterpret_cast<const char*>(nameValue), nameLength);
+            const lxb_char_t* value =
+              lxb_dom_element_get_attribute(input, reinterpret_cast<const lxb_char_t*>("value"), 5, &valueLength);
+            const QString stringValue = value
+              ? QString::fromUtf8(reinterpret_cast<const char*>(value), valueLength)
+              : QString();
+            query.addQueryItem(name, stringValue);
+          }
+        }
+      }
+    }
+    lxb_dom_collection_destroy(collection, true);
+    lxb_html_document_destroy(document);
+    url.setQuery(query);
+    m_downloader->download(url, m_destinationPath);
+  }
+
+  void parseMediaFirePage(const QString& htmlContent) {
+    const QByteArray utf8Data = htmlContent.toUtf8();
+    lxb_html_document_t* document = lxb_html_document_create();
+    if (!document) {
+      emit failed("Failed to create Lexbor HTML document instance for MediaFire.");
+      return;
+    }
+    if (lxb_html_document_parse(document, reinterpret_cast<const lxb_char_t*>(utf8Data.constData()),
+                                utf8Data.size()) != LXB_STATUS_OK) {
+      lxb_html_document_destroy(document);
+      emit failed("Lexbor failed to parse MediaFire landing page HTML.");
+      return;
+    }
+    lxb_dom_collection_t* collection =
+      lxb_dom_collection_make(&document->dom_document, 16);
+    if (!collection) {
+      lxb_html_document_destroy(document);
+      emit failed("Failed to allocate Lexbor DOM collection for MediaFire.");
+      return;
+    }
+    lxb_dom_element_t* root = lxb_dom_interface_element(document->body);
+    QString downloadUrl;
+    if (lxb_dom_elements_by_tag_name(root, collection,
+                                     reinterpret_cast<const lxb_char_t*>("a"), 1) == LXB_STATUS_OK) {
+      const size_t length = lxb_dom_collection_length(collection);
+      for (size_t i = 0; i < length; ++i) {
+        lxb_dom_element_t* element = lxb_dom_collection_element(collection, i);
+        size_t idLength = 0;
+        const lxb_char_t* idValue =
+          lxb_dom_element_get_attribute(element, reinterpret_cast<const lxb_char_t*>("id"), 2, &idLength);
+        if (idValue &&
+            QString::fromUtf8(reinterpret_cast<const char*>(idValue), idLength) == "downloadButton") {
+          size_t hrefLength = 0;
+          const lxb_char_t* hrefValue =
+            lxb_dom_element_get_attribute(element, reinterpret_cast<const lxb_char_t*>("href"), 4, &hrefLength);
+          if (hrefValue) {
+            downloadUrl =
+              QString::fromUtf8(reinterpret_cast<const char*>(hrefValue), hrefLength);
+          }
+          break;
+        }
+      }
+    }
+    lxb_dom_collection_destroy(collection, true);
+    lxb_html_document_destroy(document);
+    if (downloadUrl.isEmpty()) {
+      emit failed("Could not locate MediaFire direct download link via Lexbor parser.");
+      return;
+    }
+    downloadUrl.replace("&amp;", "&");
+    QTimer::singleShot(QRandomGenerator::global()->bounded(3000, 4000), this,
+                       [this, downloadUrl]() {
+      if (!m_cancelled) m_downloader->download(QUrl(downloadUrl), m_destinationPath);
+    });
+  }
+
+  QNetworkAccessManager m_networkManager;
+  QNetworkReply* m_currentReply = nullptr;
+  FileDownloader* m_downloader;
+  QString m_originalUrl;
+  QString m_destinationPath;
+  bool m_cancelled = false;
+};
+
 QString userReadableSize(qint64 bytes) {
   if (bytes < 1024) {
     return QString("%1 B").arg(bytes);
@@ -167,7 +458,7 @@ class DownloadDialogContent : public DialogContent {
   Q_OBJECT
 private:
   OnlineMod m_mod;
-  FileDownloader* m_downloader = nullptr;
+  OnlineModDownloader* m_downloader = nullptr;
   QProgressBar* m_progressBar = nullptr;
   QLabel* m_statusLabel = nullptr;
   Button* m_cancelButton = nullptr;
@@ -225,14 +516,14 @@ public:
     m_cancelButton->setEnabled(true);
     layout->addWidget(m_cancelButton, 0, Qt::AlignHCenter);
 
-    m_downloader = new FileDownloader(this);
+    m_downloader = new OnlineModDownloader(this);
     auto onCancel = [self]() {
       if (!self || !self->m_downloader) return;
       self->m_downloader->cancel();
     };
     connect(m_cancelButton, &Button::clicked, this, onCancel);
     connect(dialog(), &Dialog::closed, this, onCancel);
-    connect(m_downloader, &FileDownloader::cancelled, this, [self]() {
+    connect(m_downloader, &OnlineModDownloader::cancelled, this, [self]() {
       if (!self) return;
       self->m_statusLabel->setText(tr("Download cancelled."));
       self->finishTask();
@@ -244,7 +535,7 @@ public:
       QDesktopServices::openUrl(QUrl(QString::fromStdString(modUrl)));
       self->finishTask();
     };
-    connect(m_downloader, &FileDownloader::progress, this,
+    connect(m_downloader, &OnlineModDownloader::progress, this,
             [self](qint64 bytesReceived, qint64 bytesTotal) {
               if (!self) return;
               if (bytesTotal > 0) {
@@ -257,7 +548,7 @@ public:
                 //m_statusLabel->setText(tr("Downloaded %1 bytes").arg(bytesReceived));
               }
             });
-    connect(m_downloader, &FileDownloader::finished, this,
+    connect(m_downloader, &OnlineModDownloader::finished, this,
             [self, fallbackRoute, modName = m_mod.name](const QString& filePath) {
       if (!self) return;
       self->m_cancelButton->setEnabled(false);
@@ -366,7 +657,7 @@ public:
         }, Qt::QueuedConnection);
       });
     });
-    connect(m_downloader, &FileDownloader::failed, this,
+    connect(m_downloader, &OnlineModDownloader::failed, this,
             [self, fallbackRoute](const QString& reason) {
         if (!self) return;
         self->m_statusLabel->setText(tr("Download failed. Please download & install the mod manually.\nReason: %1").arg(reason));

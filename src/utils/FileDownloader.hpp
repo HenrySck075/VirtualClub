@@ -1,10 +1,6 @@
 #pragma once
 
 #include <QObject>
-
-#pragma once
-
-#include <QObject>
 #include <QString>
 #include <QUrl>
 #include <QNetworkAccessManager>
@@ -17,8 +13,7 @@ class FileDownloader : public QObject {
 public:
   explicit FileDownloader(QObject *parent = nullptr);
   
-  // Starts the download process for Google Drive, MediaFire, or direct URLs
-  void download(const QString &sharingUrl, const QString &destinationFilePath);
+  void download(const QUrl &url, const QString &destinationFilePath);
   void cancel();
 
 signals:
@@ -28,23 +23,13 @@ signals:
   void cancelled();
 
 private slots:
-  void onInitialPageFinished();
-  void onHeadFinished();
   void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
   void onDownloadFinished();
 
 private:
-  void checkDirectUrl(const QUrl &directUrl);
-  void processDirectUrl(const QUrl &directUrl);
-  void parseGoogleDrivePage(const QString &htmlContent);
-  void parseMediaFirePage(const QString &htmlContent);
-  void parseGoogleDriveUrl(const QString &urlStr);
-  bool isArchiveFile(const QUrl &url, QNetworkReply *headReply);
-
   QNetworkAccessManager m_networkManager;
   QNetworkReply *m_currentReply = nullptr;
   std::unique_ptr<QSaveFile> m_saveFile;
   QString m_destinationPath;
-  QString m_originalUrl;
   bool m_cancelled = false;
 };
