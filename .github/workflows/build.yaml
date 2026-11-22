@@ -146,8 +146,9 @@ jobs:
           CXX: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang++' }}
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
           VCPKG_DEFAULT_BINARY_CACHE: ${{ matrix.platform == 'windows' && 'C:/vcpkg/archives' || '' }}
+          VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/vcpkg_triplets
           
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="${{ github.workspace }}/vcpkg_triplets" -DVCPKG_TARGET_TRIPLET=x64-windows-release' || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }}
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && format('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="{0}" -DVCPKG_TARGET_TRIPLET=x64-windows-release', env.VCPKG_OVERLAY_TRIPLETS) || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }}
 
       # Build application
       - name: Build Project
