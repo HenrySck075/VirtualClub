@@ -13,9 +13,7 @@
 
 #include <filesystem>
 #include <iostream>
-#include <limits>
 #include <chrono>
-#include <sys/stat.h>
 
 namespace fs = std::filesystem;
 
@@ -55,7 +53,7 @@ static bool extractArchive(const QString& archivePath, const QString& destinatio
     }
 
     const fs::path output = fs::path(destination.toStdString()) / name.toStdString();
-    const mode_t type = archive_entry_filetype(entry);
+    const auto type = archive_entry_filetype(entry);
     if (type == AE_IFDIR) {
       fs::create_directories(output);
       continue;
