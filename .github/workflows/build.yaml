@@ -127,6 +127,7 @@ jobs:
           path: |
             C:/vcpkg/downloads
             C:/vcpkg/installed
+            C:/vcpkg/archives
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
             vcpkg-${{ runner.os }}-
@@ -143,6 +144,8 @@ jobs:
           CC: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang' }}
           CXX: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang++' }}
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ matrix.platform == 'windows' && 'C:/vcpkg/archives' || '' }}
+          VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/vcpkg_triplets
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }}
 
       # Build application

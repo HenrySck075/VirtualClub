@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(VirtualClub VERSION 0.2.2 LANGUAGES C CXX)
 
+include(GNUInstallDirs)
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported. Please use Clang instead. (i used clang extensively for development sorry abt that)")
 endif()
@@ -11,7 +12,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 if(NOT DEFINED MVC_VERSION)
-  set(MVC_VERSION "\"${PROJECT_VERSION}\"")
+  set(MVC_VERSION "${PROJECT_VERSION}")
 endif()
 
 if(NOT DEFINED MVC_CHANNEL)
@@ -36,14 +37,14 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
     OUTPUT_VARIABLE GIT_COMMIT_HASH
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
-  set(MVC_VERSION "\"${PROJECT_VERSION}-local-${GIT_COMMIT_HASH}\"")
+  set(MVC_VERSION "${PROJECT_VERSION}-local-${GIT_COMMIT_HASH}")
   set(MVC_CHANNEL "local")
 endif()
 
 
 
 add_compile_definitions(
-  MVC_VERSION=${MVC_VERSION}
+  MVC_VERSION="${MVC_VERSION}"
   MVC_CHANNEL="${MVC_CHANNEL}"
   MVC_BUILD_ID="${MVC_BUILD_ID}"
   MVC_LAUNCHER_VERSION="${PROJECT_VERSION}"
@@ -147,6 +148,8 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
+set(LEXBOR_INSTALL_HEADERS OFF CACHE BOOL "" FORCE)
+set(LEXBOR_BUILD_STATIC OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     lexbor
     GIT_REPOSITORY https://github.com/lexbor/lexbor.git
@@ -253,10 +256,12 @@ qt_generate_deploy_app_script(
     DEPLOY_TOOL_OPTIONS NO_TRANSLATIONS
 )
 
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    BUILD_RPATH "\$ORIGIN/lib"
-    INSTALL_RPATH "\$ORIGIN/lib"
-)
+if (NOT WIN32)
+  set_target_properties(${PROJECT_NAME} PROPERTIES
+      BUILD_RPATH "\$ORIGIN/lib"
+      INSTALL_RPATH "\$ORIGIN/lib"
+  )
+endif()
 
 install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION .
@@ -270,6 +275,15 @@ install(TARGETS VirtualClub-Updater
 install(SCRIPT ${deploy_script})
 install(DIRECTORY assets DESTINATION .)
 
+
+if(WIN32)
+  set(EXTLIB_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
+else()
+  set(EXTLIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR})
+endif()
+
+message(STATUS "External libraries will be installed to: ${EXTLIB_INSTALL_DIR}")
+
 if(WIN32)
     # Target the DLL in the bin directory corresponding to architecture
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -279,7 +293,7 @@ if(WIN32)
     endif()
 
     if(EXISTS "${WINFSP_DLL}")
-        install(FILES "${WINFSP_DLL}" DESTINATION .)
+        install(FILES "${WINFSP_DLL}" DESTINATION ${EXTLIB_INSTALL_DIR})
     endif()
 
     # in practice termux is my development environment and also this mostly runs on github actions so this wouldn't be happening
@@ -295,14 +309,14 @@ elseif(NOT IS_ANDROID AND NOT IS_TERMUX AND NOT APPLE)
         get_filename_component(FUSE3_REAL_PATH "${FUSE3_SO_PATH}" REALPATH)
         get_filename_component(FUSE3_REAL_NAME "${FUSE3_REAL_PATH}" NAME)
 
-# 2. Install the real binary file into lib/
-        install(FILES "${FUSE3_REAL_PATH}" DESTINATION lib)
+        # 2. Install the real binary file into lib/
+        install(FILES "${FUSE3_REAL_PATH}" DESTINATION ${EXTLIB_INSTALL_DIR})
 
         # 3. Explicitly create symlinks for required names (libfuse.so.3 and libfuse3.so.3)
         install(CODE "
             if(NOT \"${FUSE3_REAL_NAME}\" STREQUAL \"libfuse3.so.3\")
                 file(CREATE_LINK \"${FUSE3_REAL_NAME}\"
-                    \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/lib/libfuse3.so.3\"
+                    \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${EXTLIB_INSTALL_DIR}/libfuse3.so.3\"
                     SYMBOLIC)
             endif()
         ")
@@ -316,7 +330,7 @@ elseif(NOT IS_ANDROID AND NOT IS_TERMUX AND NOT APPLE)
         get_filename_component(QT_ROOT_DIR "${QT_LIB_DIR}" DIRECTORY)
         file(GLOB QT_ICU_LIBS "${QT_ROOT_DIR}/libicu*.so*")
         if(QT_ICU_LIBS)
-            install(FILES ${QT_ICU_LIBS} DESTINATION lib)
+            install(FILES ${QT_ICU_LIBS} DESTINATION ${EXTLIB_INSTALL_DIR})
         endif()
     endif()
 endif()
@@ -370,13 +384,11 @@ install(
     PATTERN "turtle.py" EXCLUDE
 )
 
+
 # Install C-runtime DLL/SO only, skipping lib-dynload
-if(WIN32)
-    if(Python_RUNTIME_LIBRARY)
-        install(FILES "${Python_RUNTIME_LIBRARY}" DESTINATION .)
-    endif()
-else()
-    if(Python_RUNTIME_LIBRARY)
-        install(FILES "${Python_RUNTIME_LIBRARY}" DESTINATION lib)
-    endif()
+if(Python_RUNTIME_LIBRARY)
+    install(FILES "${Python_RUNTIME_LIBRARY}" DESTINATION ${EXTLIB_INSTALL_DIR})
 endif()
+
+# Install LibArchive
+install(FILES "${LibArchive_LIBRARIES}" DESTINATION ${EXTLIB_INSTALL_DIR})

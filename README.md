@@ -1,4 +1,5 @@
 > This section is mainly for developers. Regular users should skip straight to [the Releases page](https://github.com/HenrySck075/VirtualClub/releases).
+> This application is also in an early stage, so there's prone to bugs, although it's mostly on other parts of the app, the core feature of mod launching works fine, hopefully.
 
 
 looks smth like this atm
