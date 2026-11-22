@@ -34,6 +34,13 @@
 #include <qsettings.h>
 #include <QDateTime>
 
+#ifdef WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #ifdef MVC_DEBUG
 #include <cpptrace/from_current_macros.hpp>
 #include <cpptrace/from_current.hpp>
@@ -196,6 +203,23 @@ static void processCompatibilityMigrations() {
 
 int main(int argc, char *argv[]) {
 
+#ifdef WIN32
+  // DLLs for optional/runtime-loaded components may be kept in a bin directory.
+  // Add it to the process DLL search path before Pybind/Python and WinFsp are
+  // initialized. Linked DLLs (Qt, Python, LibArchive) still need to be beside
+  // the executable because the OS loader resolves import-table dependencies
+  // before main().
+  wchar_t executablePath[MAX_PATH];
+  if (GetModuleFileNameW(nullptr, executablePath, MAX_PATH) != 0) {
+    std::wstring executable(executablePath);
+    const auto separator = executable.find_last_of(L"\\/");
+    if (separator != std::wstring::npos) {
+      const std::wstring binDir = executable.substr(0, separator) + L"\\bin";
+      SetDllDirectoryW(binDir.c_str());
+    }
+  }
+#endif
+
   ProfileSingleApp app(argc, argv);
 
   QCoreApplication::setApplicationName("VirtualClub");
@@ -219,7 +243,7 @@ int main(int argc, char *argv[]) {
   parser.addOption(modOption);
   parser.addHelpOption();
   parser.process(app);
-qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
+
   QSettings qsettings;
 
   QString selectedProfile = parser.value(profileOption).trimmed();
@@ -271,7 +295,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
   //LucideIcons::initializeIcons();
   //
   QAudioDevice defaultDevice = QMediaDevices::defaultAudioOutput();
-  qDebug() << "Default Output Device:" << defaultDevice.description();
+  
 
   initGlobalSfx();
 
@@ -373,7 +397,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
           qWarning() << "Update check failed:" << error;
       });
 
-  const QString frequency = qsettings.value(GSTK_UPDATE_FREQUENCY, "startup").toString();
+  const QString frequency = qsettings.value(GSTK_UPDATE_FREQUENCY, "daily").toString();
   const QString channel =
       qsettings.value(GSTK_UPDATE_CHANNEL, QStringLiteral(MVC_CHANNEL)).toString();
   const QDateTime lastCheck = qsettings.value(GSTK_UPDATE_LAST_CHECK).toDateTime();
@@ -388,7 +412,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
 
   // Handle messages when a user attempts to re-open the app under this profile
   QObject::connect(&app, &ProfileSingleApp::messageReceivedFromSecondary, [&](const QStringList &args) {
-      qDebug() << "Received focus request or arguments from secondary instance:" << args;
+      
       QCommandLineParser secondaryParser;
       secondaryParser.addOption(modOption);
       secondaryParser.process(args);
@@ -412,20 +436,24 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
       QSettings().setValue("lastUsedProfile", selectedProfile);
   });
 
+  int exitcodemethink = 0;
 #ifdef MVC_DEBUG
-  CPPTRACE_TRY {
+  CPPTRACE_TRY 
 #endif
+  {
   // Keep the embedded interpreter available to worker threads while Qt owns
   // the event loop. Python work acquires/releases the GIL explicitly.
   py::gil_scoped_release gilRelease;
   std::cout << "==== Welcome to VirtualClub " MVC_VERSION " ====" << std::endl;
-  return app.exec();
+  exitcodemethink = app.exec();
+  }
 #ifdef MVC_DEBUG
-  } CPPTRACE_CATCH (std::exception& e) {
-    qDebug() << "Exception:" << e.what();
+  CPPTRACE_CATCH (std::exception& e) {  
     cpptrace::from_current_exception().print();
   }
 #endif
 
   py::finalize_interpreter();
+
+  return exitcodemethink;
 }

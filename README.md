@@ -28,4 +28,19 @@ short answer, the "virtual filesystem" technology allows the launcher to constru
 
 
 ## Dependencies
-`qt6`, `pybind11`, `fuse3` (winfsp on windows)
+These lists the dependencies that do not automatically get installed by the project:
+- Git (ofc)
+- Qt6
+- Python
+- FUSE3 (or WinFsp on Windows, requires enabling the driver)
+- LibArchive
+
+### Cross-Compiling (Using MinGW)
+The cross-compiling snippet you saw on the codebase assumes an Arch Linux setup (i use arch btw).<br>
+Additionally, this requires Wine for `--install`ing the app
+
+Configure the project:
+```
+x86_64-w64-mingw32-cmake -G Ninja -B build-win64 -DCMAKE_TOOLCHAIN_FILE="$PWD/cmake/mingw64.cmake" -DCMAKE_BUILD_TYPE=Debug -DWINFSP_DIR="/path/to/WinFsp"
+```
+Where `WINFSP_DIR` is a copy of `C:\Program Files (x86)\WinFsp` from a Windows installation

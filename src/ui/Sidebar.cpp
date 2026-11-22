@@ -256,9 +256,7 @@ void Sidebar::onSidebarItemClicked(SidebarItem* item) {
     //if (!maybeSelectedItem) maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_scrollSectionLayout, _selectedSidebarPredicate));
     if (!maybeSelectedItem) maybeSelectedItem = static_cast<SidebarItem*>(findChildWidgetBy(m_bottomSectionLayout, _selectedSidebarPredicate));
     
-    if (!maybeSelectedItem) {
-      qDebug() << "Cannot find another selected sidebar item.";
-    } else {
+    if (maybeSelectedItem) {
       maybeSelectedItem->setSelected(false);
     }
     selectedItemChanged(maybeSelectedItem, item);

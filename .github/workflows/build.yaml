@@ -26,7 +26,8 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-          - os: windows-latest
+            # TODO: remember to turn this back into windows-latest when they install clang 22
+          - os: windows-2022
             platform: windows
 
     steps:
@@ -69,6 +70,7 @@ jobs:
             libxkbcommon-x11-dev \
             libvulkan-dev \
             libicu-dev \
+            libva-dev \
             libglib2.0-dev \
             libdbus-1-dev \
             libfontconfig1-dev \
@@ -104,7 +106,8 @@ jobs:
             pybind11-dev \
             fuse3 \
             libfuse3-dev \
-            libarchive-dev
+            libarchive-dev \
+            gdb
 
       # Install WinFSP for Windows (required for FUSE support)
       - name: Install WinFSP (Windows)
@@ -112,25 +115,49 @@ jobs:
         shell: pwsh
         run: |
           choco install winfsp -y --no-progress
-          echo "WINFSP_DIR=C:/Program Files (x86)/WinFsp" >> $env:GITHUB_ENV
+
+          $winfspDir = "C:\Program Files (x86)\WinFsp"
+          if (-not (Test-Path $winfspDir)) {
+            throw "WinFsp installation directory not found at $winfspDir"
+          }
+
+          "WINFSP_DIR=$winfspDir" >> $env:GITHUB_ENV
+          "$winfspDir\bin" >> $env:GITHUB_PATH
+
+          # Verify driver and launcher service registration
+          sc.exe query WinFsp.Launcher
+          if ($LASTEXITCODE -ne 0) {
+            throw "WinFsp.Launcher service is not registered"
+          }
+
+          # Ensure WinFsp.Launcher is running for service-based mount tests
+          $svc = Get-Service -Name "WinFsp.Launcher" -ErrorAction Stop
+          if ($svc.Status -ne "Running") {
+            Start-Service -Name "WinFsp.Launcher"
+            $svc.WaitForStatus("Running", "00:00:15")
+          }
 
       - name: Create vcpkg directories (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "C:/vcpkg/downloads", "C:/vcpkg/installed"
+          New-Item -ItemType Directory -Force -Path "C:/vcpkg/downloads", "C:/vcpkg/installed", "C:/vcpkg/archives"
 
-      - name: Cache vcpkg (Windows)
+      - name: Restore cache vcpkg (Windows)
         if: matrix.platform == 'windows'
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
-            C:/vcpkg/downloads
-            C:/vcpkg/installed
             C:/vcpkg/archives
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
             vcpkg-${{ runner.os }}-
+
+      - name: Install CMake 4.4+
+        if: matrix.platform == 'windows'
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: ">=4.4.4"
 
       # Initialize MSVC and Windows SDK environment variables
       - name: Set up MSVC environment
@@ -145,19 +172,83 @@ jobs:
           CXX: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang++' }}
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
           VCPKG_DEFAULT_BINARY_CACHE: ${{ matrix.platform == 'windows' && 'C:/vcpkg/archives' || '' }}
+          VCPKG_BINARY_SOURCES: ${{ matrix.platform == 'windows' && 'clear;files,C:/vcpkg/archives,readwrite' || '' }}
           VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/vcpkg_triplets
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && '-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake' || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }}
-
-      # Build application
-      - name: Build Project
+          VCPKG_ROOT: C:/vcpkg
+          BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'RelWithDebInfo' || 'Release' }}
         run: |
-          cmake --build build --config Release
+          cmake -B build -G Ninja -DCMAKE_CXX_SCAN_FOR_MODULES=OFF -DCMAKE_BUILD_TYPE=${{ env.BUILD_CONFIG }} ${{ matrix.platform == 'windows' && format('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="{0}" -DVCPKG_TARGET_TRIPLET=x64-windows-release', env.VCPKG_OVERLAY_TRIPLETS) || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }} ${{ env.NIGHTLY == 'true' && (matrix.platform == 'linux' && '-DCMAKE_C_FLAGS_RELEASE="-O2 -g -DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="-O2 -g -DNDEBUG -ferror-limit=0 -fdiagnostics-show-option" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--build-id"' || '-DCMAKE_C_FLAGS_RELEASE="/O2 /Zi /DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="/O2 /Zi /DNDEBUG -ferror-limit=0" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO"') || '' }}
 
-      # Install Application using Qt's CMake deployment API
+      - name: Save cache vcpkg (Windows)
+        if: matrix.platform == 'windows' && success()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            C:/vcpkg/archives
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+
+      - name: Build Project
+        env:
+          BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'RelWithDebInfo' || 'Release' }}
+        run: |
+          cmake --build build --config ${{ env.BUILD_CONFIG }}
+
       - name: Install and Deploy Application
         env:
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
         run: cmake --install build --prefix dist
+
+      - name: Run CTest
+        shell: bash
+        if: matrix.platform != 'windows'
+        env:
+          LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/dist/lib:{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
+          QT_PLUGIN_PATH: ${{ matrix.platform == 'linux' && format('{0}/dist/plugins:{0}/qt6/plugins', github.workspace) || '' }}
+          LIBPATH: ${{ matrix.platform == 'windows' && format('{0}/dist;{0}/dist/bin;{1}', github.workspace, env.LIBPATH) || '' }}
+        run: |
+          command -v ctest
+          if ctest --test-dir build --output-on-failure -V; then
+            exit 0
+          else
+            test_status=$?
+          fi
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            echo "CTest failed; rerunning the test executable under GDB for a backtrace"
+            gdb --batch \
+              -ex "set pagination off" \
+              -ex run \
+              -ex "thread apply all bt full" \
+              --args "$GITHUB_WORKSPACE/build/VirtualClub-Tests" || true
+          fi
+          exit "$test_status"
+
+      # Create a separate archive of Linux ELF debug symbols for nightly builds
+      - name: Package Debug Symbols (Linux)
+        if: env.NIGHTLY == 'true' && matrix.platform == 'linux'
+        shell: bash
+        run: |
+          mkdir -p debug-symbols-linux
+          find dist -type f -print0 | while IFS= read -r -d '' file; do
+            if readelf -h "$file" >/dev/null 2>&1; then
+              rel="${file#dist/}"
+              out="debug-symbols-linux/${rel}.debug"
+              mkdir -p "$(dirname "$out")"
+              objcopy --only-keep-debug "$file" "$out"
+              objcopy --strip-debug "$file"
+            fi
+          done
+          tar -czvf debug-symbols-linux-x64.tar.gz -C debug-symbols-linux .
+
+      # Collect PDB files produced by clang-cl for nightly builds
+      - name: Package Debug Symbols (Windows)
+        if: env.NIGHTLY == 'true' && matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $pdbFiles = Get-ChildItem -Path build -Filter *.pdb -Recurse
+          if ($pdbFiles.Count -eq 0) {
+            throw "No PDB debug symbols were produced"
+          }
+          Compress-Archive -Path $pdbFiles.FullName -DestinationPath debug-symbols-windows-x64.zip
 
       # Package Linux Application into a tarball (with assets folder)
       - name: Package Application (Linux)
@@ -201,6 +292,13 @@ jobs:
             update-manifest-${{ matrix.platform }}.json
             ${{ matrix.platform == 'windows' && 'app-windows-x64.zip.sha256' || 'app-linux-x64.tar.gz.sha256' }}
 
+      - name: Upload Debug Symbols
+        if: env.NIGHTLY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-symbols-${{ matrix.platform }}
+          path: ${{ matrix.platform == 'windows' && 'debug-symbols-windows-x64.zip' || 'debug-symbols-linux-x64.tar.gz' }}
+
   release:
     name: Create GitHub Release
     needs: build
@@ -224,6 +322,12 @@ jobs:
           pattern: build-artifact-*
           merge-multiple: true
 
+      - name: Download Debug Symbols
+        uses: actions/download-artifact@v4
+        with:
+          pattern: debug-symbols-*
+          merge-multiple: true
+
       - name: Create Release (Nightly)
         uses: andelf/nightly-release@main
         if: env.NIGHTLY == 'true' 
@@ -236,6 +340,8 @@ jobs:
           files: |
             app-linux-x64.tar.gz
             app-windows-x64.zip
+            debug-symbols-linux-x64.tar.gz
+            debug-symbols-windows-x64.zip
             update-manifest-linux.json
             update-manifest-windows.json
             app-linux-x64.tar.gz.sha256

@@ -320,7 +320,7 @@ SettingsScreen::SettingsScreen(Router *router, QWidget *parent) : QWidget(parent
 
   connect(languagesComboBox, &QComboBox::currentIndexChanged, this, [this, languagesComboBox, settings](int index){
     auto locale = languagesComboBox->itemData(index).value<QLocale>();
-    qDebug() << "set language to" << locale << "hopefully";
+    
     setLanguage(locale);
     settings->setValue(STK_LANGUAGE, locale.name());
   });

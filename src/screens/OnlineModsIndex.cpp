@@ -761,6 +761,8 @@ public:
     auto* scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setStyleSheet("QScrollArea { background: transparent; }");
+    scrollArea->viewport()->setStyleSheet("background: transparent;");
     auto* scrollContent = new QWidget();
     auto* scrollLayout = new QVBoxLayout(scrollContent);
     scrollLayout->setContentsMargins(0, 0, 0, 0);

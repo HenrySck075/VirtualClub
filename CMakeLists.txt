@@ -1,10 +1,25 @@
-cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.2.2 LANGUAGES C CXX)
+cmake_minimum_required(VERSION 3.30)
+project(VirtualClub VERSION 0.1.0 LANGUAGES C CXX)
+# who tf uses modules here
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 include(GNUInstallDirs)
+
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported. Please use Clang instead. (i used clang extensively for development sorry abt that)")
 endif()
+
+
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  set(CMAKE_INSTALL_BINDIR ".")
+endif()
+
+if(WIN32)
+  set(EXTLIB_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
+else()
+  set(EXTLIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR})
+endif()
+
 
 # assume Debug if unset
 if(NOT CMAKE_BUILD_TYPE)
@@ -54,14 +69,35 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Enable Qt's automatic compilation tools
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
+
+function(target_declare_qt_autogen target)
+    set_target_properties(${target} PROPERTIES
+        AUTOMOC ON
+        AUTOUIC ON
+        AUTORCC ON
+    )
+endfunction()
 
 
-find_package(Python REQUIRED COMPONENTS Interpreter Development)
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  find_package(Python REQUIRED COMPONENTS Interpreter)
 
-message(STATUS "Python binary path: ${Python_EXECUTABLE}")
+  set(MINGW_PREFIX "/usr/x86_64-w64-mingw32")
+  set(MINGW_PY_VER_MAJOR 3)
+  set(MINGW_PY_VER_MINOR 14)
+
+  set(Python_VERSION_MAJOR "${MINGW_PY_VER_MAJOR}")
+  set(Python_VERSION_MINOR "${MINGW_PY_VER_MINOR}")
+  set(Python_INCLUDE_DIRS "${MINGW_PREFIX}/include/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}")
+  set(Python_LIBRARIES "${MINGW_PREFIX}/lib/libpython${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}.dll.a")
+  set(Python_MINGW_STDLIB "${MINGW_PREFIX}/lib/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}")
+  set(Python_RUNTIME_LIBRARY "${MINGW_PREFIX}/bin/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}.dll")
+
+  set(PYBIND11_NOPYTHON ON CACHE BOOL "" FORCE)
+else()
+  find_package(Python REQUIRED COMPONENTS Interpreter Development)
+  message(STATUS "Python binary path: ${Python_EXECUTABLE}")
+endif()
 
 # Find Qt6 components
 # (also requires ImageFormats plugin for the online mods browser)
@@ -73,16 +109,40 @@ find_package(LibArchive REQUIRED)
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES vi)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp" "src/*.c" "src/*.hpp") 
+list(REMOVE_ITEM SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_fuse3.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_winfsp.cpp"
+)
+if(UNIX AND NOT APPLE AND NOT ANDROID AND
+   NOT CMAKE_SYSTEM_NAME STREQUAL "Android" AND
+   NOT DEFINED ENV{TERMUX_VERSION} AND
+   NOT "$ENV{PREFIX}" MATCHES "com.termux")
+ message(STATUS "Using the Fuse3 implementation")
+  list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs.cpp")
+  list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_fuse3.cpp")
+elseif(WIN32)
+  message(STATUS "Using the WinFsp implementation")
+  list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs.cpp")
+  list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_winfsp.cpp")
+endif()
 qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     #resources.qrc
 )
 
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  target_link_libraries(${PROJECT_NAME} PRIVATE ${Python_LIBRARIES})
+  target_include_directories(${PROJECT_NAME} PRIVATE ${Python_INCLUDE_DIRS})
+endif()
+
+target_declare_qt_autogen(${PROJECT_NAME})
 file(GLOB_RECURSE UPDATER_SOURCES CONFIGURE_DEPENDS "updater_src/*.cpp" "updater_src/*.hpp")
 qt_add_executable(VirtualClub-Updater ${UPDATER_SOURCES})
 target_compile_features(VirtualClub-Updater PRIVATE cxx_std_20)
 target_include_directories(VirtualClub-Updater PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/updater_src)
 target_link_libraries(VirtualClub-Updater PRIVATE Qt6::Core Qt6::Widgets LibArchive::LibArchive)
+
+target_declare_qt_autogen(VirtualClub-Updater)
 
 qt_add_translations(
   ${PROJECT_NAME} 
@@ -95,6 +155,11 @@ qt_add_translations(
 )
 
 
+if(WIN32 AND MVC_CHANNEL STREQUAL "stable")
+  set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
+  set_target_properties(VirtualClub-Updater PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
+
+endif()
 
 target_precompile_headers(
   ${PROJECT_NAME} PRIVATE 
@@ -107,7 +172,8 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # this thing is for windows 
-add_compile_definitions(WIN32_LEAN_AND_MEAN)
+#add_compile_definitions(WIN32_LEAN_AND_MEAN)
+add_compile_definitions(NOMINMAX)
 
 file(GLOB_RECURSE RC_FILES CONFIGURE_DEPENDS "resources/*.*")
 
@@ -127,6 +193,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
       GIT_TAG        v1.0.4 # <HASH or TAG>
     )
     FetchContent_MakeAvailable(cpptrace)
+    if(TARGET cpptrace-lib)
+      set_target_properties(cpptrace-lib PROPERTIES CXX_SCAN_FOR_MODULES OFF)
+    endif()
 
 # Needed for shared library builds on windows:  copy cpptrace.dll to the same directory as the
 # executable for your_target
@@ -147,6 +216,15 @@ FetchContent_Declare(
   GIT_TAG yaml-cpp-0.9.0 # Can be a tag (yaml-cpp-x.x.x), a commit hash, or a branch name (master)
 )
 FetchContent_MakeAvailable(yaml-cpp)
+
+if(MINGW)
+  if(TARGET yaml-cpp)
+    get_target_property(yaml_type yaml-cpp TYPE)
+    if(yaml_type STREQUAL "STATIC_LIBRARY")
+      target_compile_definitions(yaml-cpp PUBLIC YAML_CPP_STATIC_DEFINE)
+    endif()
+  endif()
+endif()
 
 set(LEXBOR_INSTALL_HEADERS OFF CACHE BOOL "" FORCE)
 set(LEXBOR_BUILD_STATIC OFF CACHE BOOL "" FORCE)
@@ -174,6 +252,13 @@ target_link_libraries(
   Qt6::Widgets Qt6::Multimedia Qt6::Svg pybind11::embed
   LibArchive::LibArchive
 )
+if(WIN32)
+  if(MINGW)
+    target_link_libraries(${PROJECT_NAME} PRIVATE advapi32)
+  else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE Advapi32)
+  endif()
+endif()
 
 set(IS_ANDROID FALSE)
 set(IS_TERMUX FALSE)
@@ -196,8 +281,10 @@ endif()
 
 if(WIN32)
   # WinFsp configuration
-  if(DEFINED ENV{WINFSP_DIR})
-      set(WINFSP_DIR "$ENV{WINFSP_DIR}")
+  if(DEFINED WINFSP_DIR)
+      file(TO_CMAKE_PATH "${WINFSP_DIR}" WINFSP_DIR)
+  elseif(DEFINED ENV{WINFSP_DIR})
+      file(TO_CMAKE_PATH "$ENV{WINFSP_DIR}" WINFSP_DIR)
   else()
       set(WINFSP_DIR "C:/Program Files (x86)/WinFsp")
   endif()
@@ -210,7 +297,7 @@ if(WIN32)
 
   set(FUSE_LIBRARIES ${WINFSP_LIB})
   set(FUSE_INCLUDE_DIRS "${WINFSP_DIR}/inc")
-elseif(NOT IS_ANDROID AND NOT IS_TERMUX)
+elseif(UNIX AND NOT APPLE AND NOT IS_ANDROID AND NOT IS_TERMUX)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(FUSE3 REQUIRED fuse3)
   set(FUSE_LIBRARIES ${FUSE3_LIBRARIES})
@@ -249,12 +336,29 @@ endif()
 
 # =============== Deployment ================
 # Add deployment script generation for Qt6
-qt_generate_deploy_app_script(
-    TARGET ${PROJECT_NAME}
-    OUTPUT_SCRIPT deploy_script
-    NO_UNSUPPORTED_PLATFORM_ERROR
-    DEPLOY_TOOL_OPTIONS NO_TRANSLATIONS
-)
+if(NOT (CMAKE_CROSSCOMPILING AND MINGW))
+  qt_generate_deploy_app_script(
+      TARGET ${PROJECT_NAME}
+      OUTPUT_SCRIPT deploy_script
+      NO_UNSUPPORTED_PLATFORM_ERROR
+      DEPLOY_TOOL_OPTIONS NO_TRANSLATIONS
+  )
+  install(SCRIPT ${deploy_script})
+else()
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  install(CODE "
+    execute_process(
+      COMMAND \"${Python3_EXECUTABLE}\" \"${CMAKE_SOURCE_DIR}/scripts/mingw-deploy.py\"
+        --target \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}.exe\"
+        --target \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/VirtualClub-Updater.exe\"
+        --dist-dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\"
+      RESULT_VARIABLE _qt_deploy_rc
+    )
+    if(NOT _qt_deploy_rc EQUAL 0)
+      message(FATAL_ERROR \"deploy_qt6_mingw.py failed with exit code \${_qt_deploy_rc}\")
+    endif()
+  ")
+endif()
 
 if (NOT WIN32)
   set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -272,17 +376,62 @@ install(TARGETS VirtualClub-Updater
     BUNDLE DESTINATION .
 )
 
-install(SCRIPT ${deploy_script})
-install(DIRECTORY assets DESTINATION .)
-
-
-if(WIN32)
-  set(EXTLIB_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
-else()
-  set(EXTLIB_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR})
-endif()
 
 message(STATUS "External libraries will be installed to: ${EXTLIB_INSTALL_DIR}")
+
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  # https://gitlab.kitware.com/cmake/cmake/-/work_items/20753#note_1022693
+  install(CODE "
+    execute_process(
+      COMMAND \"${Python3_EXECUTABLE}\" ${CMAKE_SOURCE_DIR}/scripts/mingw-depends.py --objdump=/usr/bin/x86_64-w64-mingw32-objdump --pre-exclude-regex \"api-ms-\" --pre-exclude-regex \"ext-ms-\" --post-exclude-regex \"qt6.*\" --post-exclude-regex \".*system32/.*\\\\.dll\" --userlib \"${CMAKE_CURRENT_BINARY_DIR}\" --userlib \"${WINFSP_DIR}/bin\" $<TARGET_FILE:${PROJECT_NAME}>
+      OUTPUT_VARIABLE RUNTIME_DEPS
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      COMMAND_ECHO STDERR
+      COMMAND_ERROR_IS_FATAL ANY
+    )
+    message(AUTHOR_WARNING \"resolved dependencies: ${RUNTIME_DEPS}\")
+    file(INSTALL DESTINATION \${CMAKE_INSTALL_PREFIX}/bin TYPE EXECUTABLE FILES \${RUNTIME_DEPS})
+    # this is Qt5-specific, obviously
+    file(INSTALL DESTINATION \${CMAKE_INSTALL_PREFIX}/bin/platforms TYPE EXECUTABLE FILES \"/usr/x86_64-w64-mingw32/lib/qt6/plugins/platforms/qwindows.dll\")
+  " COMPONENT foobar)
+else()
+  install(CODE "
+    file(GET_RUNTIME_DEPENDENCIES
+      EXECUTABLES \"$<TARGET_FILE:${PROJECT_NAME}>\"
+      RESOLVED_DEPENDENCIES_VAR _resolved_deps
+      UNRESOLVED_DEPENDENCIES_VAR _unresolved_deps
+      CONFLICTING_DEPENDENCIES_PREFIX _conflicting_deps
+      PRE_EXCLUDE_REGEXES \"api-ms-\" \"ext-ms-\"
+      POST_EXCLUDE_REGEXES \".*system32/.*\\\\.dll\"
+      DIRECTORIES
+        \"$<TARGET_FILE_DIR:Qt6::Core>\"
+        \"$<TARGET_FILE_DIR:Qt6::Multimedia>\"
+        \"$<TARGET_FILE_DIR:Qt6::Svg>\"
+        \"$<TARGET_FILE_DIR:LibArchive::LibArchive>\"
+    )
+
+    list(LENGTH _unresolved_deps _unresolved_count)
+    if(_unresolved_count GREATER 0)
+      message(STATUS \"Unresolved runtime dependencies (\${_unresolved_count}):\")
+      foreach(_dep IN LISTS _unresolved_deps)
+        message(STATUS \"  - \${_dep}\")
+      endforeach()
+    else()
+      message(STATUS \"Zero unresolved runtime dependencies.\")
+    endif()
+
+    foreach(_dep IN LISTS _resolved_deps)
+      message(STATUS \"Installing \${_dep}\")
+      file(INSTALL
+        DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${EXTLIB_INSTALL_DIR}\"
+        FOLLOW_SYMLINK_CHAIN
+        FILES \"\${_dep}\"
+      )
+    endforeach()
+  ")
+endif()
+
+install(DIRECTORY assets DESTINATION .)
 
 if(WIN32)
     # Target the DLL in the bin directory corresponding to architecture
@@ -338,17 +487,25 @@ endif()
 
 # Define target directory for minimal stdlib
 if(WIN32)
+  if(CMAKE_CROSSCOMPILING AND MINGW)
+    set(PY_STDLIB_DEST "lib")
+  else()
     set(PY_STDLIB_DEST "Lib")
+  endif()
 else()
     set(PY_STDLIB_DEST "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}")
 endif()
 
+file(TO_CMAKE_PATH "${Python_STDLIB}" Python_STDLIB_CMAKE)
+file(TO_CMAKE_PATH "${Python_MINGW_STDLIB}" Python_MINGW_STDLIB_CMAKE)
+
 install(
-    DIRECTORY "${Python_STDLIB}/"
+  DIRECTORY "${Python_STDLIB_CMAKE}/"
     DESTINATION "${PY_STDLIB_DEST}"
     USE_SOURCE_PERMISSIONS
-    #TODO: dont do a duplicate here
     PATTERN "__pycache__" EXCLUDE
+    PATTERN "lib-dynload" EXCLUDE
+    PATTERN "profiling" EXCLUDE
     PATTERN "site-packages" EXCLUDE
     PATTERN "test" EXCLUDE
     PATTERN "unittest" EXCLUDE
@@ -384,11 +541,26 @@ install(
     PATTERN "turtle.py" EXCLUDE
 )
 
-
+if(MINGW)
+  install(
+    DIRECTORY "${Python_MINGW_STDLIB_CMAKE}/"
+      DESTINATION "${PY_STDLIB_DEST}"
+      USE_SOURCE_PERMISSIONS
+  )
+endif()
 # Install C-runtime DLL/SO only, skipping lib-dynload
 if(Python_RUNTIME_LIBRARY)
-    install(FILES "${Python_RUNTIME_LIBRARY}" DESTINATION ${EXTLIB_INSTALL_DIR})
+  file(TO_CMAKE_PATH "${Python_RUNTIME_LIBRARY}" Python_RUNTIME_LIBRARY_CMAKE)
+    install(FILES "${Python_RUNTIME_LIBRARY_CMAKE}" DESTINATION ${EXTLIB_INSTALL_DIR})
 endif()
 
-# Install LibArchive
 install(FILES "${LibArchive_LIBRARIES}" DESTINATION ${EXTLIB_INSTALL_DIR})
+
+
+# After all installs are done, nuke the potential `include` folder
+install(CODE "
+    file(REMOVE_RECURSE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/include\")
+")
+
+# Test targets and test-specific dependencies are kept outside the main build file.
+include(cmake/Tests.cmake)

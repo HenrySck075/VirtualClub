@@ -178,7 +178,7 @@ GlobalSettingsScreen::GlobalSettingsScreen(Router *router, QWidget *parent) : QW
   frequency->addItem(tr("Daily"), "daily");
   frequency->addItem(tr("Weekly"), "weekly");
   frequency->addItem(tr("Never"), "never");
-  frequency->setCurrentIndex(frequency->findData(QSettings().value(GSTK_UPDATE_FREQUENCY, "startup").toString()));
+  frequency->setCurrentIndex(frequency->findData(QSettings().value(GSTK_UPDATE_FREQUENCY, "daily").toString()));
   updateLayout->addWidget(frequency);
 
 

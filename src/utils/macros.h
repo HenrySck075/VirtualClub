@@ -44,8 +44,7 @@
 #error "what"
 #endif
 
-#if defined(__ANDROID__) || defined(TERMUX_ENV)
-#else
+#if (defined(Q_OS_WIN) || defined(Q_OS_LINUX)) && !defined(__ANDROID__) && !defined(TERMUX_ENV)
 #define MVC_VFS_AVAILABLE
 #endif
 

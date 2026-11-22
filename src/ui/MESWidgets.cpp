@@ -500,7 +500,7 @@ void Dialog::showEvent(QShowEvent* event) {
 
 
 void Dialog::close() {
-  qDebug() << "hi";
+  
   QDialog::close();
 }
 

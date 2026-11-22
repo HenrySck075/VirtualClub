@@ -8,6 +8,8 @@ build-*/
 [Bb]in/
 [Ll]ib/
 dist/
+dist-*/
+localbsdonotpushtopublic/
 
 # CMake cache and temporary files
 CMakeCache.txt
@@ -30,6 +32,8 @@ DartConfiguration.tcl
 *.gcda
 *.gcno
 *.a.out
+tests/subject/base/renpy/
+tests/subject/base/renpy.py
 
 # ==========================================
 # Compiled Libraries, Executables & Artifacts

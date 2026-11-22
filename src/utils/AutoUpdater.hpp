@@ -1,8 +1,13 @@
 #pragma once
 
+#if defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(WIN64) || defined(__NT__)
+#include <windows.h>
+#endif
+
+
 #include <QObject>
 #include <QString>
-
+#include <qplatformdefs.h>
 #include <nlohmann/json.hpp>
 
 class QNetworkAccessManager;
