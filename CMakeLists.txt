@@ -407,84 +407,38 @@ if(Python_RUNTIME_LIBRARY)
     install(FILES "${Python_RUNTIME_LIBRARY_CMAKE}" DESTINATION ${EXTLIB_INSTALL_DIR})
 endif()
 
-# Install LibArchive
-if(LibArchive_RUNTIME_LIBRARY)
-  file(TO_CMAKE_PATH "${LibArchive_RUNTIME_LIBRARY}" LibArchive_RUNTIME_LIBRARY_CMAKE)
-  install(FILES "${LibArchive_RUNTIME_LIBRARY_CMAKE}" DESTINATION ${EXTLIB_INSTALL_DIR})
-elseif(TARGET LibArchive::LibArchive)
-  set(LIBARCHIVE_RUNTIME_CANDIDATE "")
-  foreach(config LOCATION IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_RELWITHDEBINFO IMPORTED_LOCATION_DEBUG)
-    get_target_property(LIBARCHIVE_RUNTIME_CANDIDATE LibArchive::LibArchive ${config})
-    if(LIBARCHIVE_RUNTIME_CANDIDATE AND EXISTS "${LIBARCHIVE_RUNTIME_CANDIDATE}")
-      get_filename_component(LIBARCHIVE_RUNTIME_EXTENSION "${LIBARCHIVE_RUNTIME_CANDIDATE}" EXT)
-      if(LIBARCHIVE_RUNTIME_EXTENSION STREQUAL ".dll")
-        install(FILES "${LIBARCHIVE_RUNTIME_CANDIDATE}" DESTINATION ${EXTLIB_INSTALL_DIR})
-        break()
-      elseif(LIBARCHIVE_RUNTIME_EXTENSION STREQUAL ".lib")
-        get_filename_component(LIBARCHIVE_RUNTIME_NAME "${LIBARCHIVE_RUNTIME_CANDIDATE}" NAME_WE)
-        get_filename_component(LIBARCHIVE_RUNTIME_LIBDIR "${LIBARCHIVE_RUNTIME_CANDIDATE}" DIRECTORY)
-        get_filename_component(LIBARCHIVE_RUNTIME_PREFIX "${LIBARCHIVE_RUNTIME_LIBDIR}" DIRECTORY)
-        set(LIBARCHIVE_RUNTIME_DLL "${LIBARCHIVE_RUNTIME_PREFIX}/bin/${LIBARCHIVE_RUNTIME_NAME}.dll")
-        if(EXISTS "${LIBARCHIVE_RUNTIME_DLL}")
-          install(FILES "${LIBARCHIVE_RUNTIME_DLL}" DESTINATION ${EXTLIB_INSTALL_DIR})
-          break()
-        endif()
-      endif()
-    endif()
-  endforeach()
-endif()
-
 if(WIN32)
-  set(LIBARCHIVE_RUNTIME_DLL_NAMES
-      archive.dll
-      archive-13.dll
-      bz2.dll
-      bzip2.dll
-      libbz2.dll
-      libbz2-1.dll
-      zlib.dll
-      zlib1.dll
-      libz.dll
-      lzma.dll
-      liblzma.dll
-      liblzma-5.dll
-      lz4.dll
-      lz4-1.dll
-      zstd.dll
-      libzstd.dll
-      libcrypto-3-x64.dll
-      libcrypto-3.dll
-      libssl-3-x64.dll
-      libssl-3.dll
-  )
-
-  set(LIBARCHIVE_RUNTIME_DLL_DIRS)
-  list(APPEND LIBARCHIVE_RUNTIME_DLL_DIRS
-      "${CMAKE_PREFIX_PATH}/bin"
-      "${CMAKE_PREFIX_PATH}"
-  )
-  if(DEFINED ENV{VCPKG_ROOT})
-    list(APPEND LIBARCHIVE_RUNTIME_DLL_DIRS
-        "$ENV{VCPKG_ROOT}/installed/x64-windows-release/bin"
-        "$ENV{VCPKG_ROOT}/installed/x64-windows/bin"
-    )
-  endif()
-  if(DEFINED CMAKE_VCPKG_ROOT)
-    list(APPEND LIBARCHIVE_RUNTIME_DLL_DIRS
-        "${CMAKE_VCPKG_ROOT}/installed/x64-windows-release/bin"
-        "${CMAKE_VCPKG_ROOT}/installed/x64-windows/bin"
-    )
-  endif()
-
-  foreach(DLL_NAME IN LISTS LIBARCHIVE_RUNTIME_DLL_NAMES)
-    foreach(DLL_DIR IN LISTS LIBARCHIVE_RUNTIME_DLL_DIRS)
-      set(DLL_PATH "${DLL_DIR}/${DLL_NAME}")
-      if(EXISTS "${DLL_PATH}")
-        install(FILES "${DLL_PATH}" DESTINATION ${EXTLIB_INSTALL_DIR})
+  install(CODE [[
+    set(_targets "")
+    foreach(_exe "VirtualClub.exe" "VirtualClub-Updater.exe")
+      if(EXISTS "${CMAKE_INSTALL_PREFIX}/${_exe}")
+        list(APPEND _targets "${CMAKE_INSTALL_PREFIX}/${_exe}")
       endif()
     endforeach()
-  endforeach()
-endif()
 
+    if(_targets)
+      file(GET_RUNTIME_DEPENDENCIES
+        EXECUTABLES ${_targets}
+        RESOLVED_DEPENDENCIES_VAR _resolved_deps
+        UNRESOLVED_DEPENDENCIES_VAR _unresolved_deps
+        PRE_EXCLUDE_REGEXES
+          "api-ms-.*"
+          "ext-ms-.*"
+        POST_EXCLUDE_REGEXES
+          ".*[\\\\/][Ww]indows[\\\\/][Ss]ystem32[\\\\/].*\\.dll"
+          ".*[\\\\/][Ww]indows[\\\\/][Ss]ys[Ww][Oo][Ww]64[\\\\/].*\\.dll"
+      )
+
+      foreach(_dll IN LISTS _resolved_deps)
+        file(INSTALL
+          DESTINATION "${CMAKE_INSTALL_PREFIX}"
+          TYPE SHARED_LIBRARY
+          FOLLOW_SYMLINK_CHAIN
+          FILES "${_dll}"
+        )
+      endforeach()
+    endif()
+  ]])
+endif()
 # Test targets and test-specific dependencies are kept outside the main build file.
 include(cmake/Tests.cmake)
