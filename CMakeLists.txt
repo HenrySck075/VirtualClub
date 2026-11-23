@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.30)
 project(VirtualClub VERSION 0.1.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
@@ -278,6 +278,7 @@ if (NOT WIN32)
 endif()
 
 install(TARGETS ${PROJECT_NAME}
+    RUNTIME_DEPENDENCY_SET vc_deps
     RUNTIME DESTINATION .
     BUNDLE DESTINATION .
 )
@@ -286,10 +287,6 @@ install(TARGETS VirtualClub-Updater
     BUNDLE DESTINATION .
 )
 
-install(SCRIPT ${deploy_script})
-install(DIRECTORY assets DESTINATION .)
-
-
 if(WIN32)
   set(EXTLIB_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
 else()
@@ -297,6 +294,43 @@ else()
 endif()
 
 message(STATUS "External libraries will be installed to: ${EXTLIB_INSTALL_DIR}")
+
+install(CODE "
+  file(GET_RUNTIME_DEPENDENCIES
+    RESOLVED_DEPENDENCIES_VAR _resolved_deps
+    UNRESOLVED_DEPENDENCIES_VAR _unresolved_deps
+    CONFLICTING_DEPENDENCIES_PREFIX _conflicting_deps
+    PRE_EXCLUDE_REGEXES \"api-ms-\" \"ext-ms-\"
+    POST_EXCLUDE_REGEXES \".*system32/.*\\\\.dll\"
+    DIRECTORIES
+      \"$$<TARGET_FILE_DIR:Qt6::Core>\"
+      \"$$<TARGET_FILE_DIR:Qt6::Multimedia>\"
+      \"$$<TARGET_FILE_DIR:Qt6::Svg>\"
+      \"$$<TARGET_FILE_DIR:LibArchive::LibArchive>\"
+  )
+
+  list(LENGTH _unresolved_deps _unresolved_count)
+  if(_unresolved_count GREATER 0)
+    message(STATUS \"Unresolved runtime dependencies (\${_unresolved_count}):\")
+    foreach(_dep IN LISTS _unresolved_deps)
+      message(STATUS \"  - \${_dep}\")
+    endforeach()
+  else()
+    message(STATUS \"Zero unresolved runtime dependencies.\")
+  endif()
+
+  foreach(_dep IN LISTS _resolved_deps)
+    file(INSTALL
+      DESTINATION \"${EXTLIB_INSTALL_DIR}\"
+      FOLLOW_SYMLINK_CHAIN
+      FILES \"\${_dep}\"
+    )
+  endforeach()
+")
+
+
+install(SCRIPT ${deploy_script})
+install(DIRECTORY assets DESTINATION .)
 
 if(WIN32)
     # Target the DLL in the bin directory corresponding to architecture
@@ -405,40 +439,6 @@ install(
 if(Python_RUNTIME_LIBRARY)
   file(TO_CMAKE_PATH "${Python_RUNTIME_LIBRARY}" Python_RUNTIME_LIBRARY_CMAKE)
     install(FILES "${Python_RUNTIME_LIBRARY_CMAKE}" DESTINATION ${EXTLIB_INSTALL_DIR})
-endif()
-
-if(WIN32)
-  install(CODE [[
-    set(_targets "")
-    foreach(_exe "VirtualClub.exe" "VirtualClub-Updater.exe")
-      if(EXISTS "${CMAKE_INSTALL_PREFIX}/${_exe}")
-        list(APPEND _targets "${CMAKE_INSTALL_PREFIX}/${_exe}")
-      endif()
-    endforeach()
-
-    if(_targets)
-      file(GET_RUNTIME_DEPENDENCIES
-        EXECUTABLES ${_targets}
-        RESOLVED_DEPENDENCIES_VAR _resolved_deps
-        UNRESOLVED_DEPENDENCIES_VAR _unresolved_deps
-        PRE_EXCLUDE_REGEXES
-          "api-ms-.*"
-          "ext-ms-.*"
-        POST_EXCLUDE_REGEXES
-          ".*[\\\\/][Ww]indows[\\\\/][Ss]ystem32[\\\\/].*\\.dll"
-          ".*[\\\\/][Ww]indows[\\\\/][Ss]ys[Ww][Oo][Ww]64[\\\\/].*\\.dll"
-      )
-
-      foreach(_dll IN LISTS _resolved_deps)
-        file(INSTALL
-          DESTINATION "${CMAKE_INSTALL_PREFIX}"
-          TYPE SHARED_LIBRARY
-          FOLLOW_SYMLINK_CHAIN
-          FILES "${_dll}"
-        )
-      endforeach()
-    endif()
-  ]])
 endif()
 # Test targets and test-specific dependencies are kept outside the main build file.
 include(cmake/Tests.cmake)
