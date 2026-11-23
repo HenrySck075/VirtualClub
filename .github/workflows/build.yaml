@@ -162,6 +162,9 @@ jobs:
         run: |
           cmake --build build --config Release
 
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
+
       # Install Application using Qt's CMake deployment API
       - name: Install and Deploy Application
         env:

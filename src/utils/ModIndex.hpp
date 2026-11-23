@@ -35,10 +35,8 @@ private:
   std::shared_ptr<YamlSettings> m_store;
   std::vector<Mod> m_modsList;
 
-  explicit ModsIndex(const QString &path);
-
-
 public:
+  explicit ModsIndex(const QString &path);
   ModsIndex() = delete;
 
   ~ModsIndex();

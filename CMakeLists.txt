@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VirtualClub VERSION 0.2.2 LANGUAGES C CXX)
+project(VirtualClub VERSION 0.1.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -395,3 +395,6 @@ endif()
 
 # Install LibArchive
 install(FILES "${LibArchive_LIBRARIES}" DESTINATION ${EXTLIB_INSTALL_DIR})
+
+# Test targets and test-specific dependencies are kept outside the main build file.
+include(cmake/Tests.cmake)

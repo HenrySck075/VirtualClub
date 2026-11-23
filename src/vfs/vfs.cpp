@@ -16,6 +16,7 @@
 #include <memory>
 #endif
 #include "vfs.hpp"
+#include "VFSPathResolver.hpp"
 #include "utils/ModIndex.hpp"
 #include "consts.hpp"
 #include <sys/stat.h>
@@ -153,6 +154,7 @@ private:
     fs::path whiteoutFilePath;
     std::unordered_set<std::string> whiteouts;
     mutable std::shared_mutex dbMutex;
+    std::unique_ptr<VFSPathResolver> pathResolver;
 
     std::string strip_leading_slash(const std::string &path) const {
         return (!path.empty() && (path[0] == '/' || path[0] == '\\')) ? path.substr(1) : path;
@@ -237,34 +239,19 @@ public:
         contentFolder = deltaFolder / "content";
         whiteoutFilePath = deltaFolder / ".whiteouts";
         load_whiteouts();
+        pathResolver = std::make_unique<VFSPathResolver>(
+            baseFolder,
+            modFolder,
+            deltaFolder,
+            launcherRoot,
+            startupConfigs.mod.id,
+            containsRenpyEngine);
     }
 
     void enableYapping() { verboseLog = true; }
 
     std::string get_path_2(const std::string &path, bool write = false) const {
-        std::string stripped = strip_leading_slash(normalize_path(path));
-        fs::path toContentFolder = contentFolder / stripped;
-
-        if (path.rfind(g_launcherPatchesPath, 0) == 0) {
-          auto patchesPath = launcherRoot / "assets" / "patches" / path.substr(
-            path.rfind(g_lppLeadingSlash, 0) == 0 ? g_lppSize+1 : g_lppSize
-          );
-          if (fs::exists(patchesPath) || (write && fs::exists(patchesPath.parent_path()))) {
-              return patchesPath.string();
-          }
-        }
-
-        fs::path toModFolder = modFolder / stripped;
-
-        if (path.rfind("/lib", 0) == 0) {
-            if (write) return toContentFolder.string();
-            if (fs::exists(toContentFolder)) return toContentFolder.string();
-            return (!containsRenpyEngine) ? (baseFolder / stripped).string() : toModFolder.string();
-        }
-
-        if (write) return toContentFolder.string();
-        if (fs::exists(toContentFolder)) return toContentFolder.string();
-        return fs::exists(toModFolder) ? toModFolder.string() : (baseFolder / stripped).string();
+        return pathResolver->getPath(path, write);
     }
 
     std::string get_path(const std::string &path, bool write = false) const {

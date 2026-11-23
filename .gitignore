@@ -30,6 +30,8 @@ DartConfiguration.tcl
 *.gcda
 *.gcno
 *.a.out
+tests/subject/base/renpy/
+tests/subject/base/renpy.py
 
 # ==========================================
 # Compiled Libraries, Executables & Artifacts

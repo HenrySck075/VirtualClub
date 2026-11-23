@@ -231,7 +231,11 @@ std::string ModsIndex::Mod::getIconPath() const {
   const auto iconsDir = std::filesystem::path(
     QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString()
   ) / "icons";
-  return (iconsDir / (id + ".png")).string();
+  const auto iconPath = iconsDir / (id + ".png");
+  if (std::filesystem::is_regular_file(iconPath)) {
+    return iconPath.string();
+  }
+  return "qrc:/missing.png";
 };
 
 ModsIndex::Mod ModsIndex::installMod(std::filesystem::path path) {
@@ -311,14 +315,17 @@ ModsIndex::Mod ModsIndex::installMod(std::filesystem::path path) {
   auto iconContentPy = readGameFile(icon);
   if (iconContentPy.is_none()) {
     qWarning() << "ModsIndex::installMod: icon content is null for mod" << QString::fromStdString(name);
-    // im just too tired
-    throw std::runtime_error("Create an issue on GitHub to tell me to implement the edge case of icon content being null.");
+  } else {
+    // turn a python bytes to char*
+    std::string_view sv = iconContentPy.cast<py::bytes>(); // ?
+    const unsigned char* ptr = reinterpret_cast<const unsigned char*>(sv.data());
+    try {
+      writeIcons(id, const_cast<unsigned char*>(ptr), sv.size());
+    } catch (const std::exception& error) {
+      qWarning() << "ModsIndex::installMod: could not write icon for mod"
+                 << QString::fromStdString(name) << ":" << error.what();
+    }
   }
-
-  // turn a python bytes to char*
-  std::string_view sv = iconContentPy.cast<py::bytes>(); // ?
-  const unsigned char* ptr = reinterpret_cast<const unsigned char*>(sv.data());
-  writeIcons(id, const_cast<unsigned char*>(ptr), sv.size());
 
 
   ModsIndex::Mod mod {
