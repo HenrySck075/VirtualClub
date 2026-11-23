@@ -44,7 +44,7 @@ void ModIndexTests::deserializesAndPersistsMods() {
 
   index.removeMod(copy);
   QCOMPARE(index.getMods().size(), 0u);
-  QVERIFY_EXCEPTION_THROWN(index.getModByID("test-id"), std::runtime_error);
+  QVERIFY_THROWS_EXCEPTION(std::runtime_error, index.getModByID("test-id"));
 }
 
 void ModIndexTests::updatesAndRemovesMods() {
@@ -57,8 +57,8 @@ void ModIndexTests::updatesAndRemovesMods() {
     "/tmp/mod", false, false
   };
   // update/remove both have to reject unknown mods.
-  QVERIFY_EXCEPTION_THROWN(index.updateMod(mod), std::invalid_argument);
-  QVERIFY_EXCEPTION_THROWN(index.removeMod(mod), std::invalid_argument);
+  QVERIFY_THROWS_EXCEPTION(std::invalid_argument, index.updateMod(mod));
+  QVERIFY_THROWS_EXCEPTION(std::invalid_argument, index.removeMod(mod));
 }
 
 void ModIndexTests::recentlyPlayedIsUniqueAndLimited() {

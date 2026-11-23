@@ -53,10 +53,17 @@ if(BUILD_TESTING)
     pybind11::embed yaml-cpp::yaml-cpp LibArchive::LibArchive
     nlohmann_json::nlohmann_json
   )
+
+  target_compile_definitions(VirtualClub-Tests PRIVATE MVC_TEST_BUILD)
   if(TARGET cpptrace::cpptrace)
     target_link_libraries(VirtualClub-Tests PRIVATE cpptrace::cpptrace)
   endif()
 
   add_dependencies(VirtualClub-Tests mvc_prepare_test_assets)
+  set_target_properties(VirtualClub-Tests PROPERTIES
+        AUTOMOC ON
+        AUTOUIC ON
+        AUTORCC ON
+    )
   add_test(NAME VirtualClub.UnitTests COMMAND VirtualClub-Tests)
 endif()

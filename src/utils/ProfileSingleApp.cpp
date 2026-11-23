@@ -6,7 +6,7 @@
 #include <QDebug>
 
 ProfileSingleApp::ProfileSingleApp(int &argc, char **argv)
-    : QApplication(argc, argv)
+    : PSA_BaseQApplication(argc, argv)
 {
 }
 

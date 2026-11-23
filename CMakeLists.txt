@@ -54,9 +54,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Enable Qt's automatic compilation tools
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
+
+function(target_declare_qt_autogen target)
+    set_target_properties(${target} PROPERTIES
+        AUTOMOC ON
+        AUTOUIC ON
+        AUTORCC ON
+    )
+endfunction()
 
 
 find_package(Python REQUIRED COMPONENTS Interpreter Development)
@@ -78,11 +83,14 @@ qt_add_executable(${PROJECT_NAME}
     #resources.qrc
 )
 
+target_declare_qt_autogen(${PROJECT_NAME})
 file(GLOB_RECURSE UPDATER_SOURCES CONFIGURE_DEPENDS "updater_src/*.cpp" "updater_src/*.hpp")
 qt_add_executable(VirtualClub-Updater ${UPDATER_SOURCES})
 target_compile_features(VirtualClub-Updater PRIVATE cxx_std_20)
 target_include_directories(VirtualClub-Updater PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/updater_src)
 target_link_libraries(VirtualClub-Updater PRIVATE Qt6::Core Qt6::Widgets LibArchive::LibArchive)
+
+target_declare_qt_autogen(VirtualClub-Updater)
 
 qt_add_translations(
   ${PROJECT_NAME} 

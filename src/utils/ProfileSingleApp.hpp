@@ -10,7 +10,14 @@
 #include <qsharedpointer.h>
 #include <QHash>
 
-class ProfileSingleApp : public QApplication {
+// as long as tests/main.cpp doesnt use qwidgets 
+#ifdef MVC_TEST_BUILD
+#define PSA_BaseQApplication QCoreApplication
+#else
+#define PSA_BaseQApplication QApplication
+#endif
+
+class ProfileSingleApp : public PSA_BaseQApplication {
     Q_OBJECT
 public:
     ProfileSingleApp(int &argc, char **argv);
@@ -24,7 +31,7 @@ public:
     const void setProfileId(const QString &profileId);
     // why not
     static inline ProfileSingleApp* instance() {
-      return qobject_cast<ProfileSingleApp*>(QApplication::instance());
+      return qobject_cast<ProfileSingleApp*>(PSA_BaseQApplication::instance());
     }
 
     QString profileName();
