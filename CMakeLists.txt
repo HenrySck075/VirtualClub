@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 3.20)
 project(VirtualClub VERSION 0.1.0 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
+if(WIN32)
+  # Keep the Windows runtime flat in the package root, alongside the executable.
+  # DLL lookup on Windows is based around the executable rather than GNUInstallDirs'
+  # bin/lib convention, and Qt's deploy script uses CMAKE_INSTALL_BINDIR too.
+  set(CMAKE_INSTALL_BINDIR ".")
+endif()
 if(MSVC AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   message(FATAL_ERROR "MSVC is not supported. Please use Clang instead. (i used clang extensively for development sorry abt that)")
 endif()
@@ -402,7 +408,83 @@ if(Python_RUNTIME_LIBRARY)
 endif()
 
 # Install LibArchive
-install(FILES "${LibArchive_LIBRARIES}" DESTINATION ${EXTLIB_INSTALL_DIR})
+if(LibArchive_RUNTIME_LIBRARY)
+  file(TO_CMAKE_PATH "${LibArchive_RUNTIME_LIBRARY}" LibArchive_RUNTIME_LIBRARY_CMAKE)
+  install(FILES "${LibArchive_RUNTIME_LIBRARY_CMAKE}" DESTINATION ${EXTLIB_INSTALL_DIR})
+elseif(TARGET LibArchive::LibArchive)
+  set(LIBARCHIVE_RUNTIME_CANDIDATE "")
+  foreach(config LOCATION IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_RELWITHDEBINFO IMPORTED_LOCATION_DEBUG)
+    get_target_property(LIBARCHIVE_RUNTIME_CANDIDATE LibArchive::LibArchive ${config})
+    if(LIBARCHIVE_RUNTIME_CANDIDATE AND EXISTS "${LIBARCHIVE_RUNTIME_CANDIDATE}")
+      get_filename_component(LIBARCHIVE_RUNTIME_EXTENSION "${LIBARCHIVE_RUNTIME_CANDIDATE}" EXT)
+      if(LIBARCHIVE_RUNTIME_EXTENSION STREQUAL ".dll")
+        install(FILES "${LIBARCHIVE_RUNTIME_CANDIDATE}" DESTINATION ${EXTLIB_INSTALL_DIR})
+        break()
+      elseif(LIBARCHIVE_RUNTIME_EXTENSION STREQUAL ".lib")
+        get_filename_component(LIBARCHIVE_RUNTIME_NAME "${LIBARCHIVE_RUNTIME_CANDIDATE}" NAME_WE)
+        get_filename_component(LIBARCHIVE_RUNTIME_LIBDIR "${LIBARCHIVE_RUNTIME_CANDIDATE}" DIRECTORY)
+        get_filename_component(LIBARCHIVE_RUNTIME_PREFIX "${LIBARCHIVE_RUNTIME_LIBDIR}" DIRECTORY)
+        set(LIBARCHIVE_RUNTIME_DLL "${LIBARCHIVE_RUNTIME_PREFIX}/bin/${LIBARCHIVE_RUNTIME_NAME}.dll")
+        if(EXISTS "${LIBARCHIVE_RUNTIME_DLL}")
+          install(FILES "${LIBARCHIVE_RUNTIME_DLL}" DESTINATION ${EXTLIB_INSTALL_DIR})
+          break()
+        endif()
+      endif()
+    endif()
+  endforeach()
+endif()
+
+if(WIN32)
+  set(LIBARCHIVE_RUNTIME_DLL_NAMES
+      archive.dll
+      archive-13.dll
+      bz2.dll
+      bzip2.dll
+      libbz2.dll
+      libbz2-1.dll
+      zlib.dll
+      zlib1.dll
+      libz.dll
+      lzma.dll
+      liblzma.dll
+      liblzma-5.dll
+      lz4.dll
+      lz4-1.dll
+      zstd.dll
+      libzstd.dll
+      libcrypto-3-x64.dll
+      libcrypto-3.dll
+      libssl-3-x64.dll
+      libssl-3.dll
+  )
+
+  set(LIBARCHIVE_RUNTIME_DLL_DIRS)
+  list(APPEND LIBARCHIVE_RUNTIME_DLL_DIRS
+      "${CMAKE_PREFIX_PATH}/bin"
+      "${CMAKE_PREFIX_PATH}"
+  )
+  if(DEFINED ENV{VCPKG_ROOT})
+    list(APPEND LIBARCHIVE_RUNTIME_DLL_DIRS
+        "$ENV{VCPKG_ROOT}/installed/x64-windows-release/bin"
+        "$ENV{VCPKG_ROOT}/installed/x64-windows/bin"
+    )
+  endif()
+  if(DEFINED CMAKE_VCPKG_ROOT)
+    list(APPEND LIBARCHIVE_RUNTIME_DLL_DIRS
+        "${CMAKE_VCPKG_ROOT}/installed/x64-windows-release/bin"
+        "${CMAKE_VCPKG_ROOT}/installed/x64-windows/bin"
+    )
+  endif()
+
+  foreach(DLL_NAME IN LISTS LIBARCHIVE_RUNTIME_DLL_NAMES)
+    foreach(DLL_DIR IN LISTS LIBARCHIVE_RUNTIME_DLL_DIRS)
+      set(DLL_PATH "${DLL_DIR}/${DLL_NAME}")
+      if(EXISTS "${DLL_PATH}")
+        install(FILES "${DLL_PATH}" DESTINATION ${EXTLIB_INSTALL_DIR})
+      endif()
+    endforeach()
+  endforeach()
+endif()
 
 # Test targets and test-specific dependencies are kept outside the main build file.
 include(cmake/Tests.cmake)
