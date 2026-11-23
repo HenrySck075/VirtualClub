@@ -343,8 +343,10 @@ else()
     set(PY_STDLIB_DEST "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}")
 endif()
 
+file(TO_CMAKE_PATH "${Python_STDLIB}" Python_STDLIB_CMAKE)
+
 install(
-    DIRECTORY "${Python_STDLIB}/"
+  DIRECTORY "${Python_STDLIB_CMAKE}/"
     DESTINATION "${PY_STDLIB_DEST}"
     USE_SOURCE_PERMISSIONS
     #TODO: dont do a duplicate here
@@ -387,7 +389,8 @@ install(
 
 # Install C-runtime DLL/SO only, skipping lib-dynload
 if(Python_RUNTIME_LIBRARY)
-    install(FILES "${Python_RUNTIME_LIBRARY}" DESTINATION ${EXTLIB_INSTALL_DIR})
+  file(TO_CMAKE_PATH "${Python_RUNTIME_LIBRARY}" Python_RUNTIME_LIBRARY_CMAKE)
+    install(FILES "${Python_RUNTIME_LIBRARY_CMAKE}" DESTINATION ${EXTLIB_INSTALL_DIR})
 endif()
 
 # Install LibArchive

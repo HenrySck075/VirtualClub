@@ -121,13 +121,11 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "C:/vcpkg/downloads", "C:/vcpkg/installed", "C:/vcpkg/archives"
 
-      - name: Cache vcpkg (Windows)
+      - name: Restore cache vcpkg (Windows)
         if: matrix.platform == 'windows'
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
-            C:/vcpkg/downloads
-            C:/vcpkg/installed
             C:/vcpkg/archives
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
@@ -146,9 +144,18 @@ jobs:
           CXX: ${{ matrix.platform == 'windows' && 'clang-cl' || 'clang++' }}
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
           VCPKG_DEFAULT_BINARY_CACHE: ${{ matrix.platform == 'windows' && 'C:/vcpkg/archives' || '' }}
+          VCPKG_BINARY_SOURCES: ${{ matrix.platform == 'windows' && 'clear;files,C:/vcpkg/archives,readwrite' || '' }}
           VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/vcpkg_triplets
           
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && format('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="{0}" -DVCPKG_TARGET_TRIPLET=x64-windows-release', env.VCPKG_OVERLAY_TRIPLETS) || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }}
+
+      - name: Save cache vcpkg (Windows)
+        if: matrix.platform == 'windows' && success()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            C:/vcpkg/archives
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
 
       # Build application
       - name: Build Project
