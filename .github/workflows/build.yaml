@@ -157,19 +157,30 @@ jobs:
             C:/vcpkg/archives
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
 
-      # Build application
       - name: Build Project
         run: |
           cmake --build build --config Release
 
-      - name: Run unit tests
-        run: ctest --test-dir build --output-on-failure -V
-
-      # Install Application using Qt's CMake deployment API
       - name: Install and Deploy Application
         env:
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
         run: cmake --install build --prefix dist
+
+      - name: Run unit tests (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          CTEST_ENVIRONMENT: "PATH=${{ github.workspace }}/dist;${{ github.workspace }}/dist/bin;${{ env.PATH }}"
+        run: |
+          dumpbin /dependents .\build\VirtualClub-Tests.exe
+          ctest --test-dir build --output-on-failure -V
+      - name: Run unit test (the rest)
+        if: matrix.platform != 'windows'
+        run: |
+          ctest --test-dir build --output-on-failure -V || {
+            gdb -batch -ex "run" -ex "bt full" -ex "info registers" ./build/VirtualClub-Tests
+            exit 1
+          }
 
       # Package Linux Application into a tarball (with assets folder)
       - name: Package Application (Linux)
