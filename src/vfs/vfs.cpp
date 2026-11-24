@@ -35,7 +35,7 @@
 #ifdef MVC_VFS_AVAILABLE
 
 // inline platform-specific macros to make the code look more readable
-#ifdef _WIN32
+#ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -266,6 +266,8 @@ public:
         deltaFolder = dbFolder / "delta" / startupConfigs.mod.id;
         contentFolder = deltaFolder / "content";
         whiteoutFilePath = deltaFolder / ".whiteouts";
+        fs::create_directories(contentFolder, ec);
+        if (ec) throw std::system_error(ec, "Failed to create mod delta directory");
         load_whiteouts();
         pathResolver = std::make_unique<VFSPathResolver>(
             baseFolder,
@@ -420,7 +422,7 @@ public:
     int readlink(const std::string &path, char *buf, size_t size) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path);
-#ifdef _WIN32
+#ifdef Q_OS_WIN
         std::error_code ec;
         std::string target = fs::read_symlink(full_path, ec).string();
         if (ec) return fuse_error(ec);
@@ -444,7 +446,7 @@ public:
     int statfs(const std::string &path, struct statvfs *stbuf) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path);
-#ifdef _WIN32
+#ifdef Q_OS_WIN
         ULARGE_INTEGER freeBytes, totalBytes, totalFreeBytes;
         if (GetDiskFreeSpaceExA(full_path.c_str(), &freeBytes, &totalBytes, &totalFreeBytes)) {
             stbuf->f_bsize = stbuf->f_frsize = 4096;
@@ -488,7 +490,7 @@ public:
             fs::copy_file(base_path, full_path, fs::copy_options::overwrite_existing, ec);
             if (ec) return fuse_error(ec);
         }
-#ifdef _WIN32
+#ifdef Q_OS_WIN
         int fd = open_file(full_path.c_str(), O_RDWR | O_BINARY);
         if (fd == -1) return -errno;
         int res = _chsize(fd, static_cast<long>(size));
@@ -516,12 +518,13 @@ public:
     int rmdir(const std::string &path) {
       if (is_whiteouted(path)) return -ENOENT;
 
-      std::string content_path = get_path(path, true);
-      std::string mod_path = (modFolder / strip_leading_slash(path)).string();
-      std::string base_path = (baseFolder / strip_leading_slash(path)).string();
+      const std::string stripped = strip_leading_slash(normalize_path(path));
+      fs::path content_path = contentFolder / stripped;
+      fs::path mod_path = modFolder / stripped;
+      fs::path base_path = baseFolder / stripped;
 
       std::error_code ec;
-      auto is_directory = [&ec](const std::string &candidate, bool &result) {
+      auto is_directory = [&ec](const fs::path& candidate, bool &result) {
           result = false;
           if (!fs::exists(candidate, ec)) return ec ? fuse_error(ec) : 0;
           result = fs::is_directory(candidate, ec);
@@ -542,6 +545,8 @@ public:
       if (exists_in_content) {
           fs::remove_all(content_path, ec);
           if (ec) return fuse_error(ec);
+          if (fs::exists(content_path, ec)) return ec ? fuse_error(ec) : -EIO;
+          if (ec) return fuse_error(ec);
       }
 
       if ((exists_in_mod || exists_in_base) && !should_bypass_whiteout(path)) {
@@ -555,12 +560,13 @@ public:
     int unlink(const std::string &path) {
       if (is_whiteouted(path)) return -ENOENT;
 
-      std::string content_path = get_path(path, true);
-      std::string mod_path = (modFolder / strip_leading_slash(path)).string();
-      std::string base_path = (baseFolder / strip_leading_slash(path)).string();
+      const std::string stripped = strip_leading_slash(normalize_path(path));
+      fs::path content_path = contentFolder / stripped;
+      fs::path mod_path = modFolder / stripped;
+      fs::path base_path = baseFolder / stripped;
 
       std::error_code ec;
-      auto is_file = [&ec](const std::string &candidate, bool &result) {
+      auto is_file = [&ec](const fs::path& candidate, bool &result) {
           result = false;
           if (!fs::exists(candidate, ec)) return ec ? fuse_error(ec) : 0;
           result = !fs::is_directory(candidate, ec);
@@ -579,10 +585,10 @@ public:
       }
 
       if (exists_in_content) {
-          fs::remove(content_path, ec);
-          if (ec) {
-              return fuse_error(ec);
-          }
+          const bool removed = fs::remove(content_path, ec);
+          if (ec) return fuse_error(ec);
+          if (!removed && fs::exists(content_path, ec)) return ec ? fuse_error(ec) : -EIO;
+          if (ec) return fuse_error(ec);
       }
 
       if ((exists_in_mod || exists_in_base) && !should_bypass_whiteout(path)) {
@@ -645,7 +651,7 @@ public:
         int res = ensure_content_copy(path);
         if (res) return res;
         std::string full_path = get_path(path, true);
-#ifdef _WIN32
+#ifdef Q_OS_WIN 
         std::error_code ec;
         auto file_time = std::chrono::system_clock::from_time_t(tv[1].tv_sec);
         fs::last_write_time(full_path, std::chrono::time_point_cast<fs::file_time_type::duration>(
@@ -667,7 +673,7 @@ namespace FUSE_Glue {
         return (ctx && ctx->private_data) ? static_cast<LibbiVFS*>(ctx->private_data) : nullptr;
     }
 
-#ifdef _WIN32
+#ifdef Q_OS_WIN
     using stat_t = fuse_stat;
     using statvfs_t = fuse_statvfs;
     using mode_type = fuse_mode_t;

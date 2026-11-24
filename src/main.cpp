@@ -397,7 +397,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
           qWarning() << "Update check failed:" << error;
       });
 
-  const QString frequency = qsettings.value(GSTK_UPDATE_FREQUENCY, "startup").toString();
+  const QString frequency = qsettings.value(GSTK_UPDATE_FREQUENCY, "daily").toString();
   const QString channel =
       qsettings.value(GSTK_UPDATE_CHANNEL, QStringLiteral(MVC_CHANNEL)).toString();
   const QDateTime lastCheck = qsettings.value(GSTK_UPDATE_LAST_CHECK).toDateTime();
