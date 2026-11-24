@@ -737,8 +737,10 @@ public:
         struct fuse_operations ops = FUSE_Glue::get_ops();
         struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
         fuse_opt_add_arg(&args, "vclubmgr_vfs");
+#ifndef _WIN32
         fuse_opt_add_arg(&args, "-o");
         fuse_opt_add_arg(&args, "kernel_cache,attr_timeout=10,entry_timeout=10,negative_timeout=2");
+#endif
 
         fh = fuse_new(&args, &ops, sizeof(ops), vfs.get());
         fuse_opt_free_args(&args);
@@ -749,15 +751,23 @@ public:
         }
 
         if (fuse_mount(fh, mountpoint.toStdString().c_str()) != 0) {
-            qCritical() << "Failed to mount FUSE filesystem at" << mountpoint;
+            qCritical() << "Failed to mount FUSE filesystem at" << mountpoint
+                        << "errno:" << errno << "-" << strerror(errno);
+#ifdef _WIN32
+            qCritical() << "GetLastError:" << GetLastError();
+#endif
             fuse_remove_signal_handlers(fuse_get_session(fh));
             fuse_destroy(fh);
             fh = nullptr;
+#ifdef _WIN32
+            releaseDriveLetter(mountpoint);
+#endif
             return false;
         }
 
-        loopThread = std::thread([this] {
-            fuse_loop_mt(fh, 0);
+        fuse* handle = fh;
+        loopThread = std::thread([handle] {
+            fuse_loop_mt(handle, 0);
         });
         return true;
     }
@@ -790,12 +800,17 @@ public:
         lock.unlock();
 
         try {
+#ifndef _WIN32
           if (!mountpoint.isEmpty()) {
             fs::remove_all(mountpoint.toStdString());
           }
+#endif
         } catch (const std::exception& e) {
             std::cerr << "Failed to remove mount point: " << e.what() << '\n';
         }
+#ifdef _WIN32
+        releaseDriveLetter(mountpoint);
+#endif
     }
 
     QString mountPath() const {
@@ -803,13 +818,37 @@ public:
     }
 
 private:
+#ifdef _WIN32
+    static inline std::mutex driveMutex;
+    static inline std::unordered_set<std::string> reservedDrives;
+
+    static void releaseDriveLetter(const QString& drive) {
+        std::lock_guard lock(driveMutex);
+        reservedDrives.erase(drive.toStdString());
+    }
+
+#endif
     static QString createMountPoint(const QString& modId) {
+#ifdef _WIN32
+        std::lock_guard lock(driveMutex);
+        DWORD drives = GetLogicalDrives();
+        for (wchar_t letter = L'Z'; letter >= L'D'; --letter) {
+            if ((drives & (1u << (letter - L'A'))) == 0) {
+                QString drive = QStringLiteral("%1:").arg(QChar(letter));
+                if (reservedDrives.insert(drive.toStdString()).second) {
+                    return drive;
+                }
+            }
+        }
+        throw std::runtime_error("No available drive letter for WinFsp mount");
+#else
         QTemporaryDir directory(QDir::tempPath() + "/vclubmgr_mount_" + modId + "_XXXXXX");
         if (!directory.isValid()) {
             throw std::runtime_error("Failed to create temporary mount point");
         }
         directory.setAutoRemove(false);
         return directory.path();
+#endif
     }
 
     const QString mountpoint;
