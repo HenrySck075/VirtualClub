@@ -803,13 +803,28 @@ public:
     }
 
 private:
+    // Create a temporary mount directory.
+    //
+    // On Windows, this does NOT actually create the directory or make it exist, 
+    // but will try to make sure that the parent one does
+    // (because winfsp)
     static QString createMountPoint(const QString& modId) {
-        QTemporaryDir directory(QDir::tempPath() + "/vclubmgr_mount_" + modId + "_XXXXXX");
+      auto path = QDir::tempPath() + "/vclubmgr_mount_" + modId + "_XXXXXX";
+#ifndef Q_OS_WIN
+        QTemporaryDir directory(path);
         if (!directory.isValid()) {
             throw std::runtime_error("Failed to create temporary mount point");
         }
         directory.setAutoRemove(false);
-        return directory.path();
+#else 
+      path = QDir::toNativeSeparators(path);
+      // just to be safe
+      if (QFileInfo::exists(path)) {
+          QDir().rmdir(path);
+      }
+#endif
+        return path;
+
     }
 
     const QString mountpoint;
