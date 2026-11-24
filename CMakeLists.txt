@@ -89,6 +89,7 @@ qt_add_executable(${PROJECT_NAME}
     #resources.qrc
 )
 
+
 target_declare_qt_autogen(${PROJECT_NAME})
 file(GLOB_RECURSE UPDATER_SOURCES CONFIGURE_DEPENDS "updater_src/*.cpp" "updater_src/*.hpp")
 qt_add_executable(VirtualClub-Updater ${UPDATER_SOURCES})
@@ -109,6 +110,10 @@ qt_add_translations(
 )
 
 
+if(WIN32) 
+  set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
+  set_target_properties(VirtualClub-Updater PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
+endif()
 
 target_precompile_headers(
   ${PROJECT_NAME} PRIVATE 
