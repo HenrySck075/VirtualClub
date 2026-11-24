@@ -38,8 +38,97 @@ extern char** environ;
 
 #include <unordered_map>
 #include <unordered_set>
+#include <stdexcept>
 static std::unordered_map<std::string, std::unique_ptr<VFSInstance>> m_mountedMods;
 static std::unordered_set<std::string> m_playingMods;
+
+#ifdef _WIN32
+#include <shellapi.h>
+#include <QMessageBox>
+
+static bool isWinFspInstalled() {
+  SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+  if (scm) {
+    SC_HANDLE service = OpenServiceW(scm, L"WinFsp.Launcher", SERVICE_QUERY_STATUS);
+    if (service) {
+      CloseServiceHandle(service);
+      CloseServiceHandle(scm);
+      return true;
+    }
+    CloseServiceHandle(scm);
+  }
+
+  const QStringList installRoots = {
+    qEnvironmentVariable("ProgramFiles"),
+    qEnvironmentVariable("ProgramW6432"),
+    qEnvironmentVariable("ProgramFiles(x86)")
+  };
+  for (const QString& root : installRoots) {
+    if (root.isEmpty()) continue;
+    for (const wchar_t* dllName : {L"winfsp-x64.dll", L"winfsp-x86.dll"}) {
+      const std::wstring dllPath =
+        (root + "/WinFsp/bin/" + QString::fromWCharArray(dllName)).toStdWString();
+      if (GetFileAttributesW(dllPath.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static void ensureWinFspInstalled() {
+  if (isWinFspInstalled()) return;
+
+  const QString scriptPath = QDir(
+    QFileInfo(QCoreApplication::applicationFilePath()).absoluteDir()
+  ).filePath("assets/scripts/install-winfsp.ps1");
+  if (!QFileInfo::exists(scriptPath)) {
+    throw std::runtime_error(
+      "WinFsp is not installed and the bundled installer could not be found."
+    );
+  }
+
+  const auto answer = QMessageBox::question(
+    nullptr,
+    QObject::tr("WinFsp is required"),
+    QObject::tr(
+      "Virtual Club needs the WinFsp driver to run mods with the virtual filesystem. "
+      "Install WinFsp now?"
+    ),
+    QMessageBox::Yes | QMessageBox::No,
+    QMessageBox::Yes
+  );
+  if (answer != QMessageBox::Yes) {
+    throw std::runtime_error(
+      "WinFsp is required to mount mods. Installation was cancelled."
+    );
+  }
+
+  const std::wstring executable = L"powershell.exe";
+  const std::wstring parameters =
+    L"-NoProfile -ExecutionPolicy Bypass -File \"" +
+    scriptPath.toStdWString() +
+    L"\"";
+  const HINSTANCE result = ShellExecuteW(
+    nullptr,
+    L"runas",
+    executable.c_str(),
+    parameters.c_str(),
+    nullptr,
+    SW_SHOWNORMAL
+  );
+  if (reinterpret_cast<INT_PTR>(result) <= 32) {
+    throw std::runtime_error(
+      "Could not start the WinFsp installer. Run "
+      "assets/scripts/install-winfsp.ps1 manually."
+    );
+  }
+
+  throw std::runtime_error(
+    "WinFsp installation started. Complete the installer, then restart Virtual Club."
+  );
+}
+#endif
 
 void SessionManager::mount(ModsIndex::Mod& mod) {
   qDebug() << "SessionManager: mount requested for" << QString::fromStdString(mod.id)
@@ -48,6 +137,10 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
     qDebug() << "SessionManager: mod already mounted" << QString::fromStdString(mod.id);
     return;
   }
+
+#ifdef _WIN32
+  ensureWinFspInstalled();
+#endif
 
   auto& instance = m_mountedMods[mod.id] = std::make_unique<VFSInstance>(
     QFileInfo(QCoreApplication::applicationFilePath()).absoluteDir().path(),
@@ -175,39 +268,25 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
       std::string exeName = "pythonw" MVC_WIN(".exe");
 
-      {
-          auto py3Path = mountPath / "lib" / ("py3-" + platformKey) / exeName;
-          if (fs::exists(py3Path)) {
-              qDebug() << "SessionManager: found py3 python at" << QString::fromStdString(py3Path.string());
-              pythonwPath = py3Path;
+      const std::array<std::string, 3> pythonDirectories {
+          "py3-", "py2-", ""
+      };
+
+      for (const auto& prefix : pythonDirectories) {
+          auto pyPath = mountPath / "lib" / (prefix + platformKey) / exeName;
+          qDebug() << "Attempting" << pyPath;
+          if (fs::exists(pyPath)) {
+              qDebug() << "SessionManager: found" << prefix << "python at" << QString::fromStdString(pyPath.string());
+              pythonwPath = pyPath;
+              break;
           }
       }
-
-      if (!pythonwPath) {
-          auto py2Path = mountPath / "lib" / ("py2-" + platformKey) / exeName;
-          if (fs::exists(py2Path)) {
-              qDebug() << "SessionManager: found py2 python at" << QString::fromStdString(py2Path.string());
-              pythonwPath = py2Path;
-          }
-      }
-
-      if (!pythonwPath) {
-          auto directPath = mountPath / "lib" / platformKey / exeName;
-          if (fs::exists(directPath)) {
-              qDebug() << "SessionManager: found direct python at" << QString::fromStdString(directPath.string());
-              pythonwPath = directPath;
-          }
-      }
-
       #endif
 
 #if !defined(_WIN32)
   if (!pythonwPath) {
       const std::array<std::string, 2> windowsPlatformKeys {
           "windows-x86_64", "windows-i686"
-      };
-      const std::array<std::string, 3> pythonDirectories {
-          "py3-", "py2-", ""
       };
 
       for (const auto& directory : pythonDirectories) {
