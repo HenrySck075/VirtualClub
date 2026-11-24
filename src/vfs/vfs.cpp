@@ -745,10 +745,11 @@ public:
         if (!fh) return false;
 
         if (fuse_set_signal_handlers(fuse_get_session(fh)) != 0) {
-            std::cerr << "Failed to install FUSE signal handlers\n";
+            qCritical() << "Failed to install FUSE signal handlers\n";
         }
 
         if (fuse_mount(fh, mountpoint.toStdString().c_str()) != 0) {
+            qCritical() << "Failed to mount FUSE filesystem at" << mountpoint;
             fuse_remove_signal_handlers(fuse_get_session(fh));
             fuse_destroy(fh);
             fh = nullptr;
