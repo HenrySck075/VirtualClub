@@ -181,6 +181,7 @@ namespace fs = std::filesystem;
 
 void spawn_process(
     const QString& command,
+    const QString& cwd,
     const QStringList& argv,
     const QStringList& extra_env,
     std::function<void(pid_t pid)> on_created,
@@ -191,6 +192,7 @@ void spawn_process(
   QProcess* process = new QProcess();
   process->setProgram(command);
   process->setArguments(argv);
+  process->setWorkingDirectory(cwd);
   auto env = QProcessEnvironment::systemEnvironment();
 
   for (const auto& envVar : extra_env) {
@@ -241,12 +243,29 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
   fs::path mountPath = m_mountedMods[mod.id]->mountPath().toStdString();
   qDebug() << "SessionManager: launch mount path" << QString::fromStdString(mountPath.string());
+
+// on windows (winfsp): repeatedly check mountPath existence for a few seconds to wait for the directory to mount
+  #ifdef Q_OS_WIN
+  {
+      int attempts = 0;
+      while (!fs::exists(mountPath) && attempts < 10) {
+          qDebug() << "SessionManager: waiting for mount path to exist..." << QString::fromStdString(mountPath.string());
+          std::this_thread::sleep_for(std::chrono::milliseconds(500));
+          ++attempts;
+      }
+      if (!fs::exists(mountPath)) {
+          qWarning() << "SessionManager: mount path does not exist after waiting" << QString::fromStdString(mountPath.string());
+          throw std::runtime_error("Mount path does not exist after waiting.");
+      }
+  }
+  #endif
+
   std::optional<fs::path> pythonwPath;
   QString launchCommand;
   QStringList launchPrefixArgs;
   bool usesTranslationLayer = false;
   // mac
-  #if defined(__APPLE__)
+  #ifdef Q_OS_MACOS
   {
       auto p = mountPath / (configs.modId+".app") / "Contents" / "MacOS" / "pythonw";
       if (fs::exists(p)) {
@@ -281,7 +300,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
               break;
           }
       }
-      #endif
+  #endif
 
 #if !defined(_WIN32)
   if (!pythonwPath) {
@@ -407,7 +426,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
   std::string modId = mod.id;
 
   spawn_process(
-      launchCommand, argv, extra_env,
+      launchCommand, QString::fromStdString(mountPath.string()), argv, extra_env,
       [modId, startedCallback](pid_t pid) {
           qDebug() << "Game launched with PID:" << pid;
           m_playingMods.insert(modId);
