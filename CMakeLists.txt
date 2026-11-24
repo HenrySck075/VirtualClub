@@ -320,6 +320,7 @@ install(CODE "
   endif()
 
   foreach(_dep IN LISTS _resolved_deps)
+    message(STATUS \"Installing \${_dep}\")
     file(INSTALL
       DESTINATION \"${EXTLIB_INSTALL_DIR}\"
       FOLLOW_SYMLINK_CHAIN
