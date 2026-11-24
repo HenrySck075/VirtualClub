@@ -147,7 +147,7 @@ jobs:
           VCPKG_BINARY_SOURCES: ${{ matrix.platform == 'windows' && 'clear;files,C:/vcpkg/archives,readwrite' || '' }}
           VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/vcpkg_triplets
           VCPKG_ROOT: C:/vcpkg
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && format('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="{0}" -DVCPKG_TARGET_TRIPLET=x64-windows-release', env.VCPKG_OVERLAY_TRIPLETS) || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }}
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.platform == 'windows' && format('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="{0}" -DVCPKG_TARGET_TRIPLET=x64-windows-release', env.VCPKG_OVERLAY_TRIPLETS) || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }} ${{ env.NIGHTLY == 'true' && (matrix.platform == 'linux' && '-DCMAKE_C_FLAGS_RELEASE="-O2 -g -DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="-O2 -g -DNDEBUG" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--build-id"' || '-DCMAKE_C_FLAGS_RELEASE="/O2 /Zi /DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="/O2 /Zi /DNDEBUG" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO"') || '' }}
 
       - name: Save cache vcpkg (Windows)
         if: matrix.platform == 'windows' && success()
@@ -165,6 +165,34 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
         run: cmake --install build --prefix dist
+
+      # Create a separate archive of Linux ELF debug symbols for nightly builds
+      - name: Package Debug Symbols (Linux)
+        if: env.NIGHTLY == 'true' && matrix.platform == 'linux'
+        shell: bash
+        run: |
+          mkdir -p debug-symbols-linux
+          find dist -type f -print0 | while IFS= read -r -d '' file; do
+            if readelf -h "$file" >/dev/null 2>&1; then
+              rel="${file#dist/}"
+              out="debug-symbols-linux/${rel}.debug"
+              mkdir -p "$(dirname "$out")"
+              objcopy --only-keep-debug "$file" "$out"
+              objcopy --strip-debug "$file"
+            fi
+          done
+          tar -czvf debug-symbols-linux-x64.tar.gz -C debug-symbols-linux .
+
+      # Collect PDB files produced by clang-cl for nightly builds
+      - name: Package Debug Symbols (Windows)
+        if: env.NIGHTLY == 'true' && matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $pdbFiles = Get-ChildItem -Path build -Filter *.pdb -Recurse
+          if ($pdbFiles.Count -eq 0) {
+            throw "No PDB debug symbols were produced"
+          }
+          Compress-Archive -Path $pdbFiles.FullName -DestinationPath debug-symbols-windows-x64.zip
 
       # Package Linux Application into a tarball (with assets folder)
       - name: Package Application (Linux)
@@ -208,6 +236,13 @@ jobs:
             update-manifest-${{ matrix.platform }}.json
             ${{ matrix.platform == 'windows' && 'app-windows-x64.zip.sha256' || 'app-linux-x64.tar.gz.sha256' }}
 
+      - name: Upload Debug Symbols
+        if: env.NIGHTLY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-symbols-${{ matrix.platform }}
+          path: ${{ matrix.platform == 'windows' && 'debug-symbols-windows-x64.zip' || 'debug-symbols-linux-x64.tar.gz' }}
+
   release:
     name: Create GitHub Release
     needs: build
@@ -243,6 +278,8 @@ jobs:
           files: |
             app-linux-x64.tar.gz
             app-windows-x64.zip
+            debug-symbols-linux-x64.tar.gz
+            debug-symbols-windows-x64.zip
             update-manifest-linux.json
             update-manifest-windows.json
             app-linux-x64.tar.gz.sha256
