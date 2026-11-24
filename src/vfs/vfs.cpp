@@ -1,4 +1,5 @@
 #include "utils/macros.h"
+#include <system_error>
 #ifdef MVC_VFS_AVAILABLE
 #define FUSE_USE_VERSION 31
 #include <fuse3/fuse.h>
@@ -91,6 +92,22 @@ inline int chmod_file(const char *path, mode_t mode) { return ::chmod(path, mode
 
 namespace fs = std::filesystem;
 
+static int fuse_error(const std::error_code &ec) {
+    if (!ec) return 0;
+    if (ec == std::errc::no_such_file_or_directory) return -ENOENT;
+    if (ec == std::errc::file_exists) return -EEXIST;
+    if (ec == std::errc::not_a_directory) return -ENOTDIR;
+    if (ec == std::errc::is_a_directory) return -EISDIR;
+    if (ec == std::errc::permission_denied) return -EACCES;
+    if (ec == std::errc::directory_not_empty) return -ENOTEMPTY;
+    if (ec == std::errc::operation_not_permitted) return -EPERM;
+    if (ec == std::errc::filename_too_long) return -ENAMETOOLONG;
+    if (ec == std::errc::no_space_on_device) return -ENOSPC;
+    if (ec == std::errc::read_only_file_system) return -EROFS;
+    if (ec == std::errc::invalid_argument) return -EINVAL;
+    return -EIO;
+}
+
 fs::path get_appdata_dir() {
     return fs::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString());
 }
@@ -170,20 +187,29 @@ private:
     void load_whiteouts() {
         std::unique_lock lock(dbMutex);
         whiteouts.clear();
-        if (!fs::exists(whiteoutFilePath)) return;
+        std::error_code ec;
+        if (!fs::exists(whiteoutFilePath, ec)) {
+            if (ec) throw std::system_error(ec, "Failed to check whiteout file");
+            return;
+        }
 
         std::ifstream f(whiteoutFilePath);
+        if (!f) throw std::system_error(std::make_error_code(std::errc::io_error), "Failed to open whiteout file");
         std::string line;
         while (std::getline(f, line)) {
             if (!line.empty()) whiteouts.insert(normalize_path(line));
         }
     }
 
-    void save_whiteouts() {
+    int save_whiteouts() {
         std::unique_lock lock(dbMutex);
-        fs::create_directories(whiteoutFilePath.parent_path());
+        std::error_code ec;
+        fs::create_directories(whiteoutFilePath.parent_path(), ec);
+        if (ec) return fuse_error(ec);
         std::ofstream f(whiteoutFilePath, std::ios::trunc);
+        if (!f) return -EIO;
         for (const auto &w : whiteouts) f << w << "\n";
+        return f ? 0 : -EIO;
     }
 
     bool is_whiteouted(const std::string &path) const {
@@ -201,20 +227,20 @@ private:
         return false;
     }
 
-    void add_whiteout(const std::string &path) {
+    int add_whiteout(const std::string &path) {
         {
             std::unique_lock lock(dbMutex);
             whiteouts.insert(normalize_path(path));
         }
-        save_whiteouts();
+        return save_whiteouts();
     }
 
-    void remove_whiteout(const std::string &path) {
+    int remove_whiteout(const std::string &path) {
         {
             std::unique_lock lock(dbMutex);
             whiteouts.erase(normalize_path(path));
         }
-        save_whiteouts();
+        return save_whiteouts();
     }
 
     fs::path launcherRoot;
@@ -233,7 +259,9 @@ public:
 
         modFolder = startupConfigs.mod.modPath;
 
-        containsRenpyEngine = fs::exists(modFolder / "lib");
+        std::error_code ec;
+        containsRenpyEngine = fs::exists(modFolder / "lib", ec);
+        if (ec) throw std::system_error(ec, "Failed to check mod engine directory");
         dbFolder = fs::path(QSettings().value(GSTK_STORAGE_PATH).toString().toStdString()) / "session_data";
         deltaFolder = dbFolder / "delta" / startupConfigs.mod.id;
         contentFolder = deltaFolder / "content";
@@ -260,20 +288,25 @@ public:
         return ret;
     }
 
-    bool ensure_content_copy(const std::string &path) {
+    int ensure_content_copy(const std::string &path) {
         fs::path content_path = contentFolder / strip_leading_slash(normalize_path(path));
-        if (fs::exists(content_path)) return true;
+        std::error_code ec;
+        if (fs::exists(content_path, ec)) return 0;
+        if (ec) return fuse_error(ec);
 
         std::string source_path = get_path(path);
-        if (!fs::exists(source_path)) return false;
+        if (!fs::exists(source_path, ec)) return ec ? fuse_error(ec) : -ENOENT;
 
-        fs::create_directories(content_path.parent_path());
-        if (fs::is_directory(source_path)) {
-            fs::create_directories(content_path);
+        fs::create_directories(content_path.parent_path(), ec);
+        if (ec) return fuse_error(ec);
+        const bool source_is_directory = fs::is_directory(source_path, ec);
+        if (ec) return fuse_error(ec);
+        if (source_is_directory) {
+            fs::create_directories(content_path, ec);
         } else {
-            fs::copy(source_path, content_path, fs::copy_options::overwrite_existing);
+            fs::copy(source_path, content_path, fs::copy_options::overwrite_existing, ec);
         }
-        return true;
+        return fuse_error(ec);
     }
 
     bool should_bypass_whiteout(const std::string &path) const {
@@ -319,28 +352,35 @@ public:
         bool found = false;
 
         auto populate = [&](const fs::path &dir) {
-            if (fs::is_directory(dir)) {
-                found = true;
-                for (const auto &entry : fs::directory_iterator(dir)) {
-                    auto name = entry.path().filename();
-                    if (name.string() != ".vclubmgr" && !is_whiteouted((path / name).string())) {
-                        dirents.insert(name.string());
-                    }
+            std::error_code ec;
+            if (!fs::is_directory(dir, ec)) return ec ? fuse_error(ec) : 0;
+            found = true;
+            fs::directory_iterator it(dir, ec), end;
+            if (ec) return fuse_error(ec);
+            while (it != end) {
+                auto name = it->path().filename();
+                if (name.string() != ".vclubmgr" && !is_whiteouted((path / name).string())) {
+                    dirents.insert(name.string());
                 }
+                it.increment(ec);
+                if (ec) return fuse_error(ec);
             }
+            return 0;
         };
 
         if (path.rfind(g_launcherPatchesPath, 0) == 0) {
             fs::path patchesSubdir = (launcherRoot / "assets" / "patches") / path.substr((path.rfind(g_lppLeadingSlash, 0) == 0) ? g_lppSize+1 : g_lppSize);
-            populate(patchesSubdir);
+            int res = populate(patchesSubdir);
+            if (res) return res;
         }
         else if (path == "/game") {
           dirents.insert("_launcher_patches");
         }
 
-        populate(content_path);
-        populate(mod_path);
-        populate(base_path);
+        for (const auto &dir : {content_path, mod_path, base_path}) {
+            int res = populate(dir);
+            if (res) return res;
+        }
 
         if (!found) return -ENOENT;
         for (const auto &entry : dirents) filler(entry);
@@ -351,7 +391,10 @@ public:
     int open(const std::string &path, int flags, uint64_t &fh) {
         if (is_whiteouted(path)) return -ENOENT;
         const bool writing = (flags & (O_WRONLY | O_RDWR | O_CREAT | O_TRUNC | O_APPEND)) != 0;
-        if (writing && !ensure_content_copy(path) && !(flags & O_CREAT)) return -ENOENT;
+        if (writing) {
+            int res = ensure_content_copy(path);
+            if (res && (!(flags & O_CREAT) || res != -ENOENT)) return res;
+        }
         std::string full_path = get_path(path, writing);
         int fd = open_file(full_path.c_str(), flags | O_BINARY);
         if (fd == -1) return -errno;
@@ -378,13 +421,13 @@ public:
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path);
 #ifdef _WIN32
-        try {
-            std::string target = fs::read_symlink(full_path).string();
-            size_t copy_len = (std::min)(size - 1, target.size());
-            std::memcpy(buf, target.c_str(), copy_len);
-            buf[copy_len] = '\0';
-            return 0;
-        } catch (...) { return -ENOENT; }
+        std::error_code ec;
+        std::string target = fs::read_symlink(full_path, ec).string();
+        if (ec) return fuse_error(ec);
+        size_t copy_len = (std::min)(size - 1, target.size());
+        std::memcpy(buf, target.c_str(), copy_len);
+        buf[copy_len] = '\0';
+        return 0;
 #else
         ssize_t res = ::readlink(full_path.c_str(), buf, size - 1);
         if (res == -1) return -errno;
@@ -418,10 +461,14 @@ public:
 
     int create(const std::string &path, mode_t mode) {
         std::string full_path = get_path(path, true);
-        if (fs::exists(full_path) && !is_whiteouted(path)) return -EEXIST;
+        std::error_code ec;
+        if (fs::exists(full_path, ec) && !is_whiteouted(path)) return -EEXIST;
+        if (ec) return fuse_error(ec);
 
-        remove_whiteout(path);
-        fs::create_directories(fs::path(full_path).parent_path());
+        int res = remove_whiteout(path);
+        if (res) return res;
+        fs::create_directories(fs::path(full_path).parent_path(), ec);
+        if (ec) return fuse_error(ec);
         int fd = open_file(full_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, mode);
         if (fd == -1) return -errno;
         close_file(fd);
@@ -431,11 +478,15 @@ public:
     int truncate(const std::string &path, off_t size) {
         if (is_whiteouted(path)) return -ENOENT;
         std::string full_path = get_path(path, true);
-        if (!fs::exists(full_path)) {
+        std::error_code ec;
+        if (!fs::exists(full_path, ec)) {
+            if (ec) return fuse_error(ec);
             std::string base_path = get_path(path, false);
-            if (!fs::exists(base_path)) return -ENOENT;
-            fs::create_directories(fs::path(full_path).parent_path());
-            fs::copy_file(base_path, full_path, fs::copy_options::overwrite_existing);
+            if (!fs::exists(base_path, ec)) return ec ? fuse_error(ec) : -ENOENT;
+            fs::create_directories(fs::path(full_path).parent_path(), ec);
+            if (ec) return fuse_error(ec);
+            fs::copy_file(base_path, full_path, fs::copy_options::overwrite_existing, ec);
+            if (ec) return fuse_error(ec);
         }
 #ifdef _WIN32
         int fd = open_file(full_path.c_str(), O_RDWR | O_BINARY);
@@ -450,11 +501,15 @@ public:
 
     int mkdir(const std::string &path, mode_t mode) {
         std::string full_path = get_path(path, true);
-        if (fs::exists(full_path) && !is_whiteouted(path)) return -EEXIST;
+        std::error_code ec;
+        if (fs::exists(full_path, ec) && !is_whiteouted(path)) return -EEXIST;
+        if (ec) return fuse_error(ec);
 
-        remove_whiteout(path);
-        fs::create_directories(full_path);
-        chmod_file(full_path.c_str(), mode);
+        int res = remove_whiteout(path);
+        if (res) return res;
+        fs::create_directories(full_path, ec);
+        if (ec) return fuse_error(ec);
+        if (chmod_file(full_path.c_str(), mode) == -1) return -errno;
         return 0;
     }
 
@@ -465,20 +520,33 @@ public:
       std::string mod_path = (modFolder / strip_leading_slash(path)).string();
       std::string base_path = (baseFolder / strip_leading_slash(path)).string();
 
-      bool exists_in_content = fs::exists(content_path) && fs::is_directory(content_path);
-      bool exists_in_mod = fs::exists(mod_path) && fs::is_directory(mod_path);
-      bool exists_in_base = fs::exists(base_path) && fs::is_directory(base_path);
+      std::error_code ec;
+      auto is_directory = [&ec](const std::string &candidate, bool &result) {
+          result = false;
+          if (!fs::exists(candidate, ec)) return ec ? fuse_error(ec) : 0;
+          result = fs::is_directory(candidate, ec);
+          return ec ? fuse_error(ec) : 0;
+      };
+      bool exists_in_content, exists_in_mod, exists_in_base;
+      int res = is_directory(content_path, exists_in_content);
+      if (res) return res;
+      res = is_directory(mod_path, exists_in_mod);
+      if (res) return res;
+      res = is_directory(base_path, exists_in_base);
+      if (res) return res;
 
       if (!exists_in_content && !exists_in_mod && !exists_in_base) {
           return -ENOENT;
       }
 
       if (exists_in_content) {
-          fs::remove_all(content_path);
+          fs::remove_all(content_path, ec);
+          if (ec) return fuse_error(ec);
       }
 
       if ((exists_in_mod || exists_in_base) && !should_bypass_whiteout(path)) {
-          add_whiteout(path);
+          res = add_whiteout(path);
+          if (res) return res;
       }
 
       return 0;
@@ -491,20 +559,35 @@ public:
       std::string mod_path = (modFolder / strip_leading_slash(path)).string();
       std::string base_path = (baseFolder / strip_leading_slash(path)).string();
 
-      bool exists_in_content = fs::exists(content_path) && !fs::is_directory(content_path);
-      bool exists_in_mod = fs::exists(mod_path) && !fs::is_directory(mod_path);
-      bool exists_in_base = fs::exists(base_path) && !fs::is_directory(base_path);
+      std::error_code ec;
+      auto is_file = [&ec](const std::string &candidate, bool &result) {
+          result = false;
+          if (!fs::exists(candidate, ec)) return ec ? fuse_error(ec) : 0;
+          result = !fs::is_directory(candidate, ec);
+          return ec ? fuse_error(ec) : 0;
+      };
+      bool exists_in_content, exists_in_mod, exists_in_base;
+      int res = is_file(content_path, exists_in_content);
+      if (res) return res;
+      res = is_file(mod_path, exists_in_mod);
+      if (res) return res;
+      res = is_file(base_path, exists_in_base);
+      if (res) return res;
 
       if (!exists_in_content && !exists_in_mod && !exists_in_base) {
           return -ENOENT;
       }
 
       if (exists_in_content) {
-          fs::remove(content_path);
+          fs::remove(content_path, ec);
+          if (ec) {
+              return fuse_error(ec);
+          }
       }
 
       if ((exists_in_mod || exists_in_base) && !should_bypass_whiteout(path)) {
-          add_whiteout(path);
+          res = add_whiteout(path);
+          if (res) return res;
       }
 
       return 0;
@@ -516,43 +599,58 @@ public:
         std::string old_full = get_path(oldpath, true);
         std::string new_full = get_path(newpath, true);
 
-        if (!fs::exists(old_full)) {
+        std::error_code ec;
+        bool exists_in_mod = fs::exists(modFolder / strip_leading_slash(oldpath), ec);
+        if (ec) return fuse_error(ec);
+        bool exists_in_base = fs::exists(baseFolder / strip_leading_slash(oldpath), ec);
+        if (ec) return fuse_error(ec);
+
+        if (!fs::exists(old_full, ec)) {
+            if (ec) return fuse_error(ec);
             std::string old_base = get_path(oldpath, false);
-            if (!fs::exists(old_base)) return -ENOENT;
-            fs::create_directories(fs::path(old_full).parent_path());
-            if (fs::is_directory(old_base)) fs::copy(old_base, old_full, fs::copy_options::recursive);
-            else fs::copy_file(old_base, old_full);
+            if (!fs::exists(old_base, ec)) return ec ? fuse_error(ec) : -ENOENT;
+            fs::create_directories(fs::path(old_full).parent_path(), ec);
+            if (ec) return fuse_error(ec);
+            bool old_is_directory = fs::is_directory(old_base, ec);
+            if (ec) return fuse_error(ec);
+            if (old_is_directory) {
+                fs::copy(old_base, old_full, fs::copy_options::recursive, ec);
+            } else {
+                fs::copy_file(old_base, old_full, ec);
+            }
+            if (ec) return fuse_error(ec);
         }
 
-        fs::create_directories(fs::path(new_full).parent_path());
+        fs::create_directories(fs::path(new_full).parent_path(), ec);
+        if (ec) return fuse_error(ec);
         if (::rename(old_full.c_str(), new_full.c_str()) == -1) return -errno;
 
-        if (fs::exists((modFolder / strip_leading_slash(oldpath)).string()) ||
-            fs::exists((baseFolder / strip_leading_slash(oldpath)).string())) {
-            add_whiteout(oldpath);
+        if (exists_in_mod || exists_in_base) {
+            int res = add_whiteout(oldpath);
+            if (res) return res;
         }
-        remove_whiteout(newpath);
-        return 0;
+        return remove_whiteout(newpath);
     }
 
     int chmod(const std::string &path, mode_t mode) {
         if (is_whiteouted(path)) return -ENOENT;
-        if (!ensure_content_copy(path)) return -ENOENT;
+        int res = ensure_content_copy(path);
+        if (res) return res;
         std::string full_path = get_path(path, true);
         return (chmod_file(full_path.c_str(), mode) == -1) ? -errno : 0;
     }
 
     int utimens(const std::string &path, const struct timespec tv[2]) {
         if (is_whiteouted(path)) return -ENOENT;
-        if (!ensure_content_copy(path)) return -ENOENT;
+        int res = ensure_content_copy(path);
+        if (res) return res;
         std::string full_path = get_path(path, true);
 #ifdef _WIN32
-        try {
-            auto file_time = std::chrono::system_clock::from_time_t(tv[1].tv_sec);
-            fs::last_write_time(full_path, std::chrono::time_point_cast<fs::file_time_type::duration>(
-                file_time - std::chrono::system_clock::now() + fs::file_time_type::clock::now()));
-            return 0;
-        } catch (...) { return -EIO; }
+        std::error_code ec;
+        auto file_time = std::chrono::system_clock::from_time_t(tv[1].tv_sec);
+        fs::last_write_time(full_path, std::chrono::time_point_cast<fs::file_time_type::duration>(
+            file_time - std::chrono::system_clock::now() + fs::file_time_type::clock::now()), ec);
+        return fuse_error(ec);
 #else
         return (utimensat(AT_FDCWD, full_path.c_str(), tv, 0) == -1) ? -errno : 0;
 #endif
@@ -796,12 +894,12 @@ public:
         }
         lock.unlock();
 
-        try {
-          if (!mountpoint.isEmpty()) {
-            fs::remove_all(mountpoint.toStdString());
-          }
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to remove mount point: " << e.what() << '\n';
+        if (!mountpoint.isEmpty()) {
+            std::error_code ec;
+            fs::remove_all(mountpoint.toStdString(), ec);
+            if (ec) {
+                std::cerr << "Failed to remove mount point: " << ec.message() << '\n';
+            }
         }
     }
 
