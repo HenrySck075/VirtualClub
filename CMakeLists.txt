@@ -297,6 +297,7 @@ message(STATUS "External libraries will be installed to: ${EXTLIB_INSTALL_DIR}")
 
 install(CODE "
   file(GET_RUNTIME_DEPENDENCIES
+    EXECUTABLES \"$<TARGET_FILE:${PROJECT_NAME}>\"
     RESOLVED_DEPENDENCIES_VAR _resolved_deps
     UNRESOLVED_DEPENDENCIES_VAR _unresolved_deps
     CONFLICTING_DEPENDENCIES_PREFIX _conflicting_deps
@@ -322,7 +323,7 @@ install(CODE "
   foreach(_dep IN LISTS _resolved_deps)
     message(STATUS \"Installing \${_dep}\")
     file(INSTALL
-      DESTINATION \"${EXTLIB_INSTALL_DIR}\"
+      DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${EXTLIB_INSTALL_DIR}\"
       FOLLOW_SYMLINK_CHAIN
       FILES \"\${_dep}\"
     )
