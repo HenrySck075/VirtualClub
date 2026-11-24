@@ -112,18 +112,7 @@ fs::path get_appdata_dir() {
     return fs::path(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString());
 }
 
-constexpr size_t constexpr_strlen(const char* str) {
-    size_t len = 0;
-    while (str[len] != '\0') {
-        ++len;
-    }
-    return len;
-}
-
-
 static constexpr auto g_launcherPatchesPath = "/game/_launcher_patches";
-static constexpr auto g_lppLeadingSlash = "/game/_launcher_patches/";
-static constexpr size_t g_lppSize = constexpr_strlen(g_launcherPatchesPath);
 
 // ============================================================================
 // 2. LibbiVFS
@@ -173,15 +162,26 @@ private:
     mutable std::shared_mutex dbMutex;
     std::unique_ptr<VFSPathResolver> pathResolver;
 
-    std::string strip_leading_slash(const std::string &path) const {
-        return (!path.empty() && (path[0] == '/' || path[0] == '\\')) ? path.substr(1) : path;
+    static fs::path relative_path(const std::string &path) {
+        fs::path result = fs::path(path).relative_path().lexically_normal();
+        while (!result.empty() && result.filename().empty()) result = result.parent_path();
+        return result == "." ? fs::path{} : result;
     }
 
-    std::string normalize_path(const std::string &path) const {
-        std::string p = path;
-        while (!p.empty() && (p.back() == '/' || p.back() == '\\')) p.pop_back();
-        if (p.empty()) return "/";
-        return (p[0] != '/' && p[0] != '\\') ? "/" + p : p;
+    static std::string normalize_path(const std::string &path) {
+        const fs::path relative = relative_path(path);
+        return (fs::path("/") / relative).generic_string();
+    }
+
+    static bool has_path_prefix(const std::string &path, const std::string &prefix) {
+        const fs::path path_segments = relative_path(path);
+        const fs::path prefix_segments = relative_path(prefix);
+        auto path_segment = path_segments.begin();
+        for (auto prefix_segment = prefix_segments.begin(); prefix_segment != prefix_segments.end(); ++prefix_segment) {
+            if (path_segment == path_segments.end() || *path_segment != *prefix_segment) return false;
+            ++path_segment;
+        }
+        return true;
     }
 
     void load_whiteouts() {
@@ -217,12 +217,11 @@ private:
         std::string norm = normalize_path(path);
         if (whiteouts.count(norm)) return true;
         
-        std::string parent = norm;
+        fs::path parent = norm;
         while (true) {
-            size_t idx = parent.find_last_of("/\\");
-            if (idx == std::string::npos || idx == 0) break;
-            parent = parent.substr(0, idx);
-            if (whiteouts.count(parent)) return true;
+            parent = parent.parent_path();
+            if (parent.empty() || parent == "/") break;
+            if (whiteouts.count(parent.generic_string())) return true;
         }
         return false;
     }
@@ -291,7 +290,7 @@ public:
     }
 
     int ensure_content_copy(const std::string &path) {
-        fs::path content_path = contentFolder / strip_leading_slash(normalize_path(path));
+        fs::path content_path = contentFolder / relative_path(path);
         std::error_code ec;
         if (fs::exists(content_path, ec)) return 0;
         if (ec) return fuse_error(ec);
@@ -312,8 +311,7 @@ public:
     }
 
     bool should_bypass_whiteout(const std::string &path) const {
-        return (path.rfind("/lib/", 0) == 0 || path == "/lib" ||
-                path.rfind("\\lib\\", 0) == 0 || path == "\\lib");
+        return has_path_prefix(path, "/lib");
     }
 
     // one thing is to send the file's xattr if any (maybe?), plus "vcmgr.path" setting to the file's resolved path
@@ -346,10 +344,10 @@ public:
         if (is_whiteouted(path)) return -ENOENT;
 
         std::unordered_set<std::string> dirents = {".", ".."};
-        std::string stripped = strip_leading_slash(normalize_path(path));
-        fs::path content_path = (contentFolder / stripped);
-        fs::path base_path = (baseFolder / stripped);
-        fs::path mod_path = (!containsRenpyEngine && (path.rfind("/lib", 0) == 0))
+        fs::path stripped = relative_path(path);
+        fs::path content_path = contentFolder / stripped;
+        fs::path base_path = baseFolder / stripped;
+        fs::path mod_path = (!containsRenpyEngine && has_path_prefix(path, "/lib"))
                              ? base_path : (modFolder / stripped);
         bool found = false;
 
@@ -361,7 +359,8 @@ public:
             if (ec) return fuse_error(ec);
             while (it != end) {
                 auto name = it->path().filename();
-                if (name.string() != ".vclubmgr" && !is_whiteouted((path / name).string())) {
+                if (name.string() != ".vclubmgr" &&
+                    !is_whiteouted((relative_path(path) / name).generic_string())) {
                     dirents.insert(name.string());
                 }
                 it.increment(ec);
@@ -370,8 +369,9 @@ public:
             return 0;
         };
 
-        if (path.rfind(g_launcherPatchesPath, 0) == 0) {
-            fs::path patchesSubdir = (launcherRoot / "assets" / "patches") / path.substr((path.rfind(g_lppLeadingSlash, 0) == 0) ? g_lppSize+1 : g_lppSize);
+        if (has_path_prefix(path, g_launcherPatchesPath)) {
+            fs::path patchesSubdir = (launcherRoot / "assets" / "patches") /
+                relative_path(path).lexically_relative(relative_path(g_launcherPatchesPath));
             int res = populate(patchesSubdir);
             if (res) return res;
         }
@@ -518,7 +518,7 @@ public:
     int rmdir(const std::string &path) {
       if (is_whiteouted(path)) return -ENOENT;
 
-      const std::string stripped = strip_leading_slash(normalize_path(path));
+      const fs::path stripped = relative_path(path);
       fs::path content_path = contentFolder / stripped;
       fs::path mod_path = modFolder / stripped;
       fs::path base_path = baseFolder / stripped;
@@ -560,7 +560,7 @@ public:
     int unlink(const std::string &path) {
       if (is_whiteouted(path)) return -ENOENT;
 
-      const std::string stripped = strip_leading_slash(normalize_path(path));
+      const fs::path stripped = relative_path(path);
       fs::path content_path = contentFolder / stripped;
       fs::path mod_path = modFolder / stripped;
       fs::path base_path = baseFolder / stripped;
@@ -606,9 +606,9 @@ public:
         std::string new_full = get_path(newpath, true);
 
         std::error_code ec;
-        bool exists_in_mod = fs::exists(modFolder / strip_leading_slash(oldpath), ec);
+        bool exists_in_mod = fs::exists(modFolder / relative_path(oldpath), ec);
         if (ec) return fuse_error(ec);
-        bool exists_in_base = fs::exists(baseFolder / strip_leading_slash(oldpath), ec);
+        bool exists_in_base = fs::exists(baseFolder / relative_path(oldpath), ec);
         if (ec) return fuse_error(ec);
 
         if (!fs::exists(old_full, ec)) {
@@ -920,22 +920,18 @@ private:
     // but will try to make sure that the parent one does
     // (because winfsp)
     static QString createMountPoint(const QString& modId) {
-      auto path = QDir::tempPath() + "/vclubmgr_mount_" + modId + "_XXXXXX";
+      QTemporaryDir directory(QDir::tempPath() + "/vclubmgr_mount_" + modId + "_XXXXXX");
+      auto path = directory.path();
 #ifndef Q_OS_WIN
-        QTemporaryDir directory(path);
-        if (!directory.isValid()) {
-            throw std::runtime_error("Failed to create temporary mount point");
-        }
-        directory.setAutoRemove(false);
+      if (!directory.isValid()) {
+          throw std::runtime_error("Failed to create temporary mount point");
+      }
+      directory.setAutoRemove(false);
 #else 
       path = QDir::toNativeSeparators(path);
-      // just to be safe
-      if (QFileInfo::exists(path)) {
-          QDir().rmdir(path);
-      }
+      directory.remove();
 #endif
-        return path;
-
+      return path;
     }
 
     const QString mountpoint;
