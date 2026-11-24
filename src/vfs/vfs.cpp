@@ -591,7 +591,14 @@ namespace FUSE_Glue {
             stbuf->st_size = std_st.st_size;
             stbuf->st_uid = std_st.st_uid;
             stbuf->st_gid = std_st.st_gid;
-#ifdef _WIN32
+#ifdef Q_OS_WIN 
+            // this thing lost execute permission for some reason
+            const auto file_type = stbuf->st_mode & _S_IFMT;
+            if (file_type == _S_IFREG) {
+                stbuf->st_mode |= 0555;
+            } else if (file_type == _S_IFDIR) {
+                stbuf->st_mode |= 0755;
+            }
             stbuf->st_atim = {std_st.st_atime};
             stbuf->st_mtim = {std_st.st_mtime};
             stbuf->st_ctim = {std_st.st_ctime};
@@ -738,7 +745,7 @@ public:
         struct fuse_args args = FUSE_ARGS_INIT(0, nullptr);
         fuse_opt_add_arg(&args, "vclubmgr_vfs");
         fuse_opt_add_arg(&args, "-o");
-        fuse_opt_add_arg(&args, "kernel_cache,attr_timeout=10,entry_timeout=10,negative_timeout=2");
+        fuse_opt_add_arg(&args, MVC_WIN("uid=-1") "kernel_cache,attr_timeout=10,entry_timeout=10,negative_timeout=2");
 
         fh = fuse_new(&args, &ops, sizeof(ops), vfs.get());
         fuse_opt_free_args(&args);
