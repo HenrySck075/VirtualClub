@@ -621,6 +621,18 @@ public:
     }
     filesystem_->UserContext = core_.get();
 
+    // nuke the mountpoint folder's existence if it exists
+    // this is a requirement
+    std::error_code error;
+    std::filesystem::remove_all(mountpoint_.toStdWString(), error);
+    if (error) {
+      qWarning() << "Failed to auto-remove existing target mount folder:"
+                 << QString::fromStdString(error.message());
+      FspFileSystemDelete(filesystem_);
+      filesystem_ = nullptr;
+      return false;
+    }
+
     status = FspFileSystemSetMountPoint(filesystem_, mountpoint_.toStdWString().data());
     if (!NT_SUCCESS(status)) {
       qWarning() << "FspFileSystemSetMountPoint failed:" << Qt::hex << status;
