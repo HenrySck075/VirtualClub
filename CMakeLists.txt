@@ -140,7 +140,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # this thing is for windows 
-add_compile_definitions(WIN32_LEAN_AND_MEAN)
+#add_compile_definitions(WIN32_LEAN_AND_MEAN)
 
 file(GLOB_RECURSE RC_FILES CONFIGURE_DEPENDS "resources/*.*")
 
