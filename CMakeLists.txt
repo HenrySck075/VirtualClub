@@ -84,6 +84,20 @@ find_package(LibArchive REQUIRED)
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES vi)
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp" "src/*.c" "src/*.hpp") 
+list(REMOVE_ITEM SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_fuse3.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_winfsp.cpp"
+)
+if(UNIX AND NOT APPLE AND NOT ANDROID AND
+   NOT CMAKE_SYSTEM_NAME STREQUAL "Android" AND
+   NOT DEFINED ENV{TERMUX_VERSION} AND
+   NOT "$ENV{PREFIX}" MATCHES "com.termux")
+  list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs.cpp")
+  list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_fuse3.cpp")
+elseif(WIN32)
+  list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs.cpp")
+  list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_winfsp.cpp")
+endif()
 qt_add_executable(${PROJECT_NAME}
     ${SOURCES}
     #resources.qrc
@@ -193,6 +207,9 @@ target_link_libraries(
   Qt6::Widgets Qt6::Multimedia Qt6::Svg pybind11::embed
   LibArchive::LibArchive
 )
+if(WIN32)
+  target_link_libraries(${PROJECT_NAME} PRIVATE Advapi32)
+endif()
 
 set(IS_ANDROID FALSE)
 set(IS_TERMUX FALSE)
@@ -229,7 +246,7 @@ if(WIN32)
 
   set(FUSE_LIBRARIES ${WINFSP_LIB})
   set(FUSE_INCLUDE_DIRS "${WINFSP_DIR}/inc")
-elseif(NOT IS_ANDROID AND NOT IS_TERMUX)
+elseif(UNIX AND NOT APPLE AND NOT IS_ANDROID AND NOT IS_TERMUX)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(FUSE3 REQUIRED fuse3)
   set(FUSE_LIBRARIES ${FUSE3_LIBRARIES})
@@ -283,7 +300,6 @@ if (NOT WIN32)
 endif()
 
 install(TARGETS ${PROJECT_NAME}
-    RUNTIME_DEPENDENCY_SET vc_deps
     RUNTIME DESTINATION .
     BUNDLE DESTINATION .
 )

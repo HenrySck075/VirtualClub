@@ -39,8 +39,8 @@ extern char** environ;
 #include <unordered_map>
 #include <unordered_set>
 #include <stdexcept>
-static std::unordered_map<std::string, std::unique_ptr<VFSInstance>> m_mountedMods;
-static std::unordered_set<std::string> m_playingMods;
+static std::unordered_map<std::string, std::unique_ptr<VFSInstance>> g_mountedMods;
+static std::unordered_map<std::string, pid_t> g_playingMods;
 
 #ifdef _WIN32
 #include <shellapi.h>
@@ -133,7 +133,7 @@ static void ensureWinFspInstalled() {
 void SessionManager::mount(ModsIndex::Mod& mod) {
   qDebug() << "SessionManager: mount requested for" << QString::fromStdString(mod.id)
            << QString::fromStdString(mod.name);
-  if (m_mountedMods.contains(mod.id)) {
+  if (g_mountedMods.contains(mod.id)) {
     qDebug() << "SessionManager: mod already mounted" << QString::fromStdString(mod.id);
     return;
   }
@@ -142,13 +142,13 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
   ensureWinFspInstalled();
 #endif
 
-  auto& instance = m_mountedMods[mod.id] = std::make_unique<VFSInstance>(
+  auto& instance = g_mountedMods[mod.id] = std::make_unique<VFSInstance>(
     QFileInfo(QCoreApplication::applicationFilePath()).absoluteDir().path(),
     mod
   );
 
   if (!instance->mount()) {
-    m_mountedMods.erase(mod.id);
+    g_mountedMods.erase(mod.id);
     throw std::runtime_error("Could not mount the mod virtual filesystem.");
   }
   qDebug() << "SessionManager: mounted mod" << QString::fromStdString(mod.id)
@@ -159,17 +159,17 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
 };
 
 bool SessionManager::isMounted(std::string modId) {
-  const bool result = m_mountedMods.contains(modId);
+  const bool result = g_mountedMods.contains(modId);
   qDebug() << "SessionManager: isMounted" << QString::fromStdString(modId) << "=" << result;
   return result;
 }
 bool SessionManager::isPlaying(std::string modId) {
-  return m_playingMods.contains(modId);
+  return g_playingMods.contains(modId);
 }
 QString SessionManager::mountPathOf(std::string modId) {
   qDebug() << "SessionManager: resolving mount path for" << QString::fromStdString(modId);
-  auto it = m_mountedMods.find(modId);
-  if (it == m_mountedMods.end()) {
+  auto it = g_mountedMods.find(modId);
+  if (it == g_mountedMods.end()) {
     qWarning() << "SessionManager: mount path requested for unmounted mod"
                << QString::fromStdString(modId);
     return {};
@@ -241,7 +241,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
   // Step 1. get the bundled pythonw executable
 
-  fs::path mountPath = m_mountedMods[mod.id]->mountPath().toStdString();
+  fs::path mountPath = g_mountedMods[mod.id]->mountPath().toStdString();
   qDebug() << "SessionManager: launch mount path" << QString::fromStdString(mountPath.string());
 
 // on windows (winfsp): repeatedly check mountPath existence for a few seconds to wait for the directory to mount
@@ -429,14 +429,14 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
       launchCommand, QString::fromStdString(mountPath.string()), argv, extra_env,
       [modId, startedCallback](pid_t pid) {
           qDebug() << "Game launched with PID:" << pid;
-          m_playingMods.insert(modId);
+          g_playingMods[modId] = pid;
           ModsIndex::get()->addModToRecentlyPlayed(modId);
           TrayIcon::updateTooltip();
           startedCallback();
       },
       [modId, exitedCallback](int exit_code) {
           qDebug() << "Game exited with code:" << exit_code;
-          m_playingMods.erase(modId);
+          g_playingMods.erase(modId);
           if (exit_code == 0) SessionManager::unmount(modId);
           exitedCallback();
       }
@@ -446,34 +446,64 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 void SessionManager::unmount(ModsIndex::Mod& mod) {unmount(mod.id);}
 void SessionManager::unmount(std::string modId) {
   qDebug() << "SessionManager: unmount requested for" << QString::fromStdString(modId);
-  auto it = m_mountedMods.find(modId);
-  if (it == m_mountedMods.end()) {
+  auto it = g_mountedMods.find(modId);
+  if (it == g_mountedMods.end()) {
     qWarning() << "SessionManager: cannot unmount unknown mod" << QString::fromStdString(modId);
     return;
   }
-  it->second->unmount();
-  m_mountedMods.erase(it);
-  qDebug() << "SessionManager: unmounted" << QString::fromStdString(modId)
-           << "remaining mounts" << m_mountedMods.size();
 
-  if (m_mountedMods.size() == 0) {
+  // try to sigterm the process before unmounting
+  auto playingIt = g_playingMods.find(modId);
+  if (playingIt != g_playingMods.end()) {
+    qDebug() << "SessionManager: sending SIGTERM to mod process" << playingIt->second;
+#ifdef Q_OS_WIN
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, playingIt->second);
+    if (hProcess) {
+        TerminateProcess(hProcess, 1);
+        CloseHandle(hProcess);
+    } else {
+        qWarning() << "SessionManager: failed to open process for termination" << playingIt->second;
+    }
+#else
+    kill(playingIt->second, SIGTERM);
+#endif
+  }
+
+  it->second->unmount();
+  g_mountedMods.erase(it);
+  qDebug() << "SessionManager: unmounted" << QString::fromStdString(modId)
+           << "remaining mounts" << g_mountedMods.size();
+
+  if (g_mountedMods.size() == 0) {
     QApplication::setQuitOnLastWindowClosed(true);
   }
 
   TrayIcon::updateTooltip();
 };
 bool SessionManager::hasMountedMod() {
-  return !m_mountedMods.empty();
+  return !g_mountedMods.empty();
 }
 bool SessionManager::hasPlayingMod() {
-  return !m_playingMods.empty();
+  return !g_playingMods.empty();
 }
 
 size_t SessionManager::countMountedMods() {
-  return m_mountedMods.size();
+  return g_mountedMods.size();
 }
 size_t SessionManager::countPlayingMods() {
-  return m_playingMods.size();
+  return g_playingMods.size();
+}
+
+namespace {
+  struct smAutoCleanup {
+    ~smAutoCleanup() {
+      for (auto& [modId, instance] : g_mountedMods) {
+        instance->unmount();
+      }
+      g_mountedMods.clear();
+      g_playingMods.clear();
+    }
+  } dummy;
 }
 
 #else
