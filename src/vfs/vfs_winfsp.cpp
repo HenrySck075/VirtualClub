@@ -221,6 +221,7 @@ NTSTATUS getSecurityByName(FSP_FILE_SYSTEM* filesystem, PWSTR fileName,
   }
   if (!securityDescriptorSize) return STATUS_SUCCESS;
   std::wstring physicalPath;
+  // TODO: apparently non-existent file path can be returned
   const NTSTATUS pathStatus = backingPath(core(filesystem), path, physicalPath);
   return NT_SUCCESS(pathStatus)
     ? readSecurityDescriptor(physicalPath, securityDescriptor, securityDescriptorSize)
@@ -545,20 +546,22 @@ NTSTATUS readDirectory(FSP_FILE_SYSTEM* filesystem, PVOID fileContext,
       continue;
     }
 
-    union {
-      std::max_align_t alignment;
-      std::byte bytes[FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) +
-                      260 * sizeof(WCHAR)];
-    } storage{};
-    auto* directoryInfo = reinterpret_cast<FSP_FSCTL_DIR_INFO*>(storage.bytes);
     const std::size_t nameBytes = name.size() * sizeof(WCHAR);
-    const std::size_t infoSize = FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + nameBytes;
-    if (infoSize > sizeof(storage.bytes)) return STATUS_OBJECT_NAME_INVALID;
+    const std::size_t infoSize =
+        FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + nameBytes;
+    if (infoSize > (std::numeric_limits<UINT16>::max)())
+      return STATUS_OBJECT_NAME_INVALID;
+
+    alignas(FSP_FSCTL_DIR_INFO) std::vector<std::byte> storage(
+        (std::max)(infoSize, sizeof(FSP_FSCTL_DIR_INFO)));
+    auto* directoryInfo = reinterpret_cast<FSP_FSCTL_DIR_INFO*>(storage.data());
     directoryInfo->Size = static_cast<UINT16>(infoSize);
     vfs::Metadata metadata = entry.metadata;
     if (entry.name == "." || entry.name == "..") metadata.isDirectory = true;
     makeFileInfo(metadata, directoryInfo->FileInfo);
-    std::memcpy(directoryInfo->FileNameBuf, name.data(), nameBytes);
+    if (nameBytes > 0) {
+      std::memcpy(directoryInfo->FileNameBuf, name.data(), nameBytes);
+    }
     if (!FspFileSystemAddDirInfo(directoryInfo, buffer, length, bytesTransferred))
       return *bytesTransferred == 0 ? STATUS_BUFFER_OVERFLOW : STATUS_SUCCESS;
   }
@@ -632,8 +635,9 @@ public:
       filesystem_ = nullptr;
       return false;
     }
-
-    status = FspFileSystemSetMountPoint(filesystem_, mountpoint_.toStdWString().data());
+    
+    auto mpWide = mountpoint_.toStdWString();
+    status = FspFileSystemSetMountPoint(filesystem_, mpWide.data());
     if (!NT_SUCCESS(status)) {
       qWarning() << "FspFileSystemSetMountPoint failed:" << Qt::hex << status;
       FspFileSystemDelete(filesystem_);

@@ -263,7 +263,7 @@ public:
 
     auto stream = std::make_unique<std::fstream>();
     std::ios::openmode mode = std::ios::binary;
-    mode |= std::ios::in;
+    if (options.read) mode |= std::ios::in;
     if (options.write) mode |= std::ios::out;
     if (options.truncate) mode |= std::ios::trunc;
     if (options.append) mode |= std::ios::app;
