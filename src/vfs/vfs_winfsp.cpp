@@ -611,7 +611,7 @@ public:
     wcscpy_s(volumeParams.FileSystemName,
              sizeof(volumeParams.FileSystemName) / sizeof(WCHAR), L"VirtualClub");
 
-    NTSTATUS status = FspFileSystemCreate(FSP_FSCTL_DISK_DEVICE_NAME,
+    NTSTATUS status = FspFileSystemCreate(L"" FSP_FSCTL_DISK_DEVICE_NAME,
                                           &volumeParams, &fileSystemInterface,
                                           &filesystem_);
     if (!NT_SUCCESS(status)) {
