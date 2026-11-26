@@ -17,14 +17,11 @@
 
 FullFetchIndex::FullFetchIndex(QObject *parent)
   : OnlineIndex(parent) {
-    qDebug() << "OnlineModsIndex: constructing full fetch index";
+    
     m_nm = createNetworkAccessManager(this);
   }
 
 QFuture<std::vector<OnlineMod>> FullFetchIndex::getMods(OnlineIndex::QueryConfig config) {
-  qDebug() << "OnlineModsIndex: getMods sorting=" << static_cast<int>(config.sorting)
-           << "page=" << config.page << "perPage=" << config.perPage
-           << "query=" << QString::fromStdString(config.searchQuery);
   if (m_modsList.empty()) {
     return fetchMods().then([this, config](std::vector<OnlineMod> mods) {
       std::vector<size_t> vec(mods.size());
@@ -51,8 +48,6 @@ std::vector<size_t> FullFetchIndex::filterList(
   const std::vector<size_t>& list,
   const std::string& searchQuery
 ) const {
-  qDebug() << "OnlineModsIndex: filtering" << list.size() << "mods with"
-           << QString::fromStdString(searchQuery);
   if (searchQuery.empty()) {
     return list;
   }

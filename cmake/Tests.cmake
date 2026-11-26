@@ -3,21 +3,28 @@ include(CTest)
 if(BUILD_TESTING)
   find_package(Qt6 REQUIRED COMPONENTS Test)
 
-  include(ExternalProject)
   set(MVC_RENPY_TEST_SDK_DIR "${CMAKE_BINARY_DIR}/_deps/renpy-6.99.2-sdk")
   set(MVC_RENPY_TEST_BASE "${CMAKE_SOURCE_DIR}/tests/subject/base")
+  set(MVC_RENPY_STAMP_FILE "${CMAKE_BINARY_DIR}/_deps/renpy-6.99.2-assets.stamp")
 
-  ExternalProject_Add(mvc_renpy_6992_test_sdk
-    URL "https://www.renpy.org/dl/6.99.2/renpy-6.99.2-sdk.zip"
-    SOURCE_DIR "${MVC_RENPY_TEST_SDK_DIR}"
-    UPDATE_DISCONNECTED TRUE
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
-  )
+  set(MVC_SDK_DEPS "")
+  if(NOT EXISTS "${MVC_RENPY_TEST_SDK_DIR}/renpy.py")
+    include(ExternalProject)
+    ExternalProject_Add(mvc_renpy_6992_test_sdk
+      URL "https://www.renpy.org/dl/6.99.2/renpy-6.99.2-sdk.zip"
+      SOURCE_DIR "${MVC_RENPY_TEST_SDK_DIR}"
+      UPDATE_DISCONNECTED TRUE
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND ""
+      INSTALL_COMMAND ""
+    )
+    list(APPEND MVC_SDK_DEPS mvc_renpy_6992_test_sdk)
+  endif()
 
-  add_custom_target(mvc_prepare_test_assets
-    DEPENDS mvc_renpy_6992_test_sdk
+  add_custom_command(
+    OUTPUT "${MVC_RENPY_STAMP_FILE}"
+    DEPENDS ${MVC_SDK_DEPS}
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${MVC_RENPY_TEST_BASE}"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
             "${MVC_RENPY_TEST_SDK_DIR}/lib"
             "${MVC_RENPY_TEST_BASE}/lib"
@@ -27,6 +34,13 @@ if(BUILD_TESTING)
     COMMAND "${CMAKE_COMMAND}" -E copy
             "${MVC_RENPY_TEST_SDK_DIR}/renpy.py"
             "${MVC_RENPY_TEST_BASE}/renpy.py"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${MVC_RENPY_STAMP_FILE}"
+    COMMENT "Preparing Ren'Py test assets (once)"
+    VERBATIM
+  )
+
+  add_custom_target(mvc_prepare_test_assets
+    DEPENDS "${MVC_RENPY_STAMP_FILE}"
   )
 
   qt_add_executable(VirtualClub-Tests

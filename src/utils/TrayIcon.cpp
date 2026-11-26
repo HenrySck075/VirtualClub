@@ -17,7 +17,7 @@ QSystemTrayIcon* trayIcon = nullptr;
 
 void TrayIcon::updateTooltip() {
   if (!trayIcon) {
-    qDebug() << "TrayIcon: tooltip update ignored; tray not initialized";
+    
     return;
   }
 
@@ -37,7 +37,7 @@ void TrayIcon::updateTooltip() {
     ProfileSingleApp::instance()->profileName(),
     sessionStatus
   ));
-  qDebug() << "TrayIcon: tooltip updated:" << trayIcon->toolTip();
+  
 }
 
 void TrayIcon::setup(QWidget* mainWindow, std::function<bool()> confirmQuit) {

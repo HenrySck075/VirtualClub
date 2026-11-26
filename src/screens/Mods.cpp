@@ -470,7 +470,7 @@ void ModsScreen::onAddModButtonClicked() {
     ModsIndex::get()->installMod(directory.toStdString());
   } CPPTRACE_CATCH (std::exception& e) {
 #ifdef MVC_DEBUG
-    qDebug() << "Exception:" << e.what();
+    
     cpptrace::from_current_exception().print();
 #endif
     Dialog::showActionDialog(

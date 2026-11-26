@@ -12,7 +12,7 @@ std::shared_ptr<YamlSettings> ProfileSettings::get() {
 
 
 std::shared_ptr<YamlSettings> ProfileSettings::getOf(const QString &name) {
-  qDebug() << "ProfileSettings: resolving profile" << name;
+  
   static std::unordered_map<std::string, std::weak_ptr<YamlSettings>> registry;
   static std::mutex mutex;
 
@@ -21,7 +21,7 @@ std::shared_ptr<YamlSettings> ProfileSettings::getOf(const QString &name) {
 
   // Re-use existing instance if active
   if (auto instance = registry[key].lock()) {
-    qDebug() << "ProfileSettings: reusing cached settings for" << name;
+    
     return instance;
   }
 
@@ -29,13 +29,13 @@ std::shared_ptr<YamlSettings> ProfileSettings::getOf(const QString &name) {
   auto newInstance =
       std::make_shared<YamlSettings>(QString("profiles/%1.yaml").arg(key));
   registry[key] = newInstance;
-  qDebug() << "ProfileSettings: created settings for" << name;
+  
   return newInstance;
 }
 
 
 QList<QString> ProfileSettings::list() {
-  qDebug() << "ProfileSettings: listing profiles";
+  
   QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
 
   auto profilesPath = QDir(configDir).filePath("profiles/");
@@ -48,12 +48,12 @@ QList<QString> ProfileSettings::list() {
     QString fileName = QFileInfo(filePath).baseName(); // Get the base name without extension
     profileNames.append(fileName);
   }
-  qDebug() << "ProfileSettings: found" << profileNames.size() << "profiles";
+  
   return profileNames;
 }
 
 void ProfileSettings::deleteProfile(const QString& name) {
-  qDebug() << "ProfileSettings: deleting profile" << name;
+  
   if (name == ProfileSingleApp::instance()->profileId()) {
     qWarning() << "ProfileSettings: refusing to delete active profile" << name;
     return;

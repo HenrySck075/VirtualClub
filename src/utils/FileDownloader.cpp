@@ -28,14 +28,14 @@ void FileDownloader::download(const QUrl &url, const QString &destinationFilePat
     m_destinationPath = destinationFilePath;
 
     if (m_currentReply) {
-        qDebug() << "FileDownloader: aborting previous reply";
+        
         m_currentReply->abort();
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
     }
 
     if (m_cancelled) return;
-    qDebug() << "Downloading" << url;
+    
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 

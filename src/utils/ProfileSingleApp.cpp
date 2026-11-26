@@ -24,8 +24,6 @@ ProfileSingleApp::~ProfileSingleApp() {
 }
 
 bool ProfileSingleApp::notifyPrimaryInstance(const QStringList &args) {
-    qDebug() << "ProfileSingleApp: notifying primary instance" << m_serverName
-             << "with args" << args;
     QLocalSocket socket;
     socket.connectToServer(m_serverName);
     
@@ -45,7 +43,7 @@ bool ProfileSingleApp::notifyPrimaryInstance(const QStringList &args) {
     socket.flush();
     socket.waitForBytesWritten(1000);
     socket.disconnectFromServer();
-    qDebug() << "ProfileSingleApp: notification sent";
+    
     
     return true;
 }
@@ -60,7 +58,7 @@ const void ProfileSingleApp::setProfileId(const QString &profileId) {
     qWarning() << "ProfileSingleApp: profile ID change ignored after initialization";
     return;
   }
-  qDebug() << "ProfileSingleApp: initializing profile" << profileId;
+  
 
   m_profileId = profileId;
     // 1. Hash profile ID to create a safe cross-platform resource string
@@ -86,7 +84,7 @@ const void ProfileSingleApp::setProfileId(const QString &profileId) {
     m_localServer = new QLocalServer(this);
     
     if (m_localServer->listen(m_serverName)) {
-        qDebug() << "ProfileSingleApp: IPC server listening on" << m_serverName;
+        
         connect(m_localServer, &QLocalServer::newConnection, this, &ProfileSingleApp::handleNewConnection);
     } else {
         qWarning() << "ProfileSingleApp: could not start IPC server" << m_serverName;

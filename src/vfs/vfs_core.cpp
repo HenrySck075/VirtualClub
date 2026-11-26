@@ -533,7 +533,7 @@ private:
 
   fs::path resolve(const std::string& path, bool write = false) const {
     auto resolved = resolver_->getPath(path, write);
-    qDebug() << path << "->" << resolved;
+    
     return resolved;
   }
 

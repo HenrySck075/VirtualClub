@@ -29,7 +29,7 @@ short answer, the "virtual filesystem" technology allows the launcher to constru
 
 ## Dependencies
 These lists the dependencies that do not automatically get installed by the project:
-
+- Git (ofc)
 - Qt6
 - Python
 - FUSE3 (or WinFsp on Windows, requires enabling the driver)

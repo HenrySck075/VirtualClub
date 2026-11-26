@@ -136,7 +136,7 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
   qDebug() << "SessionManager: mount requested for" << QString::fromStdString(mod.id)
            << QString::fromStdString(mod.name);
   if (g_mountedMods.contains(mod.id)) {
-    qDebug() << "SessionManager: mod already mounted" << QString::fromStdString(mod.id);
+    
     return;
   }
 
@@ -162,14 +162,14 @@ void SessionManager::mount(ModsIndex::Mod& mod) {
 
 bool SessionManager::isMounted(std::string modId) {
   const bool result = g_mountedMods.contains(modId);
-  qDebug() << "SessionManager: isMounted" << QString::fromStdString(modId) << "=" << result;
+  
   return result;
 }
 bool SessionManager::isPlaying(std::string modId) {
   return g_playingMods.contains(modId);
 }
 QString SessionManager::mountPathOf(std::string modId) {
-  qDebug() << "SessionManager: resolving mount path for" << QString::fromStdString(modId);
+  
   auto it = g_mountedMods.find(modId);
   if (it == g_mountedMods.end()) {
     qWarning() << "SessionManager: mount path requested for unmounted mod"
@@ -190,7 +190,7 @@ void spawn_process(
     std::function<void(int exit_code)> on_exit
 )
 {
-  qDebug() << "SessionManager: spawning" << command << "args" << argv;
+  
   QProcess* process = new QProcess();
   process->setProgram(command);
   process->setArguments(argv);
@@ -205,13 +205,13 @@ void spawn_process(
   }
 
   process->setProcessEnvironment(env);
-  qDebug() << "SessionManager: applying" << extra_env.size() << "extra environment variables";
+  
   
 
   QObject::connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
                    [process, on_exit](int exitCode, QProcess::ExitStatus exitStatus) {
                        if (exitStatus == QProcess::CrashExit) {
-                           qDebug() << "Process crashed";
+                           
                        }
                        on_exit(exitCode);
                        process->deleteLater();
@@ -244,14 +244,14 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
   // Step 1. get the bundled pythonw executable
 
   fs::path mountPath = g_mountedMods[mod.id]->mountPath().toStdString();
-  qDebug() << "SessionManager: launch mount path" << QString::fromStdString(mountPath.string());
+  
 
 // on windows (winfsp): repeatedly check mountPath existence for a few seconds to wait for the directory to mount
   #ifdef Q_OS_WIN
   {
       int attempts = 0;
       while (!fs::exists(mountPath) && attempts < 10) {
-          qDebug() << "SessionManager: waiting for mount path to exist..." << QString::fromStdString(mountPath.string());
+          
           std::this_thread::sleep_for(std::chrono::milliseconds(500));
           ++attempts;
       }
@@ -271,7 +271,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
   {
       auto p = mountPath / (configs.modId+".app") / "Contents" / "MacOS" / "pythonw";
       if (fs::exists(p)) {
-          qDebug() << "SessionManager: found macOS python at" << QString::fromStdString(p.string());
+          
           pythonwPath = p;
       }
   }
@@ -295,9 +295,9 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
       for (const auto& prefix : pythonDirectories) {
           auto pyPath = mountPath / "lib" / (prefix + platformKey) / exeName;
-          qDebug() << "Attempting" << pyPath;
+          
           if (fs::exists(pyPath)) {
-              qDebug() << "SessionManager: found" << prefix << "python at" << QString::fromStdString(pyPath.string());
+              
               pythonwPath = pyPath;
               break;
           }
@@ -329,7 +329,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
           for (const auto& translationLayer : translationLayers) {
               launchCommand = QStandardPaths::findExecutable(translationLayer);
               if (!launchCommand.isEmpty()) {
-                  qDebug() << "SessionManager: found Wine translation layer" << launchCommand;
+                  
                   usesTranslationLayer = true;
                   break;
               }
@@ -362,16 +362,16 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
   // Step 2. Purge loose .rpyc files if forceRecompile is set
   if (mod.forceRecompile) {
-      qDebug() << "SessionManager: purging .rpyc files for forced recompilation";
+      
       size_t removed = 0;
       for (const auto& entry : fs::recursive_directory_iterator(mountPath)) {
           if (entry.is_regular_file() && entry.path().extension() == ".rpyc") {
-              qDebug() << "SessionManager: removing cached script" << QString::fromStdString(entry.path().string());
+              
               fs::remove(entry.path());
               ++removed;
           }
       }
-      qDebug() << "SessionManager: removed" << removed << ".rpyc files";
+      
   }
 
   // Step 3. Resolve bootstrapper python file at the root
@@ -389,7 +389,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
       qWarning() << "SessionManager: no bootstrapper found for mod" << QString::fromStdString(mod.id);
       throw std::runtime_error("Could not find a bootstrapper python file in the mod folder.");
   }
-  qDebug() << "SessionManager: bootstrapper" << QString::fromStdString(bootstrapperPath);
+  
 
   // Step 4. Prepare environment variables and launch the game
   QStringList extra_env;
@@ -399,7 +399,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
   if (mod.enableDeveloper) extra_env << "MVC_DEVELOPER=Mon-ika";
   if (saveId != "") extra_env << ("MVC_SAVE_ID=" + saveId);
-  qDebug() << "save id:" << saveId;
+  
 
   #ifdef __linux__
   // get current list of LD_LIBRARY_PATH
@@ -423,21 +423,21 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
   if (launchCommand.isEmpty()) {
       launchCommand = QString::fromStdString(pythonwPath->string());
   }
-  qDebug() << "SessionManager: launching" << launchCommand << "with argv" << argv;
+  
 
   std::string modId = mod.id;
 
   spawn_process(
       launchCommand, QString::fromStdString(mountPath.string()), argv, extra_env,
       [modId, startedCallback](pid_t pid) {
-          qDebug() << "Game launched with PID:" << pid;
+          
           g_playingMods[modId] = pid;
           ModsIndex::get()->addModToRecentlyPlayed(modId);
           TrayIcon::updateTooltip();
           startedCallback();
       },
       [modId, exitedCallback](int exit_code) {
-          qDebug() << "Game exited with code:" << exit_code;
+          
           g_playingMods.erase(modId);
           if (exit_code == 0) SessionManager::unmount(modId);
           exitedCallback();
@@ -447,7 +447,7 @@ void SessionManager::launch(ModsIndex::Mod& mod, std::function<void()> startedCa
 
 void SessionManager::unmount(ModsIndex::Mod& mod) {unmount(mod.id);}
 void SessionManager::unmount(std::string modId) {
-  qDebug() << "SessionManager: unmount requested for" << QString::fromStdString(modId);
+  
   auto it = g_mountedMods.find(modId);
   if (it == g_mountedMods.end()) {
     qWarning() << "SessionManager: cannot unmount unknown mod" << QString::fromStdString(modId);
@@ -457,7 +457,7 @@ void SessionManager::unmount(std::string modId) {
   // try to sigterm the process before unmounting
   auto playingIt = g_playingMods.find(modId);
   if (playingIt != g_playingMods.end()) {
-    qDebug() << "SessionManager: sending SIGTERM to mod process" << playingIt->second;
+    
 #ifdef Q_OS_WIN
     HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, playingIt->second);
     if (hProcess) {

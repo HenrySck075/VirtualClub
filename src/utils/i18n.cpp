@@ -7,14 +7,14 @@
 #include <QDebug>
 
 void setLanguage(QLocale locale) {
-    qDebug() << "i18n: setting language" << locale.name();
+    
     static std::unique_ptr<QTranslator> translator = std::make_unique<QTranslator>();
 
     if (translator->load(locale, qApp->applicationName(), "_", ":/translations")) {
-        qDebug() << "i18n: installed translation" << locale.name();
+        
         qApp->installTranslator(translator.get());
     } else {
-        qDebug() << "Failed to load translation for locale:" << locale;
+        
     }
 }
 

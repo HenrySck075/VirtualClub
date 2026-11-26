@@ -204,6 +204,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
+if(MINGW)
+  if(TARGET yaml-cpp)
+    get_target_property(yaml_type yaml-cpp TYPE)
+    if(yaml_type STREQUAL "STATIC_LIBRARY")
+      target_compile_definitions(yaml-cpp PUBLIC YAML_CPP_STATIC_DEFINE)
+    endif()
+  endif()
+endif()
+
 set(LEXBOR_INSTALL_HEADERS OFF CACHE BOOL "" FORCE)
 set(LEXBOR_BUILD_STATIC OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(

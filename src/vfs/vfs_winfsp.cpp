@@ -41,6 +41,7 @@ struct FileContext {
   bool cleaned = false;
 };
 
+
 NTSTATUS winfspStatus(vfs::Status status) {
   switch (status) {
   case vfs::Status::Ok: return STATUS_SUCCESS;
@@ -242,6 +243,40 @@ NTSTATUS getFileInfo(FSP_FILE_SYSTEM* filesystem, PVOID fileContext,
   return STATUS_SUCCESS;
 }
 
+NTSTATUS overwrite(FSP_FILE_SYSTEM* filesystem, PVOID fileContext,
+                   UINT32 fileAttributes, BOOLEAN replaceFileAttributes,
+                   UINT64, FSP_FSCTL_FILE_INFO* fileInfo) {
+  if (!fileContext || !fileInfo) return STATUS_INVALID_PARAMETER;
+  auto* context = static_cast<FileContext*>(fileContext);
+  if (context->isDirectory) return STATUS_FILE_IS_A_DIRECTORY;
+  auto* operations = core(filesystem);
+  if (!operations) return STATUS_IO_DEVICE_ERROR;
+
+  vfs::Metadata metadata;
+  NTSTATUS status = metadataFor(operations, context->path, metadata);
+  if (!NT_SUCCESS(status)) return status;
+
+  const bool wasReadOnly = metadata.isReadOnly;
+  const bool isReadOnly = replaceFileAttributes
+    ? (fileAttributes & FILE_ATTRIBUTE_READONLY) != 0
+    : wasReadOnly || (fileAttributes & FILE_ATTRIBUTE_READONLY) != 0;
+  if (wasReadOnly && !isReadOnly) {
+    metadata.isReadOnly = false;
+    status = winfspStatus(operations->setAttributes(context->path, metadata));
+    if (!NT_SUCCESS(status)) return status;
+  }
+
+  status = winfspStatus(operations->setFileSize(context->path, 0));
+  if (!NT_SUCCESS(status)) return status;
+
+  if (!wasReadOnly && isReadOnly) {
+    metadata.isReadOnly = true;
+    status = winfspStatus(operations->setAttributes(context->path, metadata));
+    if (!NT_SUCCESS(status)) return status;
+  }
+  return getFileInfo(filesystem, fileContext, fileInfo);
+}
+
 NTSTATUS open(FSP_FILE_SYSTEM* filesystem, PWSTR fileName, UINT32 createOptions,
               UINT32 grantedAccess, PVOID* fileContext,
               FSP_FSCTL_FILE_INFO* fileInfo) {
@@ -377,6 +412,12 @@ NTSTATUS write(FSP_FILE_SYSTEM* filesystem, PVOID fileContext, PVOID buffer,
   status = winfspStatus(operations->write(context->handle.id, offset, input, count));
   if (!NT_SUCCESS(status)) return status;
   *bytesTransferred = static_cast<ULONG>(count);
+  return fileInfo ? getFileInfo(filesystem, fileContext, fileInfo) : STATUS_SUCCESS;
+}
+
+NTSTATUS flush(FSP_FILE_SYSTEM* filesystem, PVOID fileContext,
+               FSP_FSCTL_FILE_INFO* fileInfo) {
+  if (!fileContext) return STATUS_SUCCESS;
   return fileInfo ? getFileInfo(filesystem, fileContext, fileInfo) : STATUS_SUCCESS;
 }
 
@@ -571,22 +612,75 @@ NTSTATUS readDirectory(FSP_FILE_SYSTEM* filesystem, PVOID fileContext,
   return STATUS_SUCCESS;
 }
 
+NTSTATUS getStreamInfo(FSP_FILE_SYSTEM*, PVOID fileContext, PVOID,
+                       ULONG, PULONG bytesTransferred) {
+  if (!fileContext || !bytesTransferred) return STATUS_INVALID_PARAMETER;
+  *bytesTransferred = 0;
+  return STATUS_SUCCESS;
+}
+
+NTSTATUS getDirInfoByName(FSP_FILE_SYSTEM* filesystem, PVOID fileContext,
+                          PWSTR fileName, FSP_FSCTL_DIR_INFO* dirInfo) {
+  if (!fileContext || !fileName || !dirInfo) return STATUS_INVALID_PARAMETER;
+  const auto* context = static_cast<const FileContext*>(fileContext);
+  if (!context->isDirectory) return STATUS_NOT_A_DIRECTORY;
+
+  std::string childName;
+  if (!wideToUtf8(fileName, childName)) return STATUS_OBJECT_NAME_INVALID;
+  std::string path = context->path;
+  if (path.empty() || path.back() != '/') path.push_back('/');
+  path += childName;
+
+  vfs::Metadata metadata;
+  const NTSTATUS status = metadataFor(core(filesystem), path, metadata);
+  if (!NT_SUCCESS(status)) return status;
+
+  std::wstring name;
+  if (!utf8ToWide(childName, name)) return STATUS_OBJECT_NAME_INVALID;
+  const std::size_t nameBytes = name.size() * sizeof(WCHAR);
+  const std::size_t infoSize =
+      FIELD_OFFSET(FSP_FSCTL_DIR_INFO, FileNameBuf) + nameBytes;
+  if (infoSize > (std::numeric_limits<UINT16>::max)())
+    return STATUS_OBJECT_NAME_INVALID;
+
+  std::memset(dirInfo, 0, infoSize);
+  dirInfo->Size = static_cast<UINT16>(infoSize);
+  makeFileInfo(metadata, dirInfo->FileInfo);
+  std::memcpy(dirInfo->FileNameBuf, name.data(), nameBytes);
+  return STATUS_SUCCESS;
+}
+
+NTSTATUS setVolumeLabel(FSP_FILE_SYSTEM*, PWSTR, FSP_FSCTL_VOLUME_INFO*) {
+  return STATUS_NOT_SUPPORTED;
+}
+
+NTSTATUS setSecurity(FSP_FILE_SYSTEM*, PVOID, SECURITY_INFORMATION,
+                     PSECURITY_DESCRIPTOR) {
+  return STATUS_NOT_SUPPORTED;
+}
+
 FSP_FILE_SYSTEM_INTERFACE fileSystemInterface = {
   .GetVolumeInfo = getVolumeInfo,
+  .SetVolumeLabel = setVolumeLabel,
   .GetSecurityByName = getSecurityByName,
   .Create = create,
   .Open = open,
+  .Overwrite = overwrite,
   .Cleanup = cleanup,
   .Close = close,
   .Read = read,
   .Write = write,
+  .Flush = flush,
   .GetFileInfo = getFileInfo,
   .SetBasicInfo = setBasicInfo,
   .SetFileSize = setFileSize,
   .CanDelete = canDelete,
   .Rename = rename,
   .GetSecurity = getSecurity,
+  .SetSecurity = setSecurity,
   .ReadDirectory = readDirectory,
+  .GetStreamInfo = getStreamInfo,
+  .GetDirInfoByName = getDirInfoByName,
 };
 
 } // namespace
@@ -628,6 +722,7 @@ public:
       return false;
     }
     filesystem_->UserContext = core_.get();
+    FspFileSystemSetDebugLog(filesystem_, -1);
 
     // nuke the mountpoint folder's existence if it exists
     // this is a requirement

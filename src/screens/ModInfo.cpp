@@ -129,7 +129,7 @@ public:
 protected:
   void mouseReleaseEvent(QMouseEvent *event) override {
     if (event->button() == Qt::LeftButton) {
-      qDebug() << "balls";
+      
       emit clicked();
     }
 
@@ -240,7 +240,7 @@ public:
       auto* savesList = new QWidget();
       scrollArea->setWidget(savesList);
       connect(this, &SaveSelectDialogContent::resized, this, [this, savesList, scrollArea]() {
-        qDebug() << size();
+        
         scrollArea->setFixedSize(size());
       });
 

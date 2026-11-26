@@ -243,7 +243,7 @@ int main(int argc, char *argv[]) {
   parser.addOption(modOption);
   parser.addHelpOption();
   parser.process(app);
-qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
+
   QSettings qsettings;
 
   QString selectedProfile = parser.value(profileOption).trimmed();
@@ -295,7 +295,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
   //LucideIcons::initializeIcons();
   //
   QAudioDevice defaultDevice = QMediaDevices::defaultAudioOutput();
-  qDebug() << "Default Output Device:" << defaultDevice.description();
+  
 
   initGlobalSfx();
 
@@ -412,7 +412,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
 
   // Handle messages when a user attempts to re-open the app under this profile
   QObject::connect(&app, &ProfileSingleApp::messageReceivedFromSecondary, [&](const QStringList &args) {
-      qDebug() << "Received focus request or arguments from secondary instance:" << args;
+      
       QCommandLineParser secondaryParser;
       secondaryParser.addOption(modOption);
       secondaryParser.process(args);
@@ -446,7 +446,7 @@ qDebug() << "Supported image formats:" << QImageReader::supportedImageFormats();
   return app.exec();
 #ifdef MVC_DEBUG
   } CPPTRACE_CATCH (std::exception& e) {
-    qDebug() << "Exception:" << e.what();
+    
     cpptrace::from_current_exception().print();
   }
 #endif
