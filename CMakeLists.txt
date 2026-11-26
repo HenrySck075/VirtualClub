@@ -167,6 +167,7 @@ endif()
 
 # this thing is for windows 
 #add_compile_definitions(WIN32_LEAN_AND_MEAN)
+add_compile_definitions(NOMINMAX)
 
 file(GLOB_RECURSE RC_FILES CONFIGURE_DEPENDS "resources/*.*")
 
