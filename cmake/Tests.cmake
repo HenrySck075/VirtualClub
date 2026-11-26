@@ -56,6 +56,10 @@ endif()
     ${FUSE_INCLUDE_DIRS}
   )
 
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  target_link_libraries(${PROJECT_NAME}-Tests PRIVATE ${Python_LIBRARIES})
+  target_include_directories(${PROJECT_NAME}-Tests PRIVATE ${Python_INCLUDE_DIRS})
+endif()
   target_link_libraries(VirtualClub-Tests PRIVATE
     ${FUSE_LIBRARIES}
     Qt6::Test Qt6::Widgets Qt6::Network Qt6::Svg Qt6::Multimedia

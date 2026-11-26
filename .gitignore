@@ -8,6 +8,7 @@ build-*/
 [Bb]in/
 [Ll]ib/
 dist/
+dist-*/
 localbsdonotpushtopublic/
 
 # CMake cache and temporary files

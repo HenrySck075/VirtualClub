@@ -70,9 +70,23 @@ function(target_declare_qt_autogen target)
 endfunction()
 
 
-find_package(Python REQUIRED COMPONENTS Interpreter Development)
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  set(MINGW_PREFIX "/usr/x86_64-w64-mingw32")
+  set(MINGW_PY_VER_MAJOR 3)
+  set(MINGW_PY_VER_MINOR 14)
 
-message(STATUS "Python binary path: ${Python_EXECUTABLE}")
+  set(Python_VERSION_MAJOR "${MINGW_PY_VER_MAJOR}")
+  set(Python_VERSION_MINOR "${MINGW_PY_VER_MINOR}")
+  set(Python_INCLUDE_DIRS "${MINGW_PREFIX}/include/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}")
+  set(Python_LIBRARIES "${MINGW_PREFIX}/lib/libpython${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}.dll.a")
+  set(Python_STDLIB "${MINGW_PREFIX}/lib/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}")
+  set(Python_RUNTIME_LIBRARY "${MINGW_PREFIX}/bin/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}.dll")
+
+  set(PYBIND11_NOPYTHON ON CACHE BOOL "" FORCE)
+else()
+  find_package(Python REQUIRED COMPONENTS Interpreter Development)
+  message(STATUS "Python binary path: ${Python_EXECUTABLE}")
+endif()
 
 # Find Qt6 components
 # (also requires ImageFormats plugin for the online mods browser)
@@ -80,6 +94,8 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Svg LinguistTools)
 
 find_package(pybind11 REQUIRED CONFIG)
 find_package(LibArchive REQUIRED)
+
+message(STATUS "Python binary path: ${Python_EXECUTABLE}")
 
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES vi)
 
@@ -105,6 +121,10 @@ qt_add_executable(${PROJECT_NAME}
     #resources.qrc
 )
 
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  target_link_libraries(${PROJECT_NAME} PRIVATE ${Python_LIBRARIES})
+  target_include_directories(${PROJECT_NAME} PRIVATE ${Python_INCLUDE_DIRS})
+endif()
 
 target_declare_qt_autogen(${PROJECT_NAME})
 file(GLOB_RECURSE UPDATER_SOURCES CONFIGURE_DEPENDS "updater_src/*.cpp" "updater_src/*.hpp")
@@ -129,6 +149,7 @@ qt_add_translations(
 if(WIN32 AND MVC_CHANNEL STREQUAL "stable")
   set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
   set_target_properties(VirtualClub-Updater PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
+
 endif()
 
 target_precompile_headers(
@@ -210,7 +231,11 @@ target_link_libraries(
   LibArchive::LibArchive
 )
 if(WIN32)
-  target_link_libraries(${PROJECT_NAME} PRIVATE Advapi32)
+  if(MINGW)
+    target_link_libraries(${PROJECT_NAME} PRIVATE advapi32)
+  else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE Advapi32)
+  endif()
 endif()
 
 set(IS_ANDROID FALSE)
@@ -234,7 +259,9 @@ endif()
 
 if(WIN32)
   # WinFsp configuration
-  if(DEFINED ENV{WINFSP_DIR})
+  if(DEFINED WINFSP_DIR)
+      file(TO_CMAKE_PATH "${WINFSP_DIR}" WINFSP_DIR)
+  elseif(DEFINED ENV{WINFSP_DIR})
       file(TO_CMAKE_PATH "$ENV{WINFSP_DIR}" WINFSP_DIR)
   else()
       set(WINFSP_DIR "C:/Program Files (x86)/WinFsp")
@@ -287,12 +314,29 @@ endif()
 
 # =============== Deployment ================
 # Add deployment script generation for Qt6
-qt_generate_deploy_app_script(
-    TARGET ${PROJECT_NAME}
-    OUTPUT_SCRIPT deploy_script
-    NO_UNSUPPORTED_PLATFORM_ERROR
-    DEPLOY_TOOL_OPTIONS NO_TRANSLATIONS
-)
+if(NOT (CMAKE_CROSSCOMPILING AND MINGW))
+  qt_generate_deploy_app_script(
+      TARGET ${PROJECT_NAME}
+      OUTPUT_SCRIPT deploy_script
+      NO_UNSUPPORTED_PLATFORM_ERROR
+      DEPLOY_TOOL_OPTIONS NO_TRANSLATIONS
+  )
+  install(SCRIPT ${deploy_script})
+else()
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  install(CODE "
+    execute_process(
+      COMMAND \"${Python3_EXECUTABLE}\" \"${CMAKE_SOURCE_DIR}/scripts/mingw-deploy.py\"
+        --target \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${PROJECT_NAME}.exe\"
+        --target \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/VirtualClub-Updater.exe\"
+        --dist-dir \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}\"
+      RESULT_VARIABLE _qt_deploy_rc
+    )
+    if(NOT _qt_deploy_rc EQUAL 0)
+      message(FATAL_ERROR \"deploy_qt6_mingw.py failed with exit code \${_qt_deploy_rc}\")
+    endif()
+  ")
+endif()
 
 if (NOT WIN32)
   set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -318,43 +362,58 @@ endif()
 
 message(STATUS "External libraries will be installed to: ${EXTLIB_INSTALL_DIR}")
 
-install(CODE "
-  file(GET_RUNTIME_DEPENDENCIES
-    EXECUTABLES \"$<TARGET_FILE:${PROJECT_NAME}>\"
-    RESOLVED_DEPENDENCIES_VAR _resolved_deps
-    UNRESOLVED_DEPENDENCIES_VAR _unresolved_deps
-    CONFLICTING_DEPENDENCIES_PREFIX _conflicting_deps
-    PRE_EXCLUDE_REGEXES \"api-ms-\" \"ext-ms-\"
-    POST_EXCLUDE_REGEXES \".*system32/.*\\\\.dll\"
-    DIRECTORIES
-      \"$$<TARGET_FILE_DIR:Qt6::Core>\"
-      \"$$<TARGET_FILE_DIR:Qt6::Multimedia>\"
-      \"$$<TARGET_FILE_DIR:Qt6::Svg>\"
-      \"$$<TARGET_FILE_DIR:LibArchive::LibArchive>\"
-  )
-
-  list(LENGTH _unresolved_deps _unresolved_count)
-  if(_unresolved_count GREATER 0)
-    message(STATUS \"Unresolved runtime dependencies (\${_unresolved_count}):\")
-    foreach(_dep IN LISTS _unresolved_deps)
-      message(STATUS \"  - \${_dep}\")
-    endforeach()
-  else()
-    message(STATUS \"Zero unresolved runtime dependencies.\")
-  endif()
-
-  foreach(_dep IN LISTS _resolved_deps)
-    message(STATUS \"Installing \${_dep}\")
-    file(INSTALL
-      DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${EXTLIB_INSTALL_DIR}\"
-      FOLLOW_SYMLINK_CHAIN
-      FILES \"\${_dep}\"
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  # https://gitlab.kitware.com/cmake/cmake/-/work_items/20753#note_1022693
+  install(CODE "
+    execute_process(
+      COMMAND /usr/bin/python3 ${CMAKE_SOURCE_DIR}/scripts/mingw-depends.py --objdump=/usr/bin/x86_64-w64-mingw32-objdump --pre-exclude-regex \"api-ms-\" --pre-exclude-regex \"ext-ms-\" --post-exclude-regex \"qt6.*\" --post-exclude-regex \".*system32/.*\\\\.dll\" --userlib \"${CMAKE_CURRENT_BINARY_DIR}\" --userlib \"${WINFSP_DIR}/bin\" $<TARGET_FILE:${PROJECT_NAME}>
+      OUTPUT_VARIABLE RUNTIME_DEPS
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      COMMAND_ECHO STDERR
+      COMMAND_ERROR_IS_FATAL ANY
     )
-  endforeach()
-")
+    message(AUTHOR_WARNING \"resolved dependencies: ${RUNTIME_DEPS}\")
+    file(INSTALL DESTINATION \${CMAKE_INSTALL_PREFIX}/bin TYPE EXECUTABLE FILES \${RUNTIME_DEPS})
+    # this is Qt5-specific, obviously
+    file(INSTALL DESTINATION \${CMAKE_INSTALL_PREFIX}/bin/platforms TYPE EXECUTABLE FILES \"/usr/x86_64-w64-mingw32/lib/qt6/plugins/platforms/qwindows.dll\")
+  " COMPONENT foobar)
+else()
+  install(CODE "
+    file(GET_RUNTIME_DEPENDENCIES
+      EXECUTABLES \"$<TARGET_FILE:${PROJECT_NAME}>\"
+      RESOLVED_DEPENDENCIES_VAR _resolved_deps
+      UNRESOLVED_DEPENDENCIES_VAR _unresolved_deps
+      CONFLICTING_DEPENDENCIES_PREFIX _conflicting_deps
+      PRE_EXCLUDE_REGEXES \"api-ms-\" \"ext-ms-\"
+      POST_EXCLUDE_REGEXES \".*system32/.*\\\\.dll\"
+      DIRECTORIES
+        \"$<TARGET_FILE_DIR:Qt6::Core>\"
+        \"$<TARGET_FILE_DIR:Qt6::Multimedia>\"
+        \"$<TARGET_FILE_DIR:Qt6::Svg>\"
+        \"$<TARGET_FILE_DIR:LibArchive::LibArchive>\"
+    )
 
+    list(LENGTH _unresolved_deps _unresolved_count)
+    if(_unresolved_count GREATER 0)
+      message(STATUS \"Unresolved runtime dependencies (\${_unresolved_count}):\")
+      foreach(_dep IN LISTS _unresolved_deps)
+        message(STATUS \"  - \${_dep}\")
+      endforeach()
+    else()
+      message(STATUS \"Zero unresolved runtime dependencies.\")
+    endif()
 
-install(SCRIPT ${deploy_script})
+    foreach(_dep IN LISTS _resolved_deps)
+      message(STATUS \"Installing \${_dep}\")
+      file(INSTALL
+        DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${EXTLIB_INSTALL_DIR}\"
+        FOLLOW_SYMLINK_CHAIN
+        FILES \"\${_dep}\"
+      )
+    endforeach()
+  ")
+endif()
+
 install(DIRECTORY assets DESTINATION .)
 
 if(WIN32)
@@ -411,7 +470,11 @@ endif()
 
 # Define target directory for minimal stdlib
 if(WIN32)
+  if(CMAKE_CROSSCOMPILING AND MINGW)
+    set(PY_STDLIB_DEST "lib")
+  else()
     set(PY_STDLIB_DEST "Lib")
+  endif()
 else()
     set(PY_STDLIB_DEST "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}")
 endif()
@@ -422,7 +485,6 @@ install(
   DIRECTORY "${Python_STDLIB_CMAKE}/"
     DESTINATION "${PY_STDLIB_DEST}"
     USE_SOURCE_PERMISSIONS
-    #TODO: dont do a duplicate here
     PATTERN "__pycache__" EXCLUDE
     PATTERN "site-packages" EXCLUDE
     PATTERN "test" EXCLUDE

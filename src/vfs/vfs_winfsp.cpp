@@ -7,6 +7,7 @@
 #if defined(MVC_VFS_AVAILABLE) && defined(Q_OS_WIN)
 
 #include <windows.h>
+#undef _ReadWriteBarrier
 #include <winfsp/winfsp.h>
 
 #include <algorithm>

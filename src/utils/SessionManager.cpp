@@ -20,9 +20,11 @@
 #include <io.h>
 #include <direct.h>
 
+#ifndef __MINGW32__
 typedef unsigned short mode_t;
 typedef unsigned long pid_t;
 typedef SSIZE_T ssize_t;
+#endif
 #else
 #include <sys/wait.h>
 #include <unistd.h>
