@@ -181,7 +181,8 @@ jobs:
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
 
       - name: Build Project
-        BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'Debug' || 'Release' }}
+        env:
+          BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'Debug' || 'Release' }}
         run: |
           cmake --build build --config ${{ env.BUILD_CONFIG }}
 

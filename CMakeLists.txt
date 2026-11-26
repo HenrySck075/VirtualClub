@@ -71,6 +71,8 @@ endfunction()
 
 
 if(CMAKE_CROSSCOMPILING AND MINGW)
+  find_package(Python REQUIRED COMPONENTS Interpreter)
+
   set(MINGW_PREFIX "/usr/x86_64-w64-mingw32")
   set(MINGW_PY_VER_MAJOR 3)
   set(MINGW_PY_VER_MINOR 14)
@@ -79,7 +81,7 @@ if(CMAKE_CROSSCOMPILING AND MINGW)
   set(Python_VERSION_MINOR "${MINGW_PY_VER_MINOR}")
   set(Python_INCLUDE_DIRS "${MINGW_PREFIX}/include/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}")
   set(Python_LIBRARIES "${MINGW_PREFIX}/lib/libpython${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}.dll.a")
-  set(Python_STDLIB "${MINGW_PREFIX}/lib/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}")
+  set(Python_MINGW_STDLIB "${MINGW_PREFIX}/lib/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}")
   set(Python_RUNTIME_LIBRARY "${MINGW_PREFIX}/bin/python${MINGW_PY_VER_MAJOR}${MINGW_PY_VER_MINOR}.dll")
 
   set(PYBIND11_NOPYTHON ON CACHE BOOL "" FORCE)
@@ -94,8 +96,6 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Svg LinguistTools)
 
 find_package(pybind11 REQUIRED CONFIG)
 find_package(LibArchive REQUIRED)
-
-message(STATUS "Python binary path: ${Python_EXECUTABLE}")
 
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES vi)
 
@@ -354,6 +354,10 @@ install(TARGETS VirtualClub-Updater
     BUNDLE DESTINATION .
 )
 
+if(CMAKE_CROSSCOMPILING AND MINGW)
+  set(CMAKE_INSTALL_BINDIR .)
+endif()
+
 if(WIN32)
   set(EXTLIB_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
 else()
@@ -366,7 +370,7 @@ if(CMAKE_CROSSCOMPILING AND MINGW)
   # https://gitlab.kitware.com/cmake/cmake/-/work_items/20753#note_1022693
   install(CODE "
     execute_process(
-      COMMAND /usr/bin/python3 ${CMAKE_SOURCE_DIR}/scripts/mingw-depends.py --objdump=/usr/bin/x86_64-w64-mingw32-objdump --pre-exclude-regex \"api-ms-\" --pre-exclude-regex \"ext-ms-\" --post-exclude-regex \"qt6.*\" --post-exclude-regex \".*system32/.*\\\\.dll\" --userlib \"${CMAKE_CURRENT_BINARY_DIR}\" --userlib \"${WINFSP_DIR}/bin\" $<TARGET_FILE:${PROJECT_NAME}>
+      COMMAND \"${Python3_EXECUTABLE}\" ${CMAKE_SOURCE_DIR}/scripts/mingw-depends.py --objdump=/usr/bin/x86_64-w64-mingw32-objdump --pre-exclude-regex \"api-ms-\" --pre-exclude-regex \"ext-ms-\" --post-exclude-regex \"qt6.*\" --post-exclude-regex \".*system32/.*\\\\.dll\" --userlib \"${CMAKE_CURRENT_BINARY_DIR}\" --userlib \"${WINFSP_DIR}/bin\" $<TARGET_FILE:${PROJECT_NAME}>
       OUTPUT_VARIABLE RUNTIME_DEPS
       OUTPUT_STRIP_TRAILING_WHITESPACE
       COMMAND_ECHO STDERR
@@ -480,6 +484,7 @@ else()
 endif()
 
 file(TO_CMAKE_PATH "${Python_STDLIB}" Python_STDLIB_CMAKE)
+file(TO_CMAKE_PATH "${Python_MINGW_STDLIB}" Python_MINGW_STDLIB_CMAKE)
 
 install(
   DIRECTORY "${Python_STDLIB_CMAKE}/"
@@ -521,11 +526,22 @@ install(
     PATTERN "turtle.py" EXCLUDE
 )
 
-
+install(
+  DIRECTORY "${Python_MINGW_STDLIB_CMAKE}/"
+    DESTINATION "${PY_STDLIB_DEST}"
+    USE_SOURCE_PERMISSIONS
+)
 # Install C-runtime DLL/SO only, skipping lib-dynload
 if(Python_RUNTIME_LIBRARY)
   file(TO_CMAKE_PATH "${Python_RUNTIME_LIBRARY}" Python_RUNTIME_LIBRARY_CMAKE)
     install(FILES "${Python_RUNTIME_LIBRARY_CMAKE}" DESTINATION ${EXTLIB_INSTALL_DIR})
 endif()
+
+
+# After all installs are done, nuke the potential `include` folder
+install(CODE "
+    file(REMOVE_RECURSE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/include\")
+")
+
 # Test targets and test-specific dependencies are kept outside the main build file.
 include(cmake/Tests.cmake)
