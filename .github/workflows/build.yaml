@@ -70,6 +70,7 @@ jobs:
             libxkbcommon-x11-dev \
             libvulkan-dev \
             libicu-dev \
+            libva-dev \
             libglib2.0-dev \
             libdbus-1-dev \
             libfontconfig1-dev \
@@ -152,6 +153,12 @@ jobs:
           restore-keys: |
             vcpkg-${{ runner.os }}-
 
+      - name: Install CMake 4.4+
+        if: matrix.platform == 'windows'
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: ">=4.4.4"
+
       # Initialize MSVC and Windows SDK environment variables
       - name: Set up MSVC environment
         if: matrix.platform == 'windows'
@@ -170,7 +177,7 @@ jobs:
           VCPKG_ROOT: C:/vcpkg
           BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'Debug' || 'Release' }}
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_CONFIG }} ${{ matrix.platform == 'windows' && format('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="{0}" -DVCPKG_TARGET_TRIPLET=x64-windows-release', env.VCPKG_OVERLAY_TRIPLETS) || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }} ${{ env.NIGHTLY == 'true' && (matrix.platform == 'linux' && '-DCMAKE_C_FLAGS_RELEASE="-O2 -g -DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="-O2 -g -DNDEBUG -ferror-limit=0 -fdiagnostics-show-option" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--build-id"' || '-DCMAKE_C_FLAGS_RELEASE="/O2 /Zi /DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="/O2 /Zi /DNDEBUG -ferror-limit=0" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO"') || '' }}
+          cmake -B build -G Ninja -DCMAKE_CXX_SCAN_FOR_MODULES=OFF -DCMAKE_BUILD_TYPE=${{ env.BUILD_CONFIG }} ${{ matrix.platform == 'windows' && format('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="{0}" -DVCPKG_TARGET_TRIPLET=x64-windows-release', env.VCPKG_OVERLAY_TRIPLETS) || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }} ${{ env.NIGHTLY == 'true' && (matrix.platform == 'linux' && '-DCMAKE_C_FLAGS_RELEASE="-O2 -g -DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="-O2 -g -DNDEBUG -ferror-limit=0 -fdiagnostics-show-option" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--build-id"' || '-DCMAKE_C_FLAGS_RELEASE="/O2 /Zi /DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="/O2 /Zi /DNDEBUG -ferror-limit=0" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO"') || '' }}
 
       - name: Save cache vcpkg (Windows)
         if: matrix.platform == 'windows' && success()

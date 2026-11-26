@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.30)
 project(VirtualClub VERSION 0.1.0 LANGUAGES C CXX)
 
+# who tf uses modules here
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+
 include(GNUInstallDirs)
 if(WIN32)
   # Keep the Windows runtime flat in the package root, alongside the executable.
@@ -183,6 +186,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInf
       GIT_TAG        v1.0.4 # <HASH or TAG>
     )
     FetchContent_MakeAvailable(cpptrace)
+    if(TARGET cpptrace-lib)
+      set_target_properties(cpptrace-lib PROPERTIES CXX_SCAN_FOR_MODULES OFF)
+    endif()
 
 # Needed for shared library builds on windows:  copy cpptrace.dll to the same directory as the
 # executable for your_target
@@ -500,6 +506,8 @@ install(
     DESTINATION "${PY_STDLIB_DEST}"
     USE_SOURCE_PERMISSIONS
     PATTERN "__pycache__" EXCLUDE
+    PATTERN "lib-dynload" EXCLUDE
+    PATTERN "profiling" EXCLUDE
     PATTERN "site-packages" EXCLUDE
     PATTERN "test" EXCLUDE
     PATTERN "unittest" EXCLUDE
@@ -535,11 +543,13 @@ install(
     PATTERN "turtle.py" EXCLUDE
 )
 
-install(
-  DIRECTORY "${Python_MINGW_STDLIB_CMAKE}/"
-    DESTINATION "${PY_STDLIB_DEST}"
-    USE_SOURCE_PERMISSIONS
-)
+if(MINGW)
+  install(
+    DIRECTORY "${Python_MINGW_STDLIB_CMAKE}/"
+      DESTINATION "${PY_STDLIB_DEST}"
+      USE_SOURCE_PERMISSIONS
+  )
+endif()
 # Install C-runtime DLL/SO only, skipping lib-dynload
 if(Python_RUNTIME_LIBRARY)
   file(TO_CMAKE_PATH "${Python_RUNTIME_LIBRARY}" Python_RUNTIME_LIBRARY_CMAKE)
