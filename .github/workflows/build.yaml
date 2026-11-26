@@ -105,7 +105,8 @@ jobs:
             pybind11-dev \
             fuse3 \
             libfuse3-dev \
-            libarchive-dev
+            libarchive-dev \
+            gdb
 
       # Install WinFSP for Windows (required for FUSE support)
       - name: Install WinFSP (Windows)
@@ -192,12 +193,23 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/dist/lib:{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
           QT_PLUGIN_PATH: ${{ matrix.platform == 'linux' && format('{0}/dist/plugins:{0}/qt6/plugins', github.workspace) || '' }}
+          LIBPATH: ${{ matrix.platform == 'windows' && format('{0}/dist;{0}/dist/bin;{1}', github.workspace, env.LIBPATH) || '' }}
         run: |
-          if [ "${{ matrix.platform }}" = "windows" ]; then
-            export PATH="${{ github.workspace }}/dist:/c/Program Files/CMake/bin:$PATH"
-          fi
           command -v ctest
-          ctest --test-dir build --output-on-failure -V
+          if ctest --test-dir build --output-on-failure -V; then
+            exit 0
+          else
+            test_status=$?
+          fi
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            echo "CTest failed; rerunning the test executable under GDB for a backtrace"
+            gdb --batch \
+              -ex "set pagination off" \
+              -ex run \
+              -ex "thread apply all bt full" \
+              --args "$GITHUB_WORKSPACE/build/VirtualClub-Tests" || true
+          fi
+          exit "$test_status"
 
       # Create a separate archive of Linux ELF debug symbols for nightly builds
       - name: Package Debug Symbols (Linux)

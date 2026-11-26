@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utils/macros.h"
 #include "utils/ModIndex.hpp"
 #include <memory>
 #include <QString>
