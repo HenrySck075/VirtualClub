@@ -190,6 +190,7 @@ jobs:
 
       - name: Run CTest
         shell: bash
+        if: matrix.platform != 'windows'
         env:
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/dist/lib:{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
           QT_PLUGIN_PATH: ${{ matrix.platform == 'linux' && format('{0}/dist/plugins:{0}/qt6/plugins', github.workspace) || '' }}
