@@ -92,9 +92,11 @@ if(UNIX AND NOT APPLE AND NOT ANDROID AND
    NOT CMAKE_SYSTEM_NAME STREQUAL "Android" AND
    NOT DEFINED ENV{TERMUX_VERSION} AND
    NOT "$ENV{PREFIX}" MATCHES "com.termux")
+ message(STATUS "Using the Fuse3 implementation")
   list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs.cpp")
   list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_fuse3.cpp")
 elseif(WIN32)
+  message(STATUS "Using the WinFsp implementation")
   list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs.cpp")
   list(APPEND SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_winfsp.cpp")
 endif()
@@ -124,7 +126,7 @@ qt_add_translations(
 )
 
 
-if(WIN32) 
+if(WIN32 AND MVC_CHANNEL STREQUAL "stable")
   set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
   set_target_properties(VirtualClub-Updater PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
 endif()
@@ -233,7 +235,7 @@ endif()
 if(WIN32)
   # WinFsp configuration
   if(DEFINED ENV{WINFSP_DIR})
-      set(WINFSP_DIR "$ENV{WINFSP_DIR}")
+      file(TO_CMAKE_PATH "$ENV{WINFSP_DIR}" WINFSP_DIR)
   else()
       set(WINFSP_DIR "C:/Program Files (x86)/WinFsp")
   endif()

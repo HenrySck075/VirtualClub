@@ -1,6 +1,8 @@
 #include "utils/macros.h"
 #include "vfs.hpp"
 
+#include <QtSystemDetection>
+
 #include <stdexcept>
 
 #if defined(MVC_VFS_AVAILABLE) && defined(Q_OS_LINUX)

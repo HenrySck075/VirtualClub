@@ -532,7 +532,9 @@ private:
   bool bypassWhiteout(const std::string& path) const { return hasPrefix(path, "/lib"); }
 
   fs::path resolve(const std::string& path, bool write = false) const {
-    return resolver_->getPath(path, write);
+    auto resolved = resolver_->getPath(path, write);
+    qDebug() << path << "->" << resolved;
+    return resolved;
   }
 
   Status ensureCopy(const std::string& path) const {

@@ -113,7 +113,27 @@ jobs:
         shell: pwsh
         run: |
           choco install winfsp -y --no-progress
-          echo "WINFSP_DIR=C:/Program Files (x86)/WinFsp" >> $env:GITHUB_ENV
+
+          $winfspDir = "C:\Program Files (x86)\WinFsp"
+          if (-not (Test-Path $winfspDir)) {
+            throw "WinFsp installation directory not found at $winfspDir"
+          }
+
+          "WINFSP_DIR=$winfspDir" >> $env:GITHUB_ENV
+          "$winfspDir\bin" >> $env:GITHUB_PATH
+
+          # Verify driver and launcher service registration
+          sc.exe query WinFsp.Launcher
+          if ($LASTEXITCODE -ne 0) {
+            throw "WinFsp.Launcher service is not registered"
+          }
+
+          # Ensure WinFsp.Launcher is running for service-based mount tests
+          $svc = Get-Service -Name "WinFsp.Launcher" -ErrorAction Stop
+          if ($svc.Status -ne "Running") {
+            Start-Service -Name "WinFsp.Launcher"
+            $svc.WaitForStatus("Running", "00:00:15")
+          }
 
       - name: Create vcpkg directories (Windows)
         if: matrix.platform == 'windows'
@@ -166,6 +186,18 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
         run: cmake --install build --prefix dist
+
+      - name: Run CTest
+        shell: bash
+        env:
+          LD_LIBRARY_PATH: ${{ matrix.platform == 'linux' && format('{0}/dist/lib:{0}/qt6/lib:{1}', github.workspace, env.LD_LIBRARY_PATH) || '' }}
+          QT_PLUGIN_PATH: ${{ matrix.platform == 'linux' && format('{0}/dist/plugins:{0}/qt6/plugins', github.workspace) || '' }}
+        run: |
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            export PATH="${{ github.workspace }}/dist:/c/Program Files/CMake/bin:$PATH"
+          fi
+          command -v ctest
+          ctest --test-dir build --output-on-failure -V
 
       # Create a separate archive of Linux ELF debug symbols for nightly builds
       - name: Package Debug Symbols (Linux)

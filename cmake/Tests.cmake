@@ -39,8 +39,17 @@ if(BUILD_TESTING)
     src/utils/ProfileSingleApp.cpp
     src/utils/RenpyArchive.cpp
     src/vfs/VFSPathResolver.cpp
-    src/vfs/vfs.cpp
+    src/vfs/vfs_core.cpp
   )
+
+if(UNIX AND NOT APPLE AND NOT ANDROID AND
+   NOT CMAKE_SYSTEM_NAME STREQUAL "Android" AND
+   NOT DEFINED ENV{TERMUX_VERSION} AND
+   NOT "$ENV{PREFIX}" MATCHES "com.termux")
+ target_sources(VirtualClub-Tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_fuse3.cpp")
+elseif(WIN32)
+  target_sources(VirtualClub-Tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/vfs/vfs_winfsp.cpp")
+endif()
 
   target_include_directories(VirtualClub-Tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src

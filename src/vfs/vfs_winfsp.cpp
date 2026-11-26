@@ -1,5 +1,7 @@
 #include "utils/macros.h"
 #include "vfs.hpp"
+
+#include <QtSystemDetection>
 #include "vfs_core.hpp"
 
 #if defined(MVC_VFS_AVAILABLE) && defined(Q_OS_WIN)
@@ -592,7 +594,9 @@ class VFSInstance::Private {
 public:
   Private(const QString& launcherRoot, const ModsIndex::Mod& mod)
       : mountpoint_(createMountPoint(QString::fromStdString(mod.id))),
-        core_(vfs::createCore(launcherRoot.toStdString(), mod.id, mod.modPath)) {}
+        core_(vfs::createCore(launcherRoot.toStdString(), mod.id, mod.modPath)) {
+      FspDebugLogSetHandle(GetStdHandle(STD_ERROR_HANDLE));
+        }
 
   ~Private() { unmount(); }
 
