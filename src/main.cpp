@@ -436,6 +436,7 @@ int main(int argc, char *argv[]) {
       QSettings().setValue("lastUsedProfile", selectedProfile);
   });
 
+  int exitcodemethink = 0;
 #ifdef MVC_DEBUG
   CPPTRACE_TRY {
 #endif
@@ -443,7 +444,7 @@ int main(int argc, char *argv[]) {
   // the event loop. Python work acquires/releases the GIL explicitly.
   py::gil_scoped_release gilRelease;
   std::cout << "==== Welcome to VirtualClub " MVC_VERSION " ====" << std::endl;
-  return app.exec();
+  exitcodemethink = app.exec();
 #ifdef MVC_DEBUG
   } CPPTRACE_CATCH (std::exception& e) {
     
@@ -452,4 +453,6 @@ int main(int argc, char *argv[]) {
 #endif
 
   py::finalize_interpreter();
+
+  return exitcodemethink;
 }
