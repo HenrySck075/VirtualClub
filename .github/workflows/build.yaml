@@ -175,7 +175,7 @@ jobs:
           VCPKG_BINARY_SOURCES: ${{ matrix.platform == 'windows' && 'clear;files,C:/vcpkg/archives,readwrite' || '' }}
           VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/vcpkg_triplets
           VCPKG_ROOT: C:/vcpkg
-          BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'Debug' || 'Release' }}
+          BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'RelWithDebInfo' || 'Release' }}
         run: |
           cmake -B build -G Ninja -DCMAKE_CXX_SCAN_FOR_MODULES=OFF -DCMAKE_BUILD_TYPE=${{ env.BUILD_CONFIG }} ${{ matrix.platform == 'windows' && format('-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_OVERLAY_TRIPLETS="{0}" -DVCPKG_TARGET_TRIPLET=x64-windows-release', env.VCPKG_OVERLAY_TRIPLETS) || '' }} ${{ env.NIGHTLY == 'true' && format('-DMVC_VERSION="nightly-{0}" -DMVC_CHANNEL=nightly -DMVC_BUILD_ID="{0}"', github.sha) || '-DMVC_CHANNEL=stable' }} ${{ env.NIGHTLY == 'true' && (matrix.platform == 'linux' && '-DCMAKE_C_FLAGS_RELEASE="-O2 -g -DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="-O2 -g -DNDEBUG -ferror-limit=0 -fdiagnostics-show-option" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="-Wl,--build-id"' || '-DCMAKE_C_FLAGS_RELEASE="/O2 /Zi /DNDEBUG" -DCMAKE_CXX_FLAGS_RELEASE="/O2 /Zi /DNDEBUG -ferror-limit=0" -DCMAKE_EXE_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO" -DCMAKE_SHARED_LINKER_FLAGS_RELEASE="/DEBUG /INCREMENTAL:NO"') || '' }}
 
@@ -189,7 +189,7 @@ jobs:
 
       - name: Build Project
         env:
-          BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'Debug' || 'Release' }}
+          BUILD_CONFIG: ${{ env.NIGHTLY == 'true' && 'RelWithDebInfo' || 'Release' }}
         run: |
           cmake --build build --config ${{ env.BUILD_CONFIG }}
 

@@ -557,6 +557,8 @@ if(Python_RUNTIME_LIBRARY)
     install(FILES "${Python_RUNTIME_LIBRARY_CMAKE}" DESTINATION ${EXTLIB_INSTALL_DIR})
 endif()
 
+install(FILES "${LibArchive_LIBRARIES}" DESTINATION ${EXTLIB_INSTALL_DIR})
+
 
 # After all installs are done, nuke the potential `include` folder
 install(CODE "
