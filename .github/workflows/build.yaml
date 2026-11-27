@@ -322,6 +322,12 @@ jobs:
           pattern: build-artifact-*
           merge-multiple: true
 
+      - name: Download Debug Symbols
+        uses: actions/download-artifact@v4
+        with:
+          pattern: debug-symbols-*
+          merge-multiple: true
+
       - name: Create Release (Nightly)
         uses: andelf/nightly-release@main
         if: env.NIGHTLY == 'true' 

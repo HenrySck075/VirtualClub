@@ -643,7 +643,6 @@ NTSTATUS getDirInfoByName(FSP_FILE_SYSTEM* filesystem, PVOID fileContext,
   if (infoSize > (std::numeric_limits<UINT16>::max)())
     return STATUS_OBJECT_NAME_INVALID;
 
-  std::memset(dirInfo, 0, infoSize);
   dirInfo->Size = static_cast<UINT16>(infoSize);
   makeFileInfo(metadata, dirInfo->FileInfo);
   std::memcpy(dirInfo->FileNameBuf, name.data(), nameBytes);
@@ -710,6 +709,7 @@ public:
     volumeParams.UnicodeOnDisk = 1;
     volumeParams.PersistentAcls = 0;
     volumeParams.PassQueryDirectoryPattern = 0;
+    volumeParams.UmFileContextIsUserContext2 = 1;
     wcscpy_s(volumeParams.FileSystemName,
              sizeof(volumeParams.FileSystemName) / sizeof(WCHAR), L"VirtualClub");
 
